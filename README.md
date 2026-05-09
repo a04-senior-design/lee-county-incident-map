@@ -2,6 +2,7 @@
 
 An interactive map of recent police incidents in Lee County, FL, powered by the Lee County Sheriff's Office public API. Incidents are geocoded and plotted on a live map with filters for date range and incident type.
 
+**Live site:** [leecountyincidentmap.com](https://leecountyincidentmap.com)  
 **Live data source:** [Lee County Sheriff's Office](https://www.sheriffleefl.org)
 
 ---
