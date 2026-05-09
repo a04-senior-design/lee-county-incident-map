@@ -77,8 +77,8 @@
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     return incidents.filter((inc) => {
       if (!inc.occuredDate) return false;
-      // Normalize space-separated dates to ISO 8601 (required by Safari)
-      const normalized = inc.occuredDate.replace(" ", "T");
+      // Normalize to ISO 8601 for Safari: replace space, truncate to 3 decimal places
+      const normalized = inc.occuredDate.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
       return new Date(normalized).getTime() >= cutoff;
     });
   }
