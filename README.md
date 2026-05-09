@@ -1,4 +1,4 @@
-# Fort Myers Crime Map
+# Lee County Incident Map
 
 An interactive map of recent police incidents in Lee County, FL, powered by the Lee County Sheriff's Office public API. Incidents are geocoded and plotted on a live map with filters for date range and incident type.
 
@@ -21,7 +21,7 @@ An interactive map of recent police incidents in Lee County, FL, powered by the 
 ## Project Structure
 
 ```
-fort-myers-crime-map/
+lee-county-incident-map/
 ├── backend/
 │   ├── app.py              # Flask application entry point
 │   ├── cache.py            # In-memory cache (1-hour TTL, thread-safe)
@@ -51,8 +51,8 @@ fort-myers-crime-map/
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/AndrewKelton/fort-myers-crime-map.git
-cd fort-myers-crime-map
+git clone https://github.com/AndrewKelton/lee-county-incident-map.git
+cd lee-county-incident-map
 ```
 
 ### 2. Configure environment
