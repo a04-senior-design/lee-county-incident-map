@@ -1,0 +1,83 @@
+@startuml clustering-feature-activity
+title Clustering Feature — Activity Diagram
+
+skinparam defaultFontSize 12
+skinparam activity {
+  BackgroundColor #D6E8F7
+  BorderColor #2F6FA3
+  ArrowColor #333333
+  DiamondBackgroundColor #FFFFFF
+  DiamondBorderColor #E5399B
+  StartColor #000000
+  EndColor #000000
+}
+skinparam partition {
+  BackgroundColor #FBF3C8
+  BorderColor #C9B94A
+}
+
+start
+
+:User opens the Clustering Feature
+(Cluster Lab);
+
+:System automatically requests
+all three clustering levels at once
+(GET /api/clusters/multi),
+one default density preset per level;
+
+fork
+  :System renders District
+  cluster layer
+  (polygons + points, macro);
+fork again
+  :System renders Neighborhood
+  cluster layer
+  (polygons + points, meso);
+fork again
+  :System renders Street
+  cluster layer
+  (polygons + points, micro);
+end fork
+
+:System displays combined
+legend & per-level stats;
+
+partition "User can exit Clustering feature" #FBF3C8 {
+  :For any of the three levels,
+  independently and repeatedly,
+  User acts on that level;
+
+  fork
+    :User toggles that level's
+    visibility on/off;
+
+    if ("Level turned ON with\nno cached data for it yet?") then ([Yes])
+      :System fetches that level
+      (GET /api/clusters?level=...)
+      and renders it;
+    else ([No])
+      :System shows/hides the
+      already-loaded layer
+      for that level;
+    endif
+  fork again
+    :User drags that level's
+    density slider
+    (Sparse ↔ Dense);
+
+    :System debounces (400ms), then
+    re-fetches that level with the
+    new eps / min_pts
+    (GET /api/clusters?level=...)
+    and re-renders it;
+  end fork
+
+  :System updates that level's
+  cluster / noise / total stats
+  and rebuilds the legend;
+}
+
+stop
+
+@enduml

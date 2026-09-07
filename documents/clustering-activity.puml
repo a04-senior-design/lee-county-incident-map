@@ -1,0 +1,62 @@
+@startuml clustering-activity
+title DBSCAN Clustering Engine — Activity Diagram
+
+skinparam activity {
+  BackgroundColor #F4F6F8
+  BorderColor #457B9D
+  ArrowColor #457B9D
+  DiamondBackgroundColor #F4A261
+  DiamondBorderColor #457B9D
+}
+
+start
+
+:load_csv_incidents()
+— load CSV via pandas,
+drop rows missing lat/lon;
+
+:run_clusters(incidents, eps, min_pts, cluster_color);
+
+:Filter incidents with
+non-null lat & lng;
+
+if (any mappable incidents?) then (no)
+  :Return empty FeatureCollection
+  (n_clusters=0, n_noise=0, n_total=0);
+  stop
+else (yes)
+endif
+
+:Project WGS84 (EPSG:4269)
+coordinates to
+State Plane FL West (EPSG:2882);
+
+:Run sklearn DBSCAN
+(eps, min_samples=min_pts);
+
+:Assign cluster labels
+(-1 = noise);
+
+:Collect noise points
+(label == -1);
+
+fork
+  :Build polygon features
+  (one buffered/union polygon
+  per cluster, reprojected to WGS84);
+fork again
+  :Build point features
+  (per incident: color = noise gray
+  if label == -1, else cluster_color
+  or palette[label % N]);
+end fork
+
+:Assemble GeoJSON FeatureCollection
+(polygon_features + point_features)
+with metadata
+(n_clusters, n_noise, n_total, eps, min_pts)
+and noise_points;
+
+stop
+
+@enduml

@@ -143,3 +143,70 @@ flowchart TD
 
     HOT & COLD & BASE & D1 & D2 & D3 --> MERGE
 ```
+
+## DBSCAN Feature — Use Case Diagram
+
+Mermaid has no native UML use-case shape, so actors are drawn as stick-figure nodes and use cases as stadium-shaped nodes inside the system boundary. `<<include>>` edges are mandatory sub-steps; `<<extend>>` edges are optional/conditional behavior.
+
+```mermaid
+flowchart LR
+    Viewer(("🧍
+    Map Viewer"))
+    Prototyper(("🧑‍💻
+    ML Prototyper"))
+
+    subgraph SYS["DBSCAN Clustering Feature — Cluster Lab"]
+        UC1(["View Clustered
+        Incident Map"])
+        UC2(["Toggle Cluster
+        Level Visibility"])
+        UC3(["Adjust Cluster
+        Density (slider)"])
+        UC4(["View Cluster
+        Statistics"])
+        UC5(["Request Cluster Data
+        (/api/clusters, /api/clusters/multi)"])
+        UC6(["Load Incident Data
+        (CSV / cache)"])
+        UC7(["Run DBSCAN
+        Clustering"])
+        UC8(["Project Coordinates
+        WGS84 → EPSG:2882"])
+        UC9(["Generate Cluster
+        Hull Polygons"])
+        UC10(["Prototype DBSCAN
+        Parameters Offline"])
+        UC11(["Render Snapshot &
+        Animation Outputs"])
+    end
+
+    Viewer --> UC1
+    Viewer --> UC2
+    Viewer --> UC3
+    Viewer --> UC4
+    Prototyper --> UC10
+
+    UC1 -. "&laquo;include&raquo;" .-> UC5
+    UC3 -. "&laquo;include&raquo;" .-> UC5
+    UC4 -. "&laquo;extend&raquo;" .-> UC1
+    UC2 -. "&laquo;extend&raquo;" .-> UC1
+
+    UC5 -. "&laquo;include&raquo;" .-> UC6
+    UC5 -. "&laquo;include&raquo;" .-> UC7
+    UC7 -. "&laquo;include&raquo;" .-> UC8
+    UC7 -. "&laquo;include&raquo;" .-> UC9
+
+    UC10 -. "&laquo;include&raquo;" .-> UC7
+    UC10 -. "&laquo;include&raquo;" .-> UC11
+```
+
+**Actors**
+- **Map Viewer** — end user of the [cluster-lab.html](../frontend/cluster-lab.html) page; toggles the district/neighborhood/street layers and drags the sparse↔dense sliders.
+- **ML Prototyper** — developer running [dbscan_demo.py](../backend/ml/dbscan_demo.py) offline to tune `EPS`/`MIN_SAMPLES` before wiring new behavior into the live feature.
+
+**Use cases**
+- *View Clustered Incident Map* / *Toggle Cluster Level Visibility* / *Adjust Cluster Density* / *View Cluster Statistics* — client-side interactions in [cluster-lab.html](../frontend/cluster-lab.html).
+- *Request Cluster Data* — Flask routes `/api/clusters` and `/api/clusters/multi` in [app.py](../backend/app.py).
+- *Load Incident Data*, *Run DBSCAN Clustering*, *Project Coordinates*, *Generate Cluster Hull Polygons* — served by `load_csv_incidents()` / `run_clusters()` in [clustering.py](../backend/ml/clustering.py).
+- *Prototype DBSCAN Parameters Offline* / *Render Snapshot & Animation Outputs* — standalone exploration in [dbscan_demo.py](../backend/ml/dbscan_demo.py), decoupled from the live API.
+```

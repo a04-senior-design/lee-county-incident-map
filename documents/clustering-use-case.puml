@@ -1,0 +1,54 @@
+@startuml clustering-use-case
+title Clustering Feature — Use Case Diagram
+
+top to bottom direction
+skinparam packageStyle rect
+skinparam usecase {
+  BackgroundColor #F4F6F8
+  BorderColor #457B9D
+  ArrowColor #457B9D
+}
+
+actor "Analyst\n(Map User)" as Analyst
+
+rectangle "Clustering Feature (Cluster Lab)" {
+  usecase "View Incident Clusters\non Map" as UC_View
+  usecase "Adjust Cluster Density\n(Sparse ↔ Dense slider)" as UC_Adjust
+  usecase "Toggle Cluster Level\n(Street / Neighborhood / District)" as UC_Toggle
+  usecase "View Cluster Legend\n& Statistics" as UC_Stats
+  usecase "Inspect Cluster Details\n(popup: id, point count)" as UC_Inspect
+
+  usecase "Fetch Single-Level\nClusters (/api/clusters)" as UC_FetchSingle
+  usecase "Fetch All Cluster Levels\n(/api/clusters/multi)" as UC_FetchMulti
+  usecase "Run DBSCAN Clustering" as UC_DBSCAN
+  usecase "Project Coordinates\n(WGS84 ⇄ State Plane)" as UC_Project
+  usecase "Build Cluster Polygons\n& Noise Points" as UC_BuildGeoJSON
+  usecase "Load Incident Data" as UC_LoadData
+}
+
+actor "Incident Data Store\n(CSV / Cache)" as DataStore
+
+Analyst --> UC_View
+Analyst --> UC_Adjust
+Analyst --> UC_Toggle
+Analyst --> UC_Stats
+Analyst --> UC_Inspect
+
+UC_Adjust ..> UC_FetchSingle : <<include>>
+UC_Toggle ..> UC_FetchMulti : <<include>>
+UC_View ..> UC_FetchMulti : <<include>>
+
+UC_FetchSingle ..> UC_LoadData : <<include>>
+UC_FetchSingle ..> UC_DBSCAN : <<include>>
+UC_FetchMulti ..> UC_LoadData : <<include>>
+UC_FetchMulti ..> UC_DBSCAN : <<include>>
+
+UC_DBSCAN ..> UC_Project : <<include>>
+UC_DBSCAN ..> UC_BuildGeoJSON : <<include>>
+
+UC_Inspect ..> UC_BuildGeoJSON : <<extend>>
+UC_Stats ..> UC_BuildGeoJSON : <<extend>>
+
+UC_LoadData --> DataStore
+
+@enduml
