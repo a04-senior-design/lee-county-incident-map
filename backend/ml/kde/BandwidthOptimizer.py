@@ -9,10 +9,10 @@ Note: The current implementation supports optimization for a single cluster
 level only; multi-cluster support is not yet implemented.
 """
 
+from KDEHeatMap import KDEHeatMap
 import numpy as np
 from scipy.optimize import minimize
 from scipy.interpolate import RegularGridInterpolator
-from KDEpy import FFTKDE
 
 class BandwidthOptimizer:
 
@@ -25,6 +25,10 @@ class BandwidthOptimizer:
 
         self.points = points
         self.cluster_levels = cluster_levels
+        self.x_min_lattice = x_min
+        self.y_min_lattice = y_min
+        self.x_max_lattice = x_max
+        self.y_max_lattice = y_max
         self.increment_lattice = increment
         self.x_coords = np.arange(x_min, x_max + increment, increment)
         self.y_coords = np.arange(y_min, y_max + increment, increment)  
@@ -77,12 +81,10 @@ class BandwidthOptimizer:
             N = len(self.points_per_cluster[0])
             bw_per_point = np.full(N, bandwidth1)
 
-            xx, yy = np.meshgrid(self.x_coords, self.y_coords, indexing='ij')
-            grid = np.column_stack([xx.ravel(), yy.ravel()])
-
             # density of the grid
-            f_grid = FFTKDE(kernel='gaussian', bw=bandwidth1).fit(self.points_per_cluster[0]).evaluate(grid)
-            f_grid_2d = f_grid.reshape(self.x_coords.shape[0], self.y_coords.shape[0])
+# NOTE THAT THE BANDWIDTHS ARGUMENT IS SPECIFIC FOR 1 BANDWIDTH, THIS WILL NEED TO BE UPDATED
+            kde_obj = KDEHeatMap(points=self.points, cluster_levels=self.cluster_levels, bandwidths=[bandwidth1], x_min=self.x_min_lattice, y_min=self.y_min_lattice, x_max=self.x_max_lattice, y_max=self.y_max_lattice, increment=self.increment_lattice)
+            f_grid_2d = kde_obj.density_surface
 
             # interpolate density surface at input data points
             interpolator = RegularGridInterpolator(
