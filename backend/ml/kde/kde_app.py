@@ -85,12 +85,8 @@ p_bandwidth = optimized_bandwidths / increment
 print(f'p_bandwidth = {p_bandwidth} corresponds to error tolerance of {100 * (1 - np.exp(-1 / (p_bandwidth**2)))} percent')
 
 
-# instantiate a KDE object
+# instantiate a KDEHeatMap object
 kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=optimized_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment)
-# fit the KDE model
-kde_obj.fit_kde_model() 
-# evaluate the KDE model
-kde_obj.evaluate_kde_model()
 # generate the heat map overlay PNG image file
 bounds = kde_obj.generate_heatmap_image()
 print(f'bounds = {bounds}')
