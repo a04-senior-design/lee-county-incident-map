@@ -37,6 +37,14 @@ def load_csv_incidents() -> list:
     return df[["lat", "lon"]].rename(columns={"lon": "lng"}).to_dict(orient="records")
 
 
+def load_csv_incidents_with_time() -> list:
+    """Load incidents from the late-paper CSV including 'occurred_at' (a
+    tz-aware pandas.Timestamp), for time-windowed clustering — see
+    ml/generate_dbscan_snapshots.py."""
+    df = pd.read_csv(_CSV_PATH, parse_dates=["occurred_at"]).dropna(subset=["lat", "lon", "occurred_at"])
+    return df[["lat", "lon", "occurred_at"]].rename(columns={"lon": "lng"}).to_dict(orient="records")
+
+
 def run_clusters(incidents: list, eps: float, min_pts: int, cluster_color: str = None) -> dict:
     """
     Run DBSCAN on geocoded incidents and return a GeoJSON FeatureCollection.
