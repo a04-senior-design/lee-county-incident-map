@@ -6,16 +6,8 @@ info:
   description: |
     Read-only access to Lee County public safety incidents.
 
-    Three data rules are applied by every endpoint, so callers never handle them:
-
-    - The same incident is reported by both the Sheriff feed and the
-      CommunityCrimeMap import for about 21,000 records. Only the Sheriff copy
-      is returned.
-    - Where the Sheriff's coordinates are missing, untrusted or outside the
-      county, CommunityCrimeMap's coordinates are used instead. A trusted
-      Sheriff pin is never replaced.
-    - Raw `nature` text is mapped to a stable `category` code. Unmapped values
-      read as `OTHER`.
+    Raw `nature` text is mapped to a stable `category` code by every endpoint,
+    so callers never handle it. Unmapped values read as `OTHER`.
 
 servers:
   - url: http://localhost:5001
@@ -81,15 +73,14 @@ paths:
       summary: One incident
       description: |
         Both path segments are needed: `source_incident_id` alone is not unique
-        across sources. Returns 404 for a CommunityCrimeMap record that is a
-        duplicate of a Sheriff record, matching what the list returns.
+        across sources.
       parameters:
         - name: source
           in: path
           required: true
           schema:
             type: string
-            enum: [lee_county, lee_county_traffic, community_crime_map]
+            enum: [lee_county, lee_county_traffic]
         - name: source_incident_id
           in: path
           required: true
@@ -398,7 +389,7 @@ components:
       properties:
         source:
           type: string
-          enum: [lee_county, lee_county_traffic, community_crime_map]
+          enum: [lee_county, lee_county_traffic]
         source_incident_id: { type: string, example: "25-001" }
         occurred_at: { type: string, format: date-time }
         nature:
@@ -484,8 +475,8 @@ components:
           type: array
           description: |
             Local hour 0 to 23. Incidents recorded at exactly midnight are left
-            out, because the CommunityCrimeMap import uses midnight to mean
-            "time not recorded" and including them invents a spike.
+            out, because that timestamp means "time not recorded" rather than an
+            incident at midnight.
           items:
             type: object
             properties:

@@ -19,13 +19,12 @@ def test_a_category_with_no_incidents_still_appears(client):
     assert by_code(client)["DEATH"]["incident_count"] == 0
 
 
-def test_counts_exclude_ccm_duplicates(client):
-    from conftest import CCM, ROWS
+def test_counts_match_the_seeded_rows(client):
+    from conftest import ROWS
 
     assault = [r for r in ROWS if r[3] == "ASSAULT"]
-    duplicated = [r for r in assault if r[0] == CCM]
-    assert len(assault) == 9 and len(duplicated) == 2
-    assert by_code(client)["VIOLENT"]["incident_count"] == len(assault) - len(duplicated)
+    assert len(assault) == 7, "the fixture changed shape, check what this test still proves"
+    assert by_code(client)["VIOLENT"]["incident_count"] == len(assault)
 
 
 def test_an_unmapped_nature_counts_as_other(client):

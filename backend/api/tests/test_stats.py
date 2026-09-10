@@ -13,10 +13,10 @@ def test_total_matches_the_incident_list(client):
     assert stats(client)["total"] == len(listed)
 
 
-def test_totals_exclude_ccm_duplicates(client):
+def test_the_total_counts_every_seeded_row(client):
     from conftest import ROWS
 
-    assert stats(client)["total"] < len(ROWS)
+    assert stats(client)["total"] == len(ROWS)
 
 
 def test_category_breakdown_sums_to_the_total(client):
@@ -63,7 +63,7 @@ def test_hours_exclude_exact_midnight(client, seeded):
         conn.execute("""
             INSERT INTO incidents (source, source_incident_id, occurred_at, fetched_at,
                                    last_changed, nature, raw)
-            VALUES ('community_crime_map', 'midnight', '2026-06-20 04:00:00+00', now(), now(),
+            VALUES ('lee_county', 'midnight', '2026-06-20 04:00:00+00', now(), now(),
                     'NOT A REAL NATURE', '{}'::jsonb)
         """)
     body = stats(client, "category=OTHER")

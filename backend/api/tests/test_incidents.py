@@ -14,30 +14,14 @@ def one(incidents, source_incident_id):
     return matches[0]
 
 
-def test_a_ccm_duplicate_is_dropped(client):
-    found = get(client)
-    assert ("community_crime_map", "25-001") not in ids(found)
-    assert ("lee_county", "25-001") in ids(found)
-
-
-def test_a_ccm_only_incident_is_kept(client):
-    assert ("community_crime_map", "25-002") in ids(get(client))
-
-
-def test_ccm_coordinates_rescue_a_row_with_no_pin(client):
-    row = one(get(client), "25-003")
-    assert row["source"] == "lee_county"
-    assert (row["lat"], row["lon"]) == (26.70, -81.90)
-
-
-def test_ccm_coordinates_replace_an_untrusted_pin(client):
-    row = one(get(client), "25-004")
-    assert (row["lat"], row["lon"]) == (26.44, -81.81)
-
-
-def test_a_trusted_pin_is_not_replaced_by_ccm(client):
+def test_an_incident_carries_its_own_coordinates(client):
     row = one(get(client), "25-005")
     assert (row["lat"], row["lon"]) == (26.45, -82.02)
+
+
+def test_an_incident_with_no_coordinates_reads_as_null(client):
+    row = one(get(client), "25-011")
+    assert (row["lat"], row["lon"]) == (None, None)
 
 
 def test_an_unmapped_nature_reads_as_other(client):
@@ -76,8 +60,14 @@ def test_mapped_only_excludes_an_out_of_county_pin(client):
     assert "25-007" not in {i["source_incident_id"] for i in get(client, "mapped=true")}
 
 
-def test_mapped_only_keeps_a_row_rescued_by_ccm(client):
-    assert "25-003" in {i["source_incident_id"] for i in get(client, "mapped=true")}
+def test_mapped_only_excludes_an_untrusted_pin(client):
+    mapped = {i["source_incident_id"] for i in get(client, "mapped=true")}
+    assert "25-004" in {i["source_incident_id"] for i in get(client)}
+    assert "25-004" not in mapped
+
+
+def test_mapped_only_excludes_a_row_with_no_coordinates(client):
+    assert "25-011" not in {i["source_incident_id"] for i in get(client, "mapped=true")}
 
 
 def test_bbox_filter(client):

@@ -4,6 +4,8 @@ Revision ID: 0012
 Revises: 0011
 Create Date: 2026-07-14
 
+Undone by 0015. Kept in the chain because it already ran on production.
+
 CCM has no city field. The city is parsed out of a single Address string, and that
 string is dirty in ways the Sheriff feed is not. Migration 0008 already covers the
 spellings both sources share (NORTH FORT MYER, FORT MYERS BEAC, ST JAMES CITY,

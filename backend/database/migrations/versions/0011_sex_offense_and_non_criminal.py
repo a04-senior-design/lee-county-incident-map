@@ -4,6 +4,9 @@ Revision ID: 0011
 Revises: 0010
 Create Date: 2026-07-14
 
+Partly undone by 0015. The import this was written for is gone, so NON_CRIMINAL goes
+with it. SEX_OFFENSE stays, because INDECENT EXPOSURE belongs there either way.
+
 The CommunityCrimeMap import brings crime types the Sheriff's public feed does not
 publish at all: 2,671 sexual offences, plus arson, DUI and weapons violations. It
 also carries about 28k rows that are not crimes (welfare checks, alarms, found

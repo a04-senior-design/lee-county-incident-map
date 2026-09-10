@@ -52,17 +52,6 @@ def test_a_row_without_coordinates_gets_null_geometry(client):
     assert all(f["properties"]["source_incident_id"] for f in unlocated)
 
 
-def test_the_ccm_rescue_pin_is_used(client):
-    lon, lat = feature(get(client), "25-003")["geometry"]["coordinates"]
-    assert (lon, lat) == (-81.90, 26.70)
-
-
-def test_duplicates_are_dropped_here_too(client):
-    ids = [f["id"] for f in get(client)["features"]]
-    assert "community_crime_map:25-001" not in ids
-    assert "lee_county:25-001" in ids
-
-
 def test_filters_still_apply(client):
     body = get(client, "category=BURGLARY")
     assert {f["properties"]["source_incident_id"] for f in body["features"]} == {"25-003"}
