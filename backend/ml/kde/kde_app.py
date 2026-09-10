@@ -78,11 +78,25 @@ increment = 300
 print(f'increment = {increment}')
 
 # find optimized bandwidth
-optimized_bandwidths = BandwidthOptimizer(data_points_with_noise, dbscan_cluster_levels, x_min, y_min, x_max, y_max, increment).optimize_bandwidths()
+bandwidth_optimizer_obj = BandwidthOptimizer(data_points_with_noise, dbscan_cluster_levels, x_min, y_min, x_max, y_max, increment)
+optimized_bandwidths = bandwidth_optimizer_obj.optimize_bandwidths()
+print(f'num_bandwidths from optimizer object = {bandwidth_optimizer_obj.num_bandwidths}')
 print(f'optimized_bandwidths = {optimized_bandwidths}')
 
 p_bandwidth = optimized_bandwidths / increment
 print(f'p_bandwidth = {p_bandwidth} corresponds to error tolerance of {100 * (1 - np.exp(-1 / (p_bandwidth**2)))} percent')
+
+
+# use brute-force optimizer to check optimized_bandwidth
+brute_force_bandwidths = bandwidth_optimizer_obj.brute_force_optimizer(increment=100, max_allowable_bandwidth=10000)
+#print(f'brute_force_bandwidths = {brute_force_bandwidths}')
+sorted_NLLs = sorted(brute_force_bandwidths, key=lambda p : p[1])
+num_of_lowest_brute_force_values = 3
+NLLs_lowest = sorted_NLLs[:num_of_lowest_brute_force_values]
+bandwidths_lowest = [p[0] for p in sorted_NLLs[:num_of_lowest_brute_force_values]]
+print(f'NLLs {num_of_lowest_brute_force_values} '
+        f'lowest values: {[[bw, float(nll)] for bw, nll in NLLs_lowest]}')
+print(f'bandwidths for the {num_of_lowest_brute_force_values} lowest NLLs: {bandwidths_lowest}')
 
 
 # instantiate a KDEHeatMap object

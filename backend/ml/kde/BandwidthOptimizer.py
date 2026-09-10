@@ -70,14 +70,20 @@ class BandwidthOptimizer:
         """peak value of 2D gaussian distribution for bandwidth input"""
         return 1.0 / (2 * np.pi * bandwidth**2)
 
-    # CURRENTLY DEVELOPED ONLY FOR A SINGLE CLUSTER LEVEL ASSIGNMENT
     def _loo_neg_log_likelihood(self, cur_bw_log_diffs: list[np.ndarray]):
-        """objective function for negative log-likelihood of leave-one-out cross-validation for FFTKDE class;
-        input is cur_bw_log_diffs = array of log bandwidth differences
-        output is negative log-likelihood for current bandwidths"""
+        """objective function for the optimizer; input is in log-diff space."""
+        bandwidths = self._unpack_bandwidths(cur_bw_log_diffs)
+        return self._loo_neg_log_likelihood_from_bandwidths(bandwidths)
+
+
+    # CURRENTLY DEVELOPED ONLY FOR A SINGLE CLUSTER LEVEL ASSIGNMENT
+    def _loo_neg_log_likelihood_from_bandwidths(self, bandwidths: list[np.ndarray]):
+        """objective function for negative log-likelihood of leave-one-out cross-validation;
+        input is ACTUAL bandwidth values (not log-diffs)
+        output is negative log-likelihood for input bandwidths"""
 
         try:
-            bandwidth1 = self._unpack_bandwidths(cur_bw_log_diffs)[0]
+            bandwidth1 = bandwidths[0]
             N = len(self.points_per_cluster[0])
             bw_per_point = np.full(N, bandwidth1)
 
@@ -94,7 +100,6 @@ class BandwidthOptimizer:
 
             # represents the gaussian corresponding to each data point
             self_term = self._gaussian_peak_2d(bw_per_point) / N
-
             # leave-one-out density
             f_loo = (N * f_at_points - N * self_term) / (N - 1)
             # set values < 1e-300 to 1e-300 (namely to guard against log(0)
@@ -121,5 +126,37 @@ class BandwidthOptimizer:
         print("best bandwidth:", self._unpack_bandwidths(self.best_result.x))
 
         return self._unpack_bandwidths(self.best_result.x)
+
+    def brute_force_optimizer(self, increment, max_allowable_bandwidth):
+        """used for testing - function scans through a range of possible bandwidths, starting at the lower bound, given an increment and maximum bandwidth"""
+        if increment <= 0:
+            raise ValueError(f'increment should be > 0 but it is currently {increment}')
+        if max_allowable_bandwidth <= self.lower_bound:
+            raise ValueError(f'maximum allowable bandwidth should be greater than the lower bound of {self.lower_bound}')
+        return self._brute_force_optimizer_helper([self.lower_bound], self.num_bandwidths - 1, increment, max_allowable_bandwidth)
+
+    def _brute_force_optimizer_helper(self, bandwidths, n_bandwidths_remaining, increment, max_allowable_bandwidth):
+        """function is a helper for the function brute_force_optimizer.  it returns a list of [[bandwidths], NLL value]"""
+        res = []
+        h_last = bandwidths[-1]
+
+        if h_last > max_allowable_bandwidth:
+            return []
+
+        if n_bandwidths_remaining == 0:
+            res.append([bandwidths.copy(), self._loo_neg_log_likelihood_from_bandwidths(bandwidths)])
+
+        if n_bandwidths_remaining > 0:
+            bandwidths.append(h_last + increment)
+            res += self._brute_force_optimizer_helper(bandwidths, n_bandwidths_remaining - 1, increment, max_allowable_bandwidth)    
+            bandwidths.pop()
+        
+        bandwidths[-1] += increment
+        res += self._brute_force_optimizer_helper(bandwidths, n_bandwidths_remaining, increment, max_allowable_bandwidth)
+        bandwidths[-1] -= increment
+
+        return res
+
+
 
 
