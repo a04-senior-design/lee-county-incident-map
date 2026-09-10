@@ -29,6 +29,9 @@ every client's cache for nothing.
 Separate triggers for insert and update because Postgres will not accept a
 transition table on a trigger with more than one event. There is no delete trigger:
 nothing deletes incidents.
+
+That last sentence stopped being true in 0015, which deletes a whole source. It bumps
+the revision itself. Anything else that deletes incidents has to do the same.
 """
 
 from typing import Sequence, Union

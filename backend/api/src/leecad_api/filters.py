@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 EASTERN = ZoneInfo("America/New_York")
 
-SOURCES = ("lee_county", "lee_county_traffic", "community_crime_map")
+SOURCES = ("lee_county", "lee_county_traffic")
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 500
 MAX_DAYS = 3660

@@ -48,8 +48,6 @@ docker run --rm -p 8080:8080 -e SWAGGER_JSON=/spec/openapi.yaml \
 ## Things to note
 
 - Filter on `category`, not `nature`. Raw nature has 519 values with typos and near duplicates.
-- Duplicate incidents are hidden. ~21k appear in both the Sheriff feed and the CCM import.
-- Bad geocodes are repaired from CCM, but a trusted Sheriff pin is never replaced.
 - GeoJSON coordinates are `[lon, lat]`.
-- `by_hour` skips incidents recorded at exactly midnight, because CCM uses that to mean "time
+- `by_hour` skips incidents recorded at exactly midnight, because that timestamp means "time
   unknown". It reports how many it skipped.
