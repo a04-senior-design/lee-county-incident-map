@@ -23,6 +23,7 @@ class KDEHeatMap:
 
         self.points = points
         self.cluster_levels = cluster_levels
+        # bandwidth in the order [bw0, bw1 (if applicable), bw2 (if applicable)] where bw0 is cluster=0, bw1 is cluster=1 (if applicable), bw2 is cluster=2 (if applicable) such that bw0>bw1>bw2
         self.bandwidths = bandwidths
         self.x_min_lattice = x_min
         self.y_min_lattice = y_min
@@ -36,6 +37,7 @@ class KDEHeatMap:
 #        print(f'lattice.shape = {self.lattice.shape}')
         
         # separate points into clusters (number of clusters may vary from 1 to 3) -1==noise; 0==least dense; 1==denser than 0; 2==denser than 1
+        # np.unique always returns a sorted array in ascending order
         unique_cluster_levels = np.unique(cluster_levels)
         self.points_per_cluster = []
         for cluster_level in unique_cluster_levels:

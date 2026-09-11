@@ -43,6 +43,9 @@ class BandwidthOptimizer:
             if cluster_level != -1:
                 mask = (self.cluster_levels == cluster_level)
                 self.points_per_cluster.append(points[mask])
+        self.cluster_sizes = [len(pts) for pts in self.points_per_cluster]
+        self.arranged_points = np.concatenate(self.points_per_cluster)
+        self.num_arranged_points = len(self.arranged_points)
 
     def _unpack_bandwidths(self, bw_log_diffs: list[float]) -> np.ndarray:
         """function ensures bandwidth bounds for optimization input is 
@@ -70,38 +73,36 @@ class BandwidthOptimizer:
         """peak value of 2D gaussian distribution for bandwidth input"""
         return 1.0 / (2 * np.pi * bandwidth**2)
 
-    def _loo_neg_log_likelihood(self, cur_bw_log_diffs: list[np.ndarray]):
+    def _loo_neg_log_likelihood(self, cur_bw_log_diffs: np.ndarray):
         """objective function for the optimizer; input is in log-diff space."""
+        cur_bw_log_diffs = np.asarray(cur_bw_log_diffs)
         bandwidths = self._unpack_bandwidths(cur_bw_log_diffs)
         return self._loo_neg_log_likelihood_from_bandwidths(bandwidths)
 
-
-    # CURRENTLY DEVELOPED ONLY FOR A SINGLE CLUSTER LEVEL ASSIGNMENT
-    def _loo_neg_log_likelihood_from_bandwidths(self, bandwidths: list[np.ndarray]):
+    def _loo_neg_log_likelihood_from_bandwidths(self, bandwidths: np.ndarray):
         """objective function for negative log-likelihood of leave-one-out cross-validation;
         input is ACTUAL bandwidth values (not log-diffs)
         output is negative log-likelihood for input bandwidths"""
-
-        try:
-            bandwidth1 = bandwidths[0]
-            N = len(self.points_per_cluster[0])
-            bw_per_point = np.full(N, bandwidth1)
+        
+        bandwidths = np.asarray(bandwidths)
+        try:   
+            bw_per_arranged_points = np.repeat(bandwidths, self.cluster_sizes)
 
             # density of the grid
-# NOTE THAT THE BANDWIDTHS ARGUMENT IS SPECIFIC FOR 1 BANDWIDTH, THIS WILL NEED TO BE UPDATED
-            kde_obj = KDEHeatMap(points=self.points, cluster_levels=self.cluster_levels, bandwidths=[bandwidth1], x_min=self.x_min_lattice, y_min=self.y_min_lattice, x_max=self.x_max_lattice, y_max=self.y_max_lattice, increment=self.increment_lattice)
+            kde_obj = KDEHeatMap(points=self.points, cluster_levels=self.cluster_levels, bandwidths=bandwidths, x_min=self.x_min_lattice, y_min=self.y_min_lattice, x_max=self.x_max_lattice, y_max=self.y_max_lattice, increment=self.increment_lattice)
             f_grid_2d = kde_obj.density_surface
 
             # interpolate density surface at input data points
             interpolator = RegularGridInterpolator(
                 (self.x_coords, self.y_coords), f_grid_2d, bounds_error=False, fill_value=1e-300
             )
-            f_at_points = interpolator(self.points_per_cluster[0])
+            f_at_arranged_points = interpolator(self.arranged_points)
 
+            N = self.num_arranged_points
             # represents the gaussian corresponding to each data point
-            self_term = self._gaussian_peak_2d(bw_per_point) / N
+            self_term = self._gaussian_peak_2d(bw_per_arranged_points)
             # leave-one-out density
-            f_loo = (N * f_at_points - N * self_term) / (N - 1)
+            f_loo = (N * f_at_arranged_points - self_term) / (N - 1)
             # set values < 1e-300 to 1e-300 (namely to guard against log(0)
             f_loo = np.clip(f_loo, 1e-300, None)
 
@@ -118,7 +119,7 @@ class BandwidthOptimizer:
 
         for bw_guess_diffs in self.candidate_start_bw_diffs:
             initial_bw_log_diffs = np.log(bw_guess_diffs)
-            res = minimize(self._loo_neg_log_likelihood, initial_bw_log_diffs, args=(), method='Nelder-Mead')
+            res = minimize(fun=self._loo_neg_log_likelihood, x0=initial_bw_log_diffs, args=(), method='Nelder-Mead')
             if self.best_result is None or res.fun < self.best_result.fun:
                 self.best_result = res
 
