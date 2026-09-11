@@ -7,7 +7,7 @@ Each snapshot holds results for 3 fixed cluster_levels (street/
 neighborhood/district) computed only from incidents within that window, so
 a frame overlays all 3 levels — largest first so tighter clusters stay
 visible on top. Each level's GeoJSON FeatureCollection (from
-ml.clustering.run_clusters) is split into polygon features (cluster hull
+ml.dbscan.run_clusters) is split into polygon features (cluster hull
 outlines) and point features (individual incidents), rendered as a
 VectorFrame so playback reuses MapAnimation's play/pause/scrub control
 unchanged.
