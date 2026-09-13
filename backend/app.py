@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from cache import get_incidents  # noqa: E402 — imported after env load
-from ml.clustering import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
+from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
 
 app = Flask(__name__)
 

@@ -11,3 +11,4 @@ pyproj
 scikit-learn
 numpy
 pandas
+pillow
