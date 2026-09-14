@@ -117,12 +117,28 @@ print(f'bounds = {bounds}')
 # create a map centered on the boundaries of the density surface values
 m = folium.Map(location=[(bounds.top + bounds.bottom)/2, (bounds.left + bounds.right)/2], zoom_start=12)
 
+legend_style = """
+<style>
+    .legend {
+        background-color: white !important;
+        padding: 10px !important;
+        border-radius: 5px !important;
+        box-shadow: 0 0 6px rgba(0,0,0,0.4) !important;
+    }
+</style>
+"""
+m.get_root().html.add_child(folium.Element(legend_style))
+
 # lay the colorized PNG image of the lat/long re-projected tif file onto the map
 folium.raster_layers.ImageOverlay(
     image="density_overlay.png",
     bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
     opacity=0.8,
 ).add_to(m)
+
+# add color-coded density legend matching the heat map
+legend = kde_obj.get_legend_colormap()
+legend.add_to(m)
 
 m.save("heatmap.html")
 

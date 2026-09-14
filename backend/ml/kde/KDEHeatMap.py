@@ -15,6 +15,8 @@ from scipy.ndimage import gaussian_filter
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.transform import from_origin
+import branca.colormap as bcm
+from matplotlib.ticker import MaxNLocator
 
 class KDEHeatMap:
     """Heat map class for generating a png image of a KDE density surface."""
@@ -124,6 +126,10 @@ class KDEHeatMap:
         cmap = heat_cmap.copy()
         cmap.set_bad(alpha=0)
 
+        vmin = threshold
+        vmax = density_grid.max()
+        norm_obj = PowerNorm(gamma=0.5, vmin=vmin, vmax=vmax)
+
         # create the image and output as a png file
         im = ax.imshow(
             density_grid_masked,
@@ -132,7 +138,7 @@ class KDEHeatMap:
             cmap=cmap,
             aspect='equal',
             interpolation='bilinear',
-            norm=PowerNorm(gamma=0.5)
+            norm=norm_obj
         )
 
         # ax.axis('off')
@@ -191,13 +197,57 @@ class KDEHeatMap:
             bounds = src.bounds  # left, bottom, right, top in lat/lon
 
         # normalization object that maps data values from 0 to 1 range
-        norm = PowerNorm(gamma=0.5)(warped)
+        normalized = norm_obj(warped)
         # apply color-coding from png file to the latitude/longitude re-projection
-        rgba = cmap(norm)
+        rgba = cmap(normalized)
+
+        # stash for the legend
+        self.legend_vmin = vmin
+        self.legend_vmax = vmax
+        self.legend_norm = norm_obj
+        self.legend_cmap = cmap
 
         # write the colorized array out to a PNG file
         plt.imsave("density_overlay.png", rgba)
 
         # being returned to define the bounds for Folium
         return bounds
+
+    def get_legend_colormap(self, n_ticks=5, scale_factor=1e6, caption=None):
+        """
+        Build a branca LinearColormap mirroring the overlay's color mapping.
+        Raw KDE density values are far too small (~1e-6) for branca's legend
+        labels to display legibly, so tick VALUES are rescaled by scale_factor
+        purely for display. The color mapping itself is untouched.
+        """
+        if caption is None:
+            caption = f'Incident Density (x {scale_factor:.0e})'
+
+        # sample the color gradient in raw density units (unchanged from before)
+        n_samples = 256
+        sample_values = np.linspace(self.legend_vmin, self.legend_vmax, n_samples)
+        normalized_samples = self.legend_norm(sample_values)
+        sampled_colors = [self.legend_cmap(v) for v in normalized_samples]
+
+        # rescaled domain, purely for legible tick labels
+        vmin_scaled = self.legend_vmin * scale_factor
+        vmax_scaled = self.legend_vmax * scale_factor
+
+        # pick a small number of "nice" round tick positions instead of raw linspace,
+        # which avoids values that all round to the same displayed digits
+        locator = MaxNLocator(nbins=n_ticks, min_n_ticks=3)
+        nice_ticks = [
+            float(t) for t in locator.tick_values(vmin_scaled, vmax_scaled)
+            if vmin_scaled <= t <= vmax_scaled
+        ]
+
+        legend = bcm.LinearColormap(
+            colors=sampled_colors,
+            vmin=vmin_scaled,
+            vmax=vmax_scaled,
+            caption=caption,
+            tick_labels=nice_ticks,
+            max_labels=len(nice_ticks),
+        )
+        return legend
 
