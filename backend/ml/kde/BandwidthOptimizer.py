@@ -9,6 +9,7 @@ Note: The current implementation supports optimization for a single cluster
 level only; multi-cluster support is not yet implemented.
 """
 
+import time
 from KDEHeatMap import KDEHeatMap
 import numpy as np
 from scipy.optimize import minimize
@@ -17,14 +18,14 @@ from scipy.interpolate import RegularGridInterpolator
 class BandwidthOptimizer:
 
     #explore different starting points - optimizer tends to get stuck on floor value without providing range of starting diff values
-    candidate_start_diffs = np.array([10, 100, 1000])
+    candidate_start_diffs = np.array([1000, 10000, 1000000])
     # lowest acceptable bandwidth value
-    lower_bound = 50
+    lower_bound = 500
 
     def __init__(self, points, cluster_levels, x_min, y_min, x_max, y_max, increment):
 
-        self.points = points
-        self.cluster_levels = cluster_levels
+        self.points = np.asarray(points)
+        self.cluster_levels = np.asarray(cluster_levels)
         self.x_min_lattice = x_min
         self.y_min_lattice = y_min
         self.x_max_lattice = x_max
@@ -33,7 +34,7 @@ class BandwidthOptimizer:
         self.x_coords = np.arange(x_min, x_max + increment, increment)
         self.y_coords = np.arange(y_min, y_max + increment, increment)  
         # separate points into clusters (number of clusters may vary from 1 to 3) -1==noise; 0==least dense; 1==denser than 0; 2==denser than 1
-        unique_cluster_levels = np.unique(cluster_levels)
+        unique_cluster_levels = np.unique(self.cluster_levels)
         self.num_bandwidths = np.count_nonzero(unique_cluster_levels != -1)
         # create array of start diffs, each element is an array of size num_bandwidths
         self.candidate_start_bw_diffs = np.tile(self.candidate_start_diffs[:, None], self.num_bandwidths)
@@ -86,9 +87,12 @@ class BandwidthOptimizer:
         
         bandwidths = np.asarray(bandwidths)
         try:   
+#            print(f'bandwidths = {bandwidths}')
+#            start = time.perf_counter()
             bw_per_arranged_points = np.repeat(bandwidths, self.cluster_sizes)
 
             # density of the grid
+#            print(f'_loo_neg_log_likelihood_from_bandwidths bandwidths: {bandwidths}')
             kde_obj = KDEHeatMap(points=self.points, cluster_levels=self.cluster_levels, bandwidths=bandwidths, x_min=self.x_min_lattice, y_min=self.y_min_lattice, x_max=self.x_max_lattice, y_max=self.y_max_lattice, increment=self.increment_lattice)
             f_grid_2d = kde_obj.density_surface
 
@@ -106,9 +110,12 @@ class BandwidthOptimizer:
             # set values < 1e-300 to 1e-300 (namely to guard against log(0)
             f_loo = np.clip(f_loo, 1e-300, None)
 
+#            end = time.perf_counter()
+#            print(f'time in _loo_neg_log_likelihood_from_bandwidths: {end - start:.4f} seconds')
             # negative log-likelihood
             return -np.sum(np.log(f_loo))
-        except (ValueError, FloatingPointError):
+        except (ValueError, FloatingPointError) as e:
+            print('Exception in _loo_neg_log_likelihood_from_bandwidths: {e}')
             # large penalty to protect against the minimizer searching extremely large bandwidth values that cause an error with FFTKDE
             return 1e10
    
@@ -120,6 +127,9 @@ class BandwidthOptimizer:
         for bw_guess_diffs in self.candidate_start_bw_diffs:
             initial_bw_log_diffs = np.log(bw_guess_diffs)
             res = minimize(fun=self._loo_neg_log_likelihood, x0=initial_bw_log_diffs, args=(), method='Nelder-Mead')
+            print(f'initial_bw_log_diffs: {initial_bw_log_diffs}  res.message: {res.message}')
+            print(f'objective: {res.fun}')
+            print(f'bandwidth: {self._unpack_bandwidths(res.x)}')
             if self.best_result is None or res.fun < self.best_result.fun:
                 self.best_result = res
 
@@ -145,7 +155,8 @@ class BandwidthOptimizer:
             return []
 
         if n_bandwidths_remaining == 0:
-            res.append([bandwidths.copy(), self._loo_neg_log_likelihood_from_bandwidths(bandwidths)])
+            bw_snapshot = bandwidths[::-1]
+            res.append([bw_snapshot, self._loo_neg_log_likelihood_from_bandwidths(bandwidths=bw_snapshot)])
 
         if n_bandwidths_remaining > 0:
             bandwidths.append(h_last + increment)

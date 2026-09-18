@@ -15,7 +15,7 @@ from pyproj import Transformer
 import folium
 
 
-#----------------------KDE heatmap overflay generated below--------------------------------------------------------------------
+#----------------------KDE heatmap overlay generated below--------------------------------------------------------------------
 
 def load_points() -> np.ndarray:
     """
@@ -36,6 +36,7 @@ def load_points() -> np.ndarray:
     
     return points, latitude, longitude
 
+"""
 
 # REPLACE CLUSTER LEVEL ASSIGNMENTS WITH CALL TO DBSCAN MODULE DURING APP INTEGRATION
 # cluster level for testing (-1 == noise; 0 = least dense; 1 = denser than 0)
@@ -54,6 +55,14 @@ dbscan_cluster_levels = np.array([0, 0, 1, 1, 1, 1, 1, -1, 1, -1, 1, 0, 1, 1, 0,
 
 # TESTING - reallocate all non-noise points to the same cluster (i.e. cluster == 0)
 dbscan_cluster_levels[dbscan_cluster_levels == 1] = 0
+"""
+
+dbscan_cluster_levels1 = np.array([-1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, 0, -1, 0, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1]) 
+dbscan_cluster_levels2 = np.array([-1, -1, 0, 1, 1, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, 1, 1, -1, 0, 0, -1, 0, -1, -1, 1, -1, -1, 1, 0, 0, 0, -1, 0, 0, -1, 0, -1, -1, 0, 0, -1, -1, 0, -1, 0, 1, -1, 1, -1, -1, 1, 0, -1, -1, 1, 1, 1, -1, 1, 1, -1, -1, 0, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, -1, 1, -1, 0, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, 1, -1, 0, -1, 0, -1, -1, -1, 0, 1, 0, 0, -1, -1, -1, -1, 0, 0, -1, 1, -1, -1, -1, -1, 0, 0, 0, -1, 0, -1, 0, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, 1, -1, 1, 0, -1, -1, -1, -1, 0, 0, -1, -1, 1, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, 1, 0, -1, -1, -1, 1, -1, 1, 1, -1, -1, 0, 1, -1, -1, -1, 0, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, -1, -1, 0, -1, 1, -1, -1, -1, 0, -1, -1])
+dbscan_cluster_levels3 = np.array([0, 0, 1, 2, 2, 0, 1, -1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 2, 2, 0, 1, 1, 0, 1, 0, 0, 2, -1, 0, 2, 1, 1, 1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, 0, 1, 0, 1, 2, 0, 2, 0, 0, 2, 1, 0, 0, 2, 2, 2, 0, 2, 2, 0, 0, 1, 1, 0, -1, 0, 1, 1, 0, 0, 0, 0, -1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, -1, 0, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 1, 2, 1, 1, 0, 0, 0, 0, 1, 1, 0, 2, 0, 0, 0, -1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 1, 0, 0, 0, 0, 1, 1, 0, 0, 2, 1, 1, 0, 2, 0, 0, 1, 0, 0, 1, 2, 1, 0, 0, 0, 2, 0, 2, 2, 0, -1, 1, 2, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0, 1, 0, -1, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0])
+
+dbscan_cluster_levels = dbscan_cluster_levels3
+
 
 #CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv")
 CSV_PATH = os.path.join(
@@ -65,8 +74,6 @@ CSV_PATH = os.path.join(
 data_points_with_noise, latitude, longitude = load_points()
 easting = data_points_with_noise[:, 0]
 northing = data_points_with_noise[:, 1]
-mask_noise = (dbscan_cluster_levels != -1)
-data_points_without_noise = data_points_with_noise[mask_noise]
 
 # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
 padding = 100
@@ -84,11 +91,11 @@ print(f'num_bandwidths from optimizer object = {bandwidth_optimizer_obj.num_band
 print(f'optimized_bandwidths = {optimized_bandwidths}')
 
 p_bandwidth = optimized_bandwidths / increment
-print(f'p_bandwidth = {p_bandwidth} corresponds to error tolerance of {100 * (1 - np.exp(-1 / (p_bandwidth**2)))} percent')
+print(f'p_bandwidth = {p_bandwidth} corresponds to error tolerance of {100 * (1 - np.exp(-1 / (4 * p_bandwidth**2)))} percent')
 
-
+"""
 # use brute-force optimizer to check optimized_bandwidth
-brute_force_bandwidths = bandwidth_optimizer_obj.brute_force_optimizer(increment=100, max_allowable_bandwidth=10000)
+brute_force_bandwidths = bandwidth_optimizer_obj.brute_force_optimizer(increment=250, max_allowable_bandwidth=5000)
 #print(f'brute_force_bandwidths = {brute_force_bandwidths}')
 sorted_NLLs = sorted(brute_force_bandwidths, key=lambda p : p[1])
 num_of_lowest_brute_force_values = 3
@@ -97,13 +104,12 @@ bandwidths_lowest = [p[0] for p in sorted_NLLs[:num_of_lowest_brute_force_values
 print(f'NLLs {num_of_lowest_brute_force_values} '
         f'lowest values: {[[bw, float(nll)] for bw, nll in NLLs_lowest]}')
 print(f'bandwidths for the {num_of_lowest_brute_force_values} lowest NLLs: {bandwidths_lowest}')
-
+"""
 
 # instantiate a KDEHeatMap object
 kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=optimized_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment)
 # generate the heat map overlay PNG image file
 bounds = kde_obj.generate_heatmap_image()
-print(f'bounds = {bounds}')
 
 
 

@@ -23,10 +23,10 @@ class KDEHeatMap:
 
     def __init__(self, points, cluster_levels, bandwidths, x_min, y_min, x_max, y_max, increment):
 
-        self.points = points
-        self.cluster_levels = cluster_levels
+        self.points = np.asarray(points)
+        self.cluster_levels = np.asarray(cluster_levels)
         # bandwidth in the order [bw0, bw1 (if applicable), bw2 (if applicable)] where bw0 is cluster=0, bw1 is cluster=1 (if applicable), bw2 is cluster=2 (if applicable) such that bw0>bw1>bw2
-        self.bandwidths = bandwidths
+        self.bandwidths = np.asarray(bandwidths)
         self.x_min_lattice = x_min
         self.y_min_lattice = y_min
         self.x_max_lattice = x_max
@@ -40,13 +40,13 @@ class KDEHeatMap:
         
         # separate points into clusters (number of clusters may vary from 1 to 3) -1==noise; 0==least dense; 1==denser than 0; 2==denser than 1
         # np.unique always returns a sorted array in ascending order
-        unique_cluster_levels = np.unique(cluster_levels)
+        unique_cluster_levels = np.unique(self.cluster_levels)
         self.points_per_cluster = []
         for cluster_level in unique_cluster_levels:
             # do not include points associated with noise
             if cluster_level != -1:
                 mask = (self.cluster_levels == cluster_level)
-                self.points_per_cluster.append(points[mask])
+                self.points_per_cluster.append(self.points[mask])
 
         # instantiate a FFTKDE object, one per bandwidth
         self.kde_obj_per_cluster = []
@@ -59,6 +59,10 @@ class KDEHeatMap:
         self.kde_model_per_cluster = self._fit_kde_model()
         # evaluate each of the FFTKDE objects for the grid lattice and get the summation
         self._density_surface = self._evaluate_kde_model()
+#        print(f"KDEHeatMap self.bandwidths: {self.bandwidths}")
+#        print(f'KDEHeatMap self.rescale: {self.rescale}')
+#        print(f'KDEHeatMap cluster counts: {[len(cluster_points) for cluster_points in self.points_per_cluster]}')
+
 
     @property
     def density_surface(self):
