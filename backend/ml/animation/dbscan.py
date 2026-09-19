@@ -1,16 +1,19 @@
 """
 DBSCANClusterAnimation — plays back precomputed DBSCAN snapshots (see
-ml/generate_dbscan_snapshots.py) as animation frames, one independent time
-window per frame, using the same MapAnimation mechanics as CountdownAnimation.
+ml/generate_dbscan_snapshots.py) as animation frames, one time window per
+frame, using the same MapAnimation mechanics as CountdownAnimation.
 
-Each snapshot holds results for 3 fixed cluster_levels (street/
-neighborhood/district) computed only from incidents within that window, so
-a frame overlays all 3 levels — largest first so tighter clusters stay
-visible on top. Each level's GeoJSON FeatureCollection (from
-ml.dbscan.run_clusters) is split into polygon features (cluster hull
-outlines) and point features (individual incidents), rendered as a
-VectorFrame so playback reuses MapAnimation's play/pause/scrub control
-unchanged.
+Snapshot windows come from generate_dbscan_snapshots.py and may overlap in
+time (or have gaps between them) — this class just plays back whatever
+ordered list of windows it's given; it doesn't assume windows are
+sequential or non-overlapping. Each snapshot holds results for 3 fixed
+cluster_levels (street/neighborhood/district) computed only from incidents
+within that window, so a frame overlays all 3 levels — largest first so
+tighter clusters stay visible on top. Each level's GeoJSON
+FeatureCollection (from ml.dbscan.run_clusters) is split into polygon
+features (cluster hull outlines) and point features (individual incidents),
+rendered as a VectorFrame so playback reuses MapAnimation's play/pause/scrub
+control unchanged.
 """
 
 import json
@@ -69,7 +72,7 @@ def _level_layer_children(geojson: dict) -> list:
 
 
 class DBSCANClusterAnimation(MapAnimation):
-    """Plays back a sequence of precomputed, independent DBSCAN time-window snapshots, one per frame."""
+    """Plays back a sequence of precomputed DBSCAN time-window snapshots, one per frame, in list order."""
 
     def __init__(
         self,

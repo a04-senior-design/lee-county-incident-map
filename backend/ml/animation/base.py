@@ -108,12 +108,16 @@ class _AnimationControl(MacroElement):
                 'z-index: 9999; background: rgba(255,255,255,0.95); padding: 10px 16px; border-radius: 8px;' +
                 'box-shadow: 0 2px 8px rgba(0,0,0,0.35); font-family: sans-serif; text-align: center; min-width: 260px;';
             panel.innerHTML =
-                '<button id="{{ this.get_name() }}-play" style="width: 2.2em; margin-right: 8px;">&#9654;</button>' +
+                '<button id="{{ this.get_name() }}-rewind" style="width: 2.2em; margin-right: 4px;">&#9664;&#9664;</button>' +
+                '<button id="{{ this.get_name() }}-play" style="width: 2.2em; margin-right: 4px;">&#9654;</button>' +
+                '<button id="{{ this.get_name() }}-forward" style="width: 2.2em; margin-right: 8px;">&#9654;&#9654;</button>' +
                 '<input id="{{ this.get_name() }}-scrub" type="range" min="0" max="' + (layers.length - 1) + '" value="0" style="width: 200px; vertical-align: middle;">' +
                 '<div id="{{ this.get_name() }}-label" style="margin-top: 4px; font-size: 1.1em; font-weight: 600;"></div>';
             document.body.appendChild(panel);
 
             var playBtn = document.getElementById('{{ this.get_name() }}-play');
+            var rewindBtn = document.getElementById('{{ this.get_name() }}-rewind');
+            var forwardBtn = document.getElementById('{{ this.get_name() }}-forward');
             var scrub = document.getElementById('{{ this.get_name() }}-scrub');
             var labelEl = document.getElementById('{{ this.get_name() }}-label');
 
@@ -138,7 +142,14 @@ class _AnimationControl(MacroElement):
                 }, intervalMs);
             }
 
+            function step(delta) {
+                pause();
+                showFrame((current + delta + layers.length) % layers.length);
+            }
+
             playBtn.addEventListener('click', function() { timer ? pause() : play(); });
+            rewindBtn.addEventListener('click', function() { step(-1); });
+            forwardBtn.addEventListener('click', function() { step(1); });
             scrub.addEventListener('input', function() { pause(); showFrame(parseInt(scrub.value, 10)); });
 
             showFrame(0);
