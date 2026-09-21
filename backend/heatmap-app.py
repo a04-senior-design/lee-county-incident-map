@@ -1,6 +1,6 @@
-from flask import Flask, jsonify
-from ml.kde import KDEHeatMap
 import os
+from flask import Flask, jsonify, send_from_directory
+from ml.kde import KDEHeatMap
 import pandas as pd
 import numpy as np
 from pyproj import Transformer
@@ -34,6 +34,11 @@ def load_points() -> np.ndarray:
     
     return points, latitude, longitude
 
+
+@app.route("/heatmap-lab")
+def heatmap_lab():
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+    return send_from_directory(frontend_dir, "heatmap-lab.html")
 
 @app.route("/api/heatmap")
 def heatmap():
