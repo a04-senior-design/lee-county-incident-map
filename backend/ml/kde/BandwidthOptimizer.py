@@ -18,7 +18,7 @@ from scipy.interpolate import RegularGridInterpolator
 class BandwidthOptimizer:
 
     #explore different starting points - optimizer tends to get stuck on floor value without providing range of starting diff values
-    candidate_start_diffs = np.array([1000, 10000, 1000000])
+    candidate_start_diffs = np.array([10, 100, 1000])
     # lowest acceptable bandwidth value
     lower_bound = 500
 
@@ -93,7 +93,7 @@ class BandwidthOptimizer:
 
             # density of the grid
 #            print(f'_loo_neg_log_likelihood_from_bandwidths bandwidths: {bandwidths}')
-            kde_obj = KDEHeatMap(points=self.points, cluster_levels=self.cluster_levels, bandwidths=bandwidths, x_min=self.x_min_lattice, y_min=self.y_min_lattice, x_max=self.x_max_lattice, y_max=self.y_max_lattice, increment=self.increment_lattice)
+            kde_obj = KDEHeatMap(points=self.points, cluster_levels=self.cluster_levels, bandwidths=bandwidths, x_min=self.x_min_lattice, y_min=self.y_min_lattice, x_max=self.x_max_lattice, y_max=self.y_max_lattice, increment=self.increment_lattice, output_dir=".")
             f_grid_2d = kde_obj.density_surface
 
             # interpolate density surface at input data points

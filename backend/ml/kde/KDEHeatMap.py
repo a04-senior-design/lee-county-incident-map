@@ -6,7 +6,10 @@ The class generates a PNG image of the resulting KDE heat map.
 """
 
 import time
+import os
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import PowerNorm
@@ -21,7 +24,7 @@ from matplotlib.ticker import MaxNLocator
 class KDEHeatMap:
     """Heat map class for generating a png image of a KDE density surface."""
 
-    def __init__(self, points, cluster_levels, bandwidths, x_min, y_min, x_max, y_max, increment):
+    def __init__(self, points, cluster_levels, bandwidths, x_min, y_min, x_max, y_max, increment, output_dir="."):
 
         self.points = np.asarray(points)
         self.cluster_levels = np.asarray(cluster_levels)
@@ -32,6 +35,7 @@ class KDEHeatMap:
         self.x_max_lattice = x_max
         self.y_max_lattice = y_max
         self.increment_lattice = increment
+        self.output_dir = output_dir
         self.x_coords = np.arange(x_min, x_max + increment, increment)
         self.y_coords = np.arange(y_min, y_max + increment, increment)
         xx, yy = np.meshgrid(self.x_coords, self.y_coords, indexing='ij')
@@ -151,7 +155,7 @@ class KDEHeatMap:
         ax.set_ylabel('Y')
         ax.set_title('KDE Density Surface')
 
-        plt.savefig('density_surface.png', dpi=300, bbox_inches='tight', transparent=True)
+        plt.savefig(os.path.join(self.output_dir, 'density_surface.png'), dpi=300, bbox_inches='tight', transparent=True)
         plt.close()
 
         # transform from pixel coordinates to real-world spatial coordinates
@@ -168,11 +172,11 @@ class KDEHeatMap:
         }
 
         # create tif file with the masked density surface values and coordinates
-        with rasterio.open("density_src.tif", "w", **src_meta) as dst:
+        with rasterio.open(os.path.join(self.output_dir, 'density_src.tif'), "w", **src_meta) as dst:
             dst.write(np.flipud(density_grid_masked.filled(0)).astype("float32"), 1)
 
         # re-project the tif file into latitude/longitude coordinate system
-        with rasterio.open("density_src.tif") as src:
+        with rasterio.open(os.path.join(self.output_dir, 'density_src.tif')) as src:
             dst_transform, width, height = calculate_default_transform(
                 src.crs, "EPSG:4326", src.width, src.height, *src.bounds
             )
@@ -184,7 +188,7 @@ class KDEHeatMap:
                 "height": height,
             })
 
-            with rasterio.open("density_wgs84.tif", "w", **dst_meta) as dst:
+            with rasterio.open(os.path.join(self.output_dir, 'density_wgs84.tif'), "w", **dst_meta) as dst:
                 reproject(
                     source=rasterio.band(src, 1),
                     destination=rasterio.band(dst, 1),
@@ -196,7 +200,7 @@ class KDEHeatMap:
                 )
 
         # retrieve the pixel values and min/max boundary coordinates from the tif file
-        with rasterio.open("density_wgs84.tif") as src:
+        with rasterio.open(os.path.join(self.output_dir, 'density_wgs84.tif')) as src:
             warped = src.read(1)
             bounds = src.bounds  # left, bottom, right, top in lat/lon
 
@@ -212,7 +216,7 @@ class KDEHeatMap:
         self.legend_cmap = cmap
 
         # write the colorized array out to a PNG file
-        plt.imsave("density_overlay.png", rgba)
+        plt.imsave(os.path.join(self.output_dir, 'density_overlay.png'), rgba)
 
         # being returned to define the bounds for Folium
         return bounds
