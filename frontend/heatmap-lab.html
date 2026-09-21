@@ -53,13 +53,23 @@
   const LEE_COUNTY_CENTER = [26.56, -81.87];
   const DEFAULT_ZOOM = 11;
 
-  // Map setup
+  // map setup
   const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   }).addTo(map);
+
+  // fetch and overlay the KDE density heatmap
+  fetch("/api/heatmap")
+    .then(res => res.json())
+    .then(data => {
+      const b = data.bounds;
+      const imageBounds = [[b.south, b.west], [b.north, b.east]];
+      L.imageOverlay(data.image, imageBounds, {opacity: 0.8}).addTo(map);
+    })
+    .catch(err => console.error("Heatmap fetch failed: ", err))
 })();
 </script>
 </body>
