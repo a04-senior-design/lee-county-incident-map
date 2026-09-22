@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from pyproj import Transformer
 import folium
+import branca.colormap as bcm
 
 
 #----------------------KDE heatmap overlay generated below--------------------------------------------------------------------
@@ -37,7 +38,7 @@ def load_points() -> np.ndarray:
     return points, latitude, longitude
 
 
-"""
+
 # REPLACE CLUSTER LEVEL ASSIGNMENTS WITH CALL TO DBSCAN MODULE DURING APP INTEGRATION
 # cluster level for testing (-1 == noise; 0 = least dense; 1 = denser than 0)
 dbscan_cluster_levels = np.array([0, 0, 1, 1, 1, 1, 1, -1, 1, -1, 1, 0, 1, 1, 0, 1, 1, 0, -1, 1, 1, 
@@ -55,14 +56,14 @@ dbscan_cluster_levels = np.array([0, 0, 1, 1, 1, 1, 1, -1, 1, -1, 1, 0, 1, 1, 0,
 
 # TESTING - reallocate all non-noise points to the same cluster (i.e. cluster == 0)
 dbscan_cluster_levels[dbscan_cluster_levels == 1] = 0
-"""
+
 
 
 dbscan_cluster_levels1 = np.array([-1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, 0, -1, 0, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1]) 
 dbscan_cluster_levels2 = np.array([-1, -1, 0, 1, 1, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, 1, 1, -1, 0, 0, -1, 0, -1, -1, 1, -1, -1, 1, 0, 0, 0, -1, 0, 0, -1, 0, -1, -1, 0, 0, -1, -1, 0, -1, 0, 1, -1, 1, -1, -1, 1, 0, -1, -1, 1, 1, 1, -1, 1, 1, -1, -1, 0, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, -1, 1, -1, 0, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, 1, -1, 0, -1, 0, -1, -1, -1, 0, 1, 0, 0, -1, -1, -1, -1, 0, 0, -1, 1, -1, -1, -1, -1, 0, 0, 0, -1, 0, -1, 0, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, 1, -1, 1, 0, -1, -1, -1, -1, 0, 0, -1, -1, 1, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, 1, 0, -1, -1, -1, 1, -1, 1, 1, -1, -1, 0, 1, -1, -1, -1, 0, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, -1, -1, 0, -1, 1, -1, -1, -1, 0, -1, -1])
 dbscan_cluster_levels3 = np.array([0, 0, 1, 2, 2, 0, 1, -1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 2, 2, 0, 1, 1, 0, 1, 0, 0, 2, -1, 0, 2, 1, 1, 1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, 0, 1, 0, 1, 2, 0, 2, 0, 0, 2, 1, 0, 0, 2, 2, 2, 0, 2, 2, 0, 0, 1, 1, 0, -1, 0, 1, 1, 0, 0, 0, 0, -1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, -1, 0, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 1, 2, 1, 1, 0, 0, 0, 0, 1, 1, 0, 2, 0, 0, 0, -1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 1, 0, 0, 0, 0, 1, 1, 0, 0, 2, 1, 1, 0, 2, 0, 0, 1, 0, 0, 1, 2, 1, 0, 0, 0, 2, 0, 2, 2, 0, -1, 1, 2, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0, 1, 0, -1, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0])
 
-dbscan_cluster_levels = dbscan_cluster_levels1
+#dbscan_cluster_levels = dbscan_cluster_levels1
 
 
 #CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv")
@@ -111,7 +112,7 @@ print(f'bandwidths for the {num_of_lowest_brute_force_values} lowest NLLs: {band
 kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=optimized_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=".")
 # generate the heat map overlay PNG image file
 bounds = kde_obj.generate_heatmap_image()
-
+print(f'bounds:  {bounds}')
 
 
 
@@ -143,8 +144,16 @@ folium.raster_layers.ImageOverlay(
     opacity=0.8,
 ).add_to(m)
 
-# add color-coded density legend matching the heat map
-legend = kde_obj.get_legend_colormap()
+# build a branca LinearColormap from the JSON-serializable legend data,
+# so folium's legend matches exactly what the frontend renders
+legend_data = kde_obj.get_legend_data()
+legend = bcm.LinearColormap(
+    colors=legend_data["colors"],
+    vmin=legend_data["vmin"],
+    vmax=legend_data["vmax"],
+    caption=legend_data["caption"],
+    tick_labels=legend_data["ticks"],
+)
 legend.add_to(m)
 
 m.save("heatmap.html")

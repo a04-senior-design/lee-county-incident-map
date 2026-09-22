@@ -221,21 +221,39 @@ class KDEHeatMap:
         # being returned to define the bounds for Folium
         return bounds
 
-    def get_legend_colormap(self, n_ticks=5, scale_factor=1e6, caption=None):
+    def get_legend_data(self, n_ticks=5, caption=None):
         """
-        Build a branca LinearColormap mirroring the overlay's color mapping.
-        Raw KDE density values are far too small (~1e-6) for branca's legend
-        labels to display legibly, so tick VALUES are rescaled by scale_factor
-        purely for display. The color mapping itself is untouched.
+        Build JSON-serializable legend data mirroring the overlay's color
+        mapping, for rendering as an HTML/CSS legend on the frontend.
+        Raw KDE density values are far too small for legible tick labels, so
+        tick VALUES are rescaled by scale_factor purely for display. If
+        scale_factor is not given, it's computed automatically so the max
+        tick value lands near 10**target_magnitude (e.g. target_magnitude=2
+        -> tick values land in the tens-to-hundreds range).
+        The color mapping itself is untouched.
         """
+        if self.legend_vmin > 0:
+            exponent = np.floor(-np.log10(self.legend_vmin))
+            scale_factor = 10 ** exponent
+        else:
+            scale_factor = 1.0
+
         if caption is None:
             caption = f'Incident Density (x {scale_factor:.0e})'
 
-        # sample the color gradient in raw density units (unchanged from before)
+        # sample the color gradient in raw density units
         n_samples = 256
         sample_values = np.linspace(self.legend_vmin, self.legend_vmax, n_samples)
         normalized_samples = self.legend_norm(sample_values)
         sampled_colors = [self.legend_cmap(v) for v in normalized_samples]
+
+        # convert RGBA float tuples (0-1 range) to hex strings for CSS gradients
+        hex_colors = [
+            "#{:02x}{:02x}{:02x}".format(
+                int(round(r * 255)), int(round(g * 255)), int(round(b * 255))
+            )
+            for r, g, b, a in sampled_colors
+        ]
 
         # rescaled domain, purely for legible tick labels
         vmin_scaled = self.legend_vmin * scale_factor
@@ -249,13 +267,23 @@ class KDEHeatMap:
             if vmin_scaled <= t <= vmax_scaled
         ]
 
-        legend = bcm.LinearColormap(
-            colors=sampled_colors,
-            vmin=vmin_scaled,
-            vmax=vmax_scaled,
-            caption=caption,
-            tick_labels=nice_ticks,
-            max_labels=len(nice_ticks),
-        )
-        return legend
+        # always include the true min/max explicitly, deduped against nice_ticks
+        all_ticks = sorted(set(nice_ticks) | {float(vmin_scaled), float(vmax_scaled)})
+
+        return {
+            "colors": hex_colors,
+            "vmin": float(vmin_scaled),
+            "vmax": float(vmax_scaled),
+            "ticks": all_ticks,
+            "caption": caption,
+        }
+
+
+
+
+
+
+
+
+
 

@@ -112,7 +112,9 @@ def heatmap():
         "north": bounds.top,
     }
 
-    result = {"image": f"data:image/png;base64,{image_b64}", "bounds": bounds_dict}
+    legend_data = kde_obj.get_legend_data()
+
+    result = {"image": f"data:image/png;base64,{image_b64}", "bounds": bounds_dict, "legend": legend_data}
 
     return jsonify(result)
 
