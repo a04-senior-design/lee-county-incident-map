@@ -28,11 +28,11 @@ LEE_COUNTY_CENTER = (26.56, -81.87)
 # Largest radius first so smaller, tighter levels are drawn on top and stay visible.
 _LEVEL_RENDER_ORDER = ["district", "neighborhood", "street"]
 
-_SNAPSHOTS_PATH = os.path.join(os.path.dirname(__file__), "..", "dbscan_snapshots.json")
+SNAPSHOTS_PATH = os.path.join(os.path.dirname(__file__), "..", "dbscan_snapshots.json")
 _OUTPUT_HTML = os.path.join(os.path.dirname(__file__), "..", "..", "..", "output", "dbscan_cluster_animation.html")
 
 
-def _load_snapshots(path: str) -> list:
+def load_snapshots(path: str = SNAPSHOTS_PATH) -> list:
     with open(path) as f:
         return json.load(f)
 
@@ -76,12 +76,12 @@ class DBSCANClusterAnimation(MapAnimation):
 
     def __init__(
         self,
-        snapshots_path: str = _SNAPSHOTS_PATH,
+        snapshots_path: str = SNAPSHOTS_PATH,
         center: tuple = LEE_COUNTY_CENTER,
         zoom_start: int = 11,
         interval_seconds: float = 2.0,
     ) -> None:
-        self._snapshots = _load_snapshots(snapshots_path)
+        self._snapshots = load_snapshots(snapshots_path)
         super().__init__(
             frame_count=len(self._snapshots),
             interval_seconds=interval_seconds,
