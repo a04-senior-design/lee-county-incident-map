@@ -30,6 +30,10 @@ class KDEHeatMap:
         self.cluster_levels = np.asarray(cluster_levels)
         # bandwidth in the order [bw0, bw1 (if applicable), bw2 (if applicable)] where bw0 is cluster=0, bw1 is cluster=1 (if applicable), bw2 is cluster=2 (if applicable) such that bw0>bw1>bw2
         self.bandwidths = np.asarray(bandwidths)
+
+        if np.any(self.bandwidths <= 0):
+            raise ValueError(f"All bandwidths must be > 0, got {bandwidths}")
+            
         self.x_min_lattice = x_min
         self.y_min_lattice = y_min
         self.x_max_lattice = x_max

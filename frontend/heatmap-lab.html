@@ -32,6 +32,26 @@
     #branding strong { font-size: 1rem; color: #fff; }
     #branding span   { display: block; font-size: 0.72rem; color: #888; }
 
+    /* ── Bandwidth Slide ──────────────────────────────────────────────────── */
+
+    .param-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .param-row label {
+      font-size: 0.75rem;
+      color: #aaa;
+      white-space: nowrap;
+    }
+    .param-row label span {
+      color: #fff;
+      font-weight: 600;
+    }
+    #bandwidth-slider {
+      width: 200px;
+    }
+
     /* ── Map ──────────────────────────────────────────────────────────────── */
     #map { flex: 1; }
 
@@ -70,6 +90,11 @@
     <strong>KDE Heatmap Lab</strong>
     <span>Lee County Incidents — dev prototype</span>
   </div>
+
+  <div class="param-row">
+    <label for="bandwidth-slider">Bandwidth: <span id="bandwidth-value">—</span></label>
+    <input type="range" id="bandwidth-slider" min="0" max="1" step="1" value="0" disabled />
+  </div>
 </div>
 
 <div id="map"></div>
@@ -88,34 +113,72 @@
     maxZoom: 19,
   }).addTo(map);
 
-  // fetch and overlay the KDE density heatmap
-  fetch("/api/heatmap")
-    .then(res => res.json())
-    .then(data => {
-      const b = data.bounds;
-      const imageBounds = [[b.south, b.west], [b.north, b.east]];
-      L.imageOverlay(data.image, imageBounds, {opacity: 0.8}).addTo(map);
+  const slider = document.getElementById("bandwidth-slider");
+  const valueLabel = document.getElementById("bandwidth-value");
 
-      // build and add the density legend
-      const legend = data.legend;
-      const gradientCss = `linear-gradient(to right, ${legend.colors.join(", ")})`;
-      const tickLabels = legend.ticks
-        .map(t => `<span>${Number(t.toPrecision(2))}</span>`)
-        .join("");
+  let overlayLayer = null;
+  let legendControl = null;
+  let debounceTimer = null;
 
-      const legendControl = L.control({ position: "bottomright" });
-      legendControl.onAdd = () => {
-        const div = L.DomUtil.create("div", "legend");
-        div.innerHTML = `
-          <div class="legend-caption">${legend.caption}</div>
-          <div class="legend-gradient" style="background: ${gradientCss};"></div>
-          <div class="legend-ticks">${tickLabels}</div>
-        `;
-        return div;
-      };
-      legendControl.addTo(map);
-    })
-    .catch(err => console.error("Heatmap fetch failed: ", err));
+  function renderHeatmap(data) {
+    // remove previous overlay/legend before adding new one
+    if (overlayLayer) map.removeLayer(overlayLayer);
+    if (legendControl) legendControl.remove();
+
+    const b = data.bounds;
+    const imageBounds = [[b.south, b.west], [b.north, b.east]];
+    overlayLayer = L.imageOverlay(data.image, imageBounds, {opacity: 0.8}).addTo(map);
+
+    // build and add the density legend
+    const legend = data.legend;
+    const gradientCss = `linear-gradient(to right, ${legend.colors.join(", ")})`;
+    const tickLabels = legend.ticks
+      .map(t => `<span>${Number(t.toPrecision(2))}</span>`)
+      .join("");
+
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `
+        <div class="legend-caption">${legend.caption}</div>
+        <div class="legend-gradient" style="background: ${gradientCss};"></div>
+        <div class="legend-ticks">${tickLabels}</div>
+      `;
+      return div;
+    };
+    legendControl.addTo(map);
+  }
+
+  function fetchHeatmap(bandwidth) {
+    const url = bandwidth === undefined
+      ? "/api/heatmap"
+      : `/api/heatmap?bandwidth=${bandwidth}`;
+
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          renderHeatmap(data);
+
+          // initialize slider range/value on first load only
+          if (slider.disabled) {
+            slider.min = data.min_bandwidth;
+            slider.max = data.max_bandwidth;
+            slider.disabled = false;
+          }
+          slider.value = data.bandwidth;
+          valueLabel.textContent = Math.round(data.bandwidth);
+        })
+        .catch(err => console.error("Heatmap fetch failed: ", err));
+  }
+
+  slider.addEventListener("input", () => {
+    valueLabel.textContent = slider.value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => fetchHeatmap(Number(slider.value)), 400);
+  });
+
+  // boot: fetch with no bandwidth parameter, letting the backend supply its default
+  fetchHeatmap();  
 })();
 </script>
 </body>

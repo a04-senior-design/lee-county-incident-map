@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 from ml.kde import KDEHeatMap
 import pandas as pd
 import numpy as np
@@ -7,6 +7,9 @@ from pyproj import Transformer
 import base64
 
 OUTPUT_DIR = os.path.dirname(__file__)
+MAX_BANDWIDTH = 10000
+MIN_BANDWIDTH = 500
+DEFAULT_BANDWIDTH = 1500
 
 app = Flask(__name__)
 
@@ -43,6 +46,14 @@ def heatmap_lab():
 @app.route("/api/heatmap")
 def heatmap():
 
+    try:
+        bandwidth = float(request.args.get("bandwidth", DEFAULT_BANDWIDTH))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid bandwidth parameter"}), 400
+
+    bandwidth = max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, bandwidth))
+
+
     
 
     # REPLACE CLUSTER LEVEL ASSIGNMENTS WITH CALL TO DBSCAN MODULE DURING APP INTEGRATION
@@ -64,10 +75,11 @@ def heatmap():
     dbscan_cluster_levels[dbscan_cluster_levels == 1] = 0
     
 
-
+    """
     dbscan_cluster_levels1 = np.array([-1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, 0, -1, 0, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1]) 
     dbscan_cluster_levels2 = np.array([-1, -1, 0, 1, 1, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, 1, 1, -1, 0, 0, -1, 0, -1, -1, 1, -1, -1, 1, 0, 0, 0, -1, 0, 0, -1, 0, -1, -1, 0, 0, -1, -1, 0, -1, 0, 1, -1, 1, -1, -1, 1, 0, -1, -1, 1, 1, 1, -1, 1, 1, -1, -1, 0, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, -1, 1, -1, 0, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, 1, -1, 0, -1, 0, -1, -1, -1, 0, 1, 0, 0, -1, -1, -1, -1, 0, 0, -1, 1, -1, -1, -1, -1, 0, 0, 0, -1, 0, -1, 0, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, 1, -1, 1, 0, -1, -1, -1, -1, 0, 0, -1, -1, 1, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, 1, 0, -1, -1, -1, 1, -1, 1, 1, -1, -1, 0, 1, -1, -1, -1, 0, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, -1, -1, 0, -1, 1, -1, -1, -1, 0, -1, -1])
     dbscan_cluster_levels3 = np.array([0, 0, 1, 2, 2, 0, 1, -1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 2, 2, 0, 1, 1, 0, 1, 0, 0, 2, -1, 0, 2, 1, 1, 1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, 0, 1, 0, 1, 2, 0, 2, 0, 0, 2, 1, 0, 0, 2, 2, 2, 0, 2, 2, 0, 0, 1, 1, 0, -1, 0, 1, 1, 0, 0, 0, 0, -1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, -1, 0, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 1, 2, 1, 1, 0, 0, 0, 0, 1, 1, 0, 2, 0, 0, 0, -1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 1, 0, 0, 0, 0, 1, 1, 0, 0, 2, 1, 1, 0, 2, 0, 0, 1, 0, 0, 1, 2, 1, 0, 0, 0, 2, 0, 2, 2, 0, -1, 1, 2, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0, 1, 0, -1, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0])
+    """
 
 #    dbscan_cluster_levels = dbscan_cluster_levels3
 
@@ -85,6 +97,10 @@ def heatmap():
     increment = 300
     print(f'increment = {increment}')
 
+    # single bandwidth for the single-cluster test case, driven directly by the slider
+    bandwidths = [bandwidth]
+
+    """
     # find optimized bandwidth
     bandwidths = []
     bw_values = [3100, 3200, 3300]
@@ -96,6 +112,7 @@ def heatmap():
 
     bandwidths = bandwidths[::-1]
     print(f'bandwidths: {bandwidths}')
+    """
 
     # instantiate a KDEHeatMap object
     kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=OUTPUT_DIR)
@@ -114,7 +131,14 @@ def heatmap():
 
     legend_data = kde_obj.get_legend_data()
 
-    result = {"image": f"data:image/png;base64,{image_b64}", "bounds": bounds_dict, "legend": legend_data}
+    result = {
+        "image": f"data:image/png;base64,{image_b64}", 
+        "bounds": bounds_dict, 
+        "legend": legend_data,
+        "bandwidth": bandwidth,
+        "min_bandwidth": MIN_BANDWIDTH,
+        "max_bandwidth": MAX_BANDWIDTH,
+    }
 
     return jsonify(result)
 
