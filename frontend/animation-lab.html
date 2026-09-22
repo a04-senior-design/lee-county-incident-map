@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Animation Lab — Lee County</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    #top-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.2rem;
+      background: rgba(15, 15, 30, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+
+    #branding { line-height: 1.3; }
+    #branding strong { font-size: 1rem; color: #fff; }
+    #branding span   { display: block; font-size: 0.72rem; color: #888; }
+
+    /* ── Mode tabs ────────────────────────────────────────────────────────── */
+    #mode-tabs { display: flex; gap: 0.4rem; }
+    .mode-tab {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #ccc;
+      font-size: 0.78rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-tab:hover { background: rgba(255,255,255,0.1); }
+    .mode-tab.active {
+      background: var(--accent, #457B9D);
+      border-color: var(--accent, #457B9D);
+      color: #fff;
+      font-weight: 600;
+    }
+    .mode-tab[data-mode="kde"].active     { --accent: #E9C46A; color: #1a1a2e; }
+    .mode-tab[data-mode="dbscan"].active  { --accent: #457B9D; }
+
+    /* ── Playback controls ───────────────────────────────────────────────── */
+    #playback {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 260px;
+    }
+    #playback button {
+      width: 2.1em;
+      height: 2.1em;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #eee;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    #playback button:hover { background: rgba(255,255,255,0.14); }
+    #scrub { flex: 1; max-width: 320px; accent-color: #E9C46A; cursor: pointer; }
+    #frame-label {
+      font-size: 0.78rem;
+      color: #ccc;
+      white-space: nowrap;
+      min-width: 160px;
+    }
+
+    /* ── Speed control ────────────────────────────────────────────────────── */
+    #speed-control {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #speed-control span {
+      font-size: 0.72rem;
+      color: #888;
+    }
+    .speed-btn {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn:hover { background: rgba(255,255,255,0.14); }
+    .speed-btn.active {
+      background: #E9C46A;
+      border-color: #E9C46A;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    /* ── DBSCAN windowing controls ────────────────────────────────────────── */
+    #dbscan-controls {
+      display: none;
+      align-items: flex-end;
+      gap: 1rem;
+      padding: 0.5rem 1.2rem;
+      background: rgba(15, 15, 30, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+    #dbscan-controls.visible { display: flex; }
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .field-row label {
+      font-size: 0.7rem;
+      color: #aaa;
+    }
+    .field-row input {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #eee;
+      border-radius: 5px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.78rem;
+      width: 130px;
+    }
+    #dbscan-apply {
+      border: 1px solid #457B9D;
+      background: #457B9D;
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #dbscan-apply:hover { background: #3a6a8a; }
+    #dbscan-reset {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.78rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #dbscan-reset:hover { background: rgba(255,255,255,0.14); }
+    #dbscan-controls-error {
+      font-size: 0.72rem;
+      color: #E63946;
+      align-self: center;
+    }
+
+    /* ── Stats ────────────────────────────────────────────────────────────── */
+    #stats {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #aaa;
+      flex-wrap: wrap;
+    }
+
+    .stat-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+    }
+
+    .stat-pill span { color: #fff; font-weight: 600; }
+
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    #status-dot.loading  { background: #E9C46A; }
+    #status-dot.ready    { background: #2A9D8F; }
+    #status-dot.error    { background: #E63946; }
+
+    /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map { flex: 1; }
+
+    /* ── Legend ───────────────────────────────────────────────────────────── */
+    .anim-legend {
+      background: rgba(15, 15, 30, 0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      color: #eee;
+      line-height: 1.8;
+    }
+    .legend-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div id="branding">
+    <strong>Animation Lab</strong>
+    <span>KDE density vs. DBSCAN clusters — dev prototype</span>
+  </div>
+
+  <div id="mode-tabs">
+    <button class="mode-tab active" data-mode="kde">KDE Density</button>
+    <button class="mode-tab" data-mode="dbscan">DBSCAN Clusters</button>
+  </div>
+
+  <div id="playback">
+    <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
+    <button id="btn-play" title="Play/pause">&#9654;</button>
+    <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
+    <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+    <span id="frame-label">&mdash;</span>
+  </div>
+
+  <div id="speed-control">
+    <span>Speed</span>
+    <button class="speed-btn" data-speed="0.5">0.5x</button>
+    <button class="speed-btn active" data-speed="1">1x</button>
+    <button class="speed-btn" data-speed="2">2x</button>
+    <button class="speed-btn" data-speed="4">4x</button>
+  </div>
+
+  <div id="stats">
+    <div id="status-dot"></div>
+    <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
+  </div>
+</div>
+
+<div id="dbscan-controls">
+  <div class="field-row">
+    <label for="input-start-date">Start date</label>
+    <input id="input-start-date" type="date" />
+  </div>
+  <div class="field-row">
+    <label for="input-end-date">End date</label>
+    <input id="input-end-date" type="date" />
+  </div>
+  <div class="field-row">
+    <label for="input-window-length">Window size <span style="color:#555">(e.g. 30D, 2W)</span></label>
+    <input id="input-window-length" type="text" placeholder="default" />
+  </div>
+  <div class="field-row">
+    <label for="input-time-step">Time step <span style="color:#555">(e.g. 7D)</span></label>
+    <input id="input-time-step" type="text" placeholder="default" />
+  </div>
+  <button id="dbscan-apply">Apply</button>
+  <button id="dbscan-reset">Reset</button>
+  <span id="dbscan-controls-error"></span>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const DEFAULT_ZOOM = 11;
+  const BASE_INTERVAL_MS = 2000;
+
+  // District drawn first (bottom), neighborhood middle, street on top
+  const LEVEL_DRAW_ORDER = ["district", "neighborhood", "street"];
+  const LEVEL_LABELS = { district: "District", neighborhood: "Neighborhood", street: "Street" };
+  const LEVEL_STYLES = {
+    district:     { fillOpacity: 0.1,  weight: 1,   opacity: 0.5,  pointRadius: 4, noiseRadius: 2 },
+    neighborhood: { fillOpacity: 0.16, weight: 1.5, opacity: 0.7,  pointRadius: 6, noiseRadius: 3 },
+    street:       { fillOpacity: 0.28, weight: 2,   opacity: 0.85, pointRadius: 8, noiseRadius: 4 },
+  };
+
+  const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Playback state, shared across modes
+  let mode = "kde";
+  let frames = [];       // current mode's frame list
+  let index = 0;
+  let playing = false;
+  let timer = null;
+  let speed = 1;
+  let currentLayer = null;   // single L.imageOverlay (kde) or L.layerGroup (dbscan)
+  let legendControl = null;
+
+  const cache = { kde: null, dbscan: null }; // { bounds?, frames } per mode, fetched once
+
+  const statusDot  = document.getElementById("status-dot");
+  const scrub      = document.getElementById("scrub");
+  const frameLabel = document.getElementById("frame-label");
+  const statFrame  = document.getElementById("stat-frame");
+  const playBtn    = document.getElementById("btn-play");
+
+  function setStatus(state) {
+    statusDot.className = "";
+    if (state) statusDot.classList.add(state);
+  }
+
+  function clearLegend() {
+    if (legendControl) { legendControl.remove(); legendControl = null; }
+  }
+
+  function clearLayer() {
+    if (currentLayer) { map.removeLayer(currentLayer); currentLayer = null; }
+    clearLegend();
+  }
+
+  // ── KDE rendering ───────────────────────────────────────────────────────
+  function renderKdeFrame(i) {
+    const data = cache.kde;
+    const frame = data.frames[i];
+    clearLayer();
+    currentLayer = L.imageOverlay(frame.image, data.bounds, { opacity: 0.85 }).addTo(map);
+    frameLabel.textContent = frame.label;
+  }
+
+  // ── DBSCAN rendering ────────────────────────────────────────────────────
+  function levelChildrenGroup(levelName, geojson) {
+    const st = LEVEL_STYLES[levelName];
+    const polygons = geojson.features.filter(f => f.properties.feature_type === "polygon");
+    const points   = geojson.features.filter(f => f.properties.feature_type === "point");
+    const group = L.layerGroup();
+
+    L.geoJSON({ type: "FeatureCollection", features: polygons }, {
+      style: feature => ({
+        fillColor: feature.properties.color,
+        color:     feature.properties.color,
+        fillOpacity: st.fillOpacity,
+        weight:      st.weight,
+        opacity:     st.opacity,
+      }),
+      onEachFeature: (feature, layer) => {
+        layer.bindTooltip(
+          `[${LEVEL_LABELS[levelName]}] Cluster ${feature.properties.cluster_id} — ${feature.properties.point_count} incidents`,
+          { sticky: true }
+        );
+      },
+    }).addTo(group);
+
+    L.geoJSON({ type: "FeatureCollection", features: points }, {
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, {
+          radius:      feature.properties.cluster_id === -1 ? st.noiseRadius : st.pointRadius,
+          fillColor:   feature.properties.color,
+          color:       "#fff",
+          weight:      0.5,
+          fillOpacity: feature.properties.cluster_id === -1 ? 0.35 : 0.85,
+        }),
+      onEachFeature: (feature, layer) => {
+        const label = feature.properties.cluster_id === -1
+          ? `[${LEVEL_LABELS[levelName]}] Noise`
+          : `[${LEVEL_LABELS[levelName]}] Cluster ${feature.properties.cluster_id}`;
+        layer.bindTooltip(label, { sticky: true });
+      },
+    }).addTo(group);
+
+    return group;
+  }
+
+  function buildDbscanLegend(snapshot) {
+    const sections = LEVEL_DRAW_ORDER
+      .map(levelName => {
+        const polygons = snapshot.levels[levelName].features.filter(f => f.properties.feature_type === "polygon");
+        if (!polygons.length) return "";
+        const rows = polygons
+          .map(f =>
+            `<div><span class="legend-swatch" style="background:${f.properties.color}"></span>` +
+            `Cluster ${f.properties.cluster_id} — ${f.properties.point_count} pts</div>`
+          ).join("");
+        return `<div style="margin-bottom:0.4rem"><strong style="font-size:0.7rem;color:#aaa;text-transform:uppercase;letter-spacing:0.05em">${LEVEL_LABELS[levelName]}</strong>${rows}</div>`;
+      })
+      .join("");
+
+    if (!sections.replace(/<[^>]*>/g, "").trim()) return;
+
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "anim-legend");
+      div.innerHTML = sections;
+      return div;
+    };
+    legendControl.addTo(map);
+  }
+
+  function renderDbscanFrame(i) {
+    const snapshot = cache.dbscan.frames[i];
+    clearLayer();
+
+    const group = L.layerGroup();
+    LEVEL_DRAW_ORDER.forEach(levelName => {
+      levelChildrenGroup(levelName, snapshot.levels[levelName]).addTo(group);
+    });
+    currentLayer = group.addTo(map);
+
+    buildDbscanLegend(snapshot);
+    frameLabel.textContent = `${snapshot.label} (${snapshot.n_incidents} incidents)`;
+  }
+
+  // ── Shared playback ─────────────────────────────────────────────────────
+  function renderFrame(i) {
+    index = i;
+    scrub.value = i;
+    statFrame.textContent = `${i + 1} / ${frames.length}`;
+    if (mode === "kde") renderKdeFrame(i);
+    else renderDbscanFrame(i);
+  }
+
+  function pause() {
+    if (timer) { clearInterval(timer); timer = null; }
+    playing = false;
+    playBtn.innerHTML = "&#9654;";
+  }
+
+  function play() {
+    if (timer || frames.length < 2) return;
+    playing = true;
+    playBtn.innerHTML = "&#10074;&#10074;";
+    timer = setInterval(() => renderFrame((index + 1) % frames.length), BASE_INTERVAL_MS / speed);
+  }
+
+  function step(delta) {
+    pause();
+    renderFrame((index + delta + frames.length) % frames.length);
+  }
+
+  function setSpeed(nextSpeed) {
+    speed = nextSpeed;
+    document.querySelectorAll(".speed-btn").forEach(btn => {
+      btn.classList.toggle("active", parseFloat(btn.dataset.speed) === speed);
+    });
+    if (playing) { pause(); play(); } // restart timer at the new interval
+  }
+
+  playBtn.addEventListener("click", () => (playing ? pause() : play()));
+  document.getElementById("btn-rewind").addEventListener("click", () => step(-1));
+  document.getElementById("btn-forward").addEventListener("click", () => step(1));
+  scrub.addEventListener("input", () => { pause(); renderFrame(parseInt(scrub.value, 10)); });
+  document.querySelectorAll(".speed-btn").forEach(btn => {
+    btn.addEventListener("click", () => setSpeed(parseFloat(btn.dataset.speed)));
+  });
+
+  // ── Mode loading ─────────────────────────────────────────────────────────
+  const dbscanControls = document.getElementById("dbscan-controls");
+  const dbscanError    = document.getElementById("dbscan-controls-error");
+
+  async function loadMode(nextMode) {
+    pause();
+    clearLayer();
+    setStatus("loading");
+
+    if (!cache[nextMode]) {
+      const res = await fetch(`/api/animation/${nextMode}`);
+      if (!res.ok) { setStatus("error"); return; }
+      cache[nextMode] = await res.json();
+    }
+
+    mode = nextMode;
+    dbscanControls.classList.toggle("visible", mode === "dbscan");
+    frames = cache[mode].frames;
+    scrub.max = Math.max(frames.length - 1, 0);
+    setStatus("ready");
+    renderFrame(0);
+  }
+
+  document.querySelectorAll(".mode-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      if (tab.dataset.mode === mode) return;
+      document.querySelectorAll(".mode-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      loadMode(tab.dataset.mode);
+    });
+  });
+
+  // ── DBSCAN windowing controls ────────────────────────────────────────────
+  async function applyDbscanWindowing() {
+    const params = {};
+    const startDate     = document.getElementById("input-start-date").value;
+    const endDate       = document.getElementById("input-end-date").value;
+    const windowLength  = document.getElementById("input-window-length").value.trim();
+    const timeStep      = document.getElementById("input-time-step").value.trim();
+    if (startDate)    params.start_date = startDate;
+    if (endDate)      params.end_date = endDate;
+    if (windowLength) params.window_length = windowLength;
+    if (timeStep)     params.time_step = timeStep;
+
+    pause();
+    clearLayer();
+    setStatus("loading");
+    dbscanError.textContent = "";
+
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(`/api/animation/dbscan${qs ? "?" + qs : ""}`);
+    const body = await res.json();
+    if (!res.ok) {
+      setStatus("error");
+      dbscanError.textContent = body.error || "Failed to load DBSCAN snapshots";
+      return;
+    }
+
+    cache.dbscan = body;
+    frames = cache.dbscan.frames;
+    scrub.max = Math.max(frames.length - 1, 0);
+    setStatus("ready");
+    renderFrame(0);
+  }
+
+  document.getElementById("dbscan-apply").addEventListener("click", applyDbscanWindowing);
+  document.getElementById("dbscan-reset").addEventListener("click", () => {
+    document.getElementById("input-start-date").value = "";
+    document.getElementById("input-end-date").value = "";
+    document.getElementById("input-window-length").value = "";
+    document.getElementById("input-time-step").value = "";
+    dbscanError.textContent = "";
+    applyDbscanWindowing();
+  });
+
+  loadMode("kde");
+})();
+</script>
+</body>
+</html>

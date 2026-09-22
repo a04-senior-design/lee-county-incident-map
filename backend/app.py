@@ -7,6 +7,10 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from cache import get_incidents  # noqa: E402 — imported after env load
 from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
+from ml.animation import kde as kde_animation  # noqa: E402
+from ml.animation import dbscan as dbscan_animation  # noqa: E402
+from ml.generate_dbscan_snapshots import build_snapshots  # noqa: E402
+from pandas.tseries.frequencies import to_offset  # noqa: E402
 
 app = Flask(__name__)
 
@@ -19,10 +23,56 @@ def cluster_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
     return send_from_directory(frontend_dir, "cluster-lab.html")
 
+
+@app.route("/animation-lab")
+def animation_lab():
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+    return send_from_directory(frontend_dir, "animation-lab.html")
+
+
+@app.route("/animation-assets/kde/<path:filename>")
+def animation_kde_asset(filename):
+    return send_from_directory(kde_animation.PNG_DIR, filename)
+
+
+@app.route("/api/animation/kde")
+def animation_kde():
+    frames = [
+        {**frame, "image": f"/animation-assets/kde/{frame['filename']}"}
+        for frame in kde_animation.list_frames()
+    ]
+    return jsonify({"bounds": kde_animation.BOUNDS, "frames": frames})
+
+
+@app.route("/api/animation/dbscan")
+def animation_dbscan():
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    window_length = request.args.get("window_length")
+    time_step = request.args.get("time_step")
+
+    # no windowing params -> serve the precomputed snapshots, otherwise recompute on demand
+    if not any([start_date, end_date, window_length, time_step]):
+        return jsonify({"frames": dbscan_animation.load_snapshots()})
+
+    try:
+        frames = build_snapshots(
+            start_date=start_date,
+            end_date=end_date,
+            window_length=to_offset(window_length) if window_length else None,
+            time_step=to_offset(time_step) if time_step else None,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"frames": frames})
+
+
 @app.route("/api/incidents")
 def incidents():
     data = get_incidents()
     return jsonify(data)
+
 
 
 @app.route("/api/clusters")

@@ -66,6 +66,11 @@ def build_snapshots(
 
     start_date = pd.Timestamp(start_date) if start_date is not None else times.min()
     end_date = pd.Timestamp(end_date) if end_date is not None else times.max()
+    # user-supplied dates are typically tz-naive ("2026-06-30"); occurred_at is tz-aware
+    if start_date.tzinfo is None and times.tz is not None:
+        start_date = start_date.tz_localize(times.tz)
+    if end_date.tzinfo is None and times.tz is not None:
+        end_date = end_date.tz_localize(times.tz)
     if window_length is None:
         window_length = (end_date - start_date) / DEFAULT_N_WINDOWS
     if time_step is None:
