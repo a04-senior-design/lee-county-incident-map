@@ -15,6 +15,9 @@ inside its own window. eps/min_pts stay fixed per cluster level (street/
 neighborhood/district, from cluster_levels in ml/dbscan/DBSCANCluster.py)
 across every snapshot — only the incident set changes.
 
+When a user does not enter a window size or time step, default is the
+time between the start date and the end date.
+
 Run from backend/ with the venv activated:
     python -m ml.generate_dbscan_snapshots
     python -m ml.generate_dbscan_snapshots --start-date 2024-01-01 --end-date 2026-01-01 \
@@ -24,6 +27,7 @@ Run from backend/ with the venv activated:
 import argparse
 import json
 import os
+import time
 
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
@@ -72,7 +76,7 @@ def build_snapshots(
     if end_date.tzinfo is None and times.tz is not None:
         end_date = end_date.tz_localize(times.tz)
     if window_length is None:
-        window_length = (end_date - start_date) / DEFAULT_N_WINDOWS
+        window_length = (end_date - start_date) # set window
     if time_step is None:
         time_step = window_length
 
@@ -81,6 +85,8 @@ def build_snapshots(
     if start_date + time_step <= start_date:
         raise ValueError("time_step must be positive")
 
+    start_time = time.perf_counter() # start timer
+    
     snapshots = []
     window_start = start_date
     while window_start < end_date:
@@ -106,6 +112,10 @@ def build_snapshots(
             "levels": levels,
         })
         window_start += time_step
+    
+    end_time = time.perf_counter()
+    print(f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds")
+    
     return snapshots
 
 
