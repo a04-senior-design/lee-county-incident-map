@@ -41,7 +41,7 @@ cluster_levels = {
 
 _CSV_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "data",
-    "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv",
+    "late-paper-81460214_production_neondb_2026-09-23_11-03-31.csv",
 )
 
 
