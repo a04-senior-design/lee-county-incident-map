@@ -62,6 +62,24 @@
       color: #E9C46A;
       white-space: nowrap;
     }
+    #cluster-set-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+    .cluster-set-title {
+      font-weight: 600;
+      color: #fff;
+    }
+    .cluster-set-option {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
 
     /* ── Map ──────────────────────────────────────────────────────────────── */
     #map { flex: 1; }
@@ -101,6 +119,7 @@
     <strong>KDE Heatmap Lab</strong>
     <span>Lee County Incidents — dev prototype</span>
   </div>
+  <div id="cluster-set-controls"></div>
   <div id="bandwidth-controls"></div>
 </div>
 
@@ -121,6 +140,7 @@
   }).addTo(map);
 
   const controls = document.getElementById("bandwidth-controls");
+  const clusterSetControls = document.getElementById("cluster-set-controls");
 
   let overlayLayer = null;
   let legendControl = null;
@@ -128,6 +148,9 @@
   // one slider and value label per non-noise cluster level; index i -> cluster level i
   let sliders = [];
   let valueLabels = [];
+  let radiosBuilt = false;
+  // index of the cluster set currently shown, as confirmed by the backend
+  let currentClusterSet = null;
 
   function renderHeatmap(data) {
     // remove previous overlay/legend before adding new one
@@ -209,17 +232,49 @@
     }
   }
 
+  function buildClusterSetRadios(data) {
+    clusterSetControls.innerHTML = "";
+
+    const title = document.createElement("div");
+    title.className = "cluster-set-title";
+    title.textContent = "Cluster set";
+    clusterSetControls.appendChild(title);
+
+    data.cluster_set_labels.forEach((text, i) => {
+      const option = document.createElement("label");
+      option.className = "cluster-set-option";
+
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "cluster-set";
+      radio.value = i;
+      radio.checked = (i === data.cluster_set);
+
+      radio.addEventListener("change", () => {
+        // cancel any pending slider fetch, then switch sets with no bandwidths
+        clearTimeout(debounceTimer);
+        fetchHeatmap(null, i);
+      });
+
+      option.append(radio, text);
+      clusterSetControls.appendChild(option);
+    });
+
+    radiosBuilt = true;
+  }
+
   // one shared debounce: moving any slider sends all current values
   function scheduleFetch() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      fetchHeatmap(sliders.map(s => Number(s.value)));
+      fetchHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
     }, 400);
   }
 
-  function fetchHeatmap(bandwidths) {
-    // repeated params: ?bandwidth=3000&bandwidth=1500
+  function fetchHeatmap(bandwidths, clusterSet) {
+    // e.g. ?cluster_set=2&bandwidth=3000&bandwidth=1500
     const params = new URLSearchParams();
+    if (clusterSet !== undefined && clusterSet !== null) params.append("cluster_set", clusterSet);
     if (bandwidths) bandwidths.forEach(bw => params.append("bandwidth", bw));
     const query = params.toString();
     const url = query ? `/api/heatmap?${query}` : "/api/heatmap";
@@ -233,12 +288,16 @@
       .then(data => {
         renderHeatmap(data);
 
-        if (sliders.length === 0) {
-          // first load: build one slider per bandwidth the backend returned
+        // radio buttons: built once, from the backend's label list
+        if (!radiosBuilt) buildClusterSetRadios(data);
+
+        if (data.cluster_set !== currentClusterSet) {
+          // first load or cluster set switched: slider count may differ, so rebuild
+          currentClusterSet = data.cluster_set;
           buildSliders(data);
-        } 
+        }
         else {
-          // later loads: sync sliders to the backend's clamped values
+          // same cluster set: sync sliders to the backend's clamped values
           data.bandwidths.forEach((bw, i) => {
             sliders[i].value = bw;
             valueLabels[i].textContent = Math.round(bw);
