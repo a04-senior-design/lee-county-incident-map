@@ -390,13 +390,14 @@
     buildLegend();
   }
 
-  // Per-level DBSCAN parameter ranges
-  // slider=0 (Sparse): large eps, low min_pts  → few big clusters
-  // slider=100 (Dense): small eps, high min_pts → many tight clusters
+  // Per-level DBSCAN epsilon ranges — min_pts is a fixed backend constant (4),
+  // not user-adjustable; only epsilon changes with the slider.
+  // slider=0 (Sparse): large eps → few big clusters
+  // slider=100 (Dense): small eps → many tight clusters
   const LEVEL_PRESETS = {
-    district:     { epsMax: 30000, epsMin: 10000, ptsMin: 15, ptsMax: 50 },
-    neighborhood: { epsMax: 10000, epsMin: 3000,  ptsMin: 5,  ptsMax: 20 },
-    street:       { epsMax: 2500,  epsMin: 300,   ptsMin: 2,  ptsMax: 8  },
+    district:     { epsMax: 30000, epsMin: 10000 },
+    neighborhood: { epsMax: 10000, epsMin: 3000  },
+    street:       { epsMax: 2500,  epsMin: 300   },
   };
 
   function levelToParams(level, sliderVal) {
@@ -405,10 +406,7 @@
     // Log scale for eps: gives perceptually uniform spacing across the radius range
     // At t=0 (Sparse) → epsMax; at t=1 (Dense) → epsMin
     const eps = Math.round(Math.exp(Math.log(p.epsMax) + (Math.log(p.epsMin) - Math.log(p.epsMax)) * t));
-    return {
-      eps,
-      minPts: Math.round(p.ptsMin + (p.ptsMax - p.ptsMin) * t),
-    };
+    return { eps };
   }
 
   function updateLevelStats(level, meta) {
@@ -423,9 +421,10 @@
   async function fetchLevel(level) {
     if (!levelVisible[level]) return;
     const sliderVal = Number(document.getElementById(`slider-${level}`).value);
-    const { eps, minPts } = levelToParams(level, sliderVal);
+    const { eps } = levelToParams(level, sliderVal);
     try {
-      const res = await fetch(`${API}/api/clusters?eps=${eps}&min_pts=${minPts}&level=${level}`);      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(`${API}/api/clusters?eps=${eps}&level=${level}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       levelMeta[level] = data.metadata;
       renderLevelLayer(level, data);
