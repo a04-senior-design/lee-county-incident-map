@@ -89,8 +89,8 @@ def build_snapshots(
         end_date = end_date.tz_localize(times.tz)
     if window_length is None:
         window_length = (end_date - start_date) # set window
-    if time_step or window_length is None: # if either is none need to have one frame
-        time_step = window_length
+    if time_step is None: 
+        time_step = window_length # creates one snapshot of clustering
 
     if start_date + window_length <= start_date:
         raise ValueError("window_length must be positive")
