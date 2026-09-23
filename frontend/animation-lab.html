@@ -165,6 +165,61 @@
       align-self: center;
     }
 
+    /* ── DBSCAN level toggles/sliders ─────────────────────────────────────── */
+    .level-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      padding: 0.45rem 0.65rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 4px 4px 0;
+      min-width: 185px;
+      transition: opacity 0.2s;
+    }
+    .level-block.level-off { opacity: 0.4; }
+    .level-block[data-level="district"]     { --accent: #0E6207; }
+    .level-block[data-level="neighborhood"] { --accent: #243092; }
+    .level-block[data-level="street"]       { --accent: #E63946; }
+
+    .level-header { display: flex; align-items: center; gap: 0.5rem; }
+    .level-name   { font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+    .level-hint   { font-size: 0.67rem; color: #555; }
+
+    .toggle-label {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 17px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .toggle-label input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #444;
+      border-radius: 17px;
+      transition: background 0.2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 11px; height: 11px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: transform 0.2s;
+    }
+    .toggle-label input:checked + .toggle-track { background: var(--accent); }
+    .toggle-label input:checked + .toggle-track::after { transform: translateX(13px); }
+
+    .level-slider-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: #666; }
+    .level-slider     { width: 110px; accent-color: var(--accent); cursor: pointer; }
+
+    .level-stats { display: flex; gap: 0.35rem; }
+    .level-stats .stat-pill { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
+
     /* ── Stats ────────────────────────────────────────────────────────────── */
     #stats {
       display: flex;
@@ -264,13 +319,77 @@
     <input id="input-end-date" type="date" />
   </div>
   <div class="field-row">
-    <label for="input-window-length">Window size <span style="color:#555">(e.g. 30D, 2W)</span></label>
+    <label for="input-window-length">Window size <span style="color:#555">(e.g. 1D, 30D, 2W)</span></label>
     <input id="input-window-length" type="text" placeholder="default" />
   </div>
   <div class="field-row">
-    <label for="input-time-step">Time step <span style="color:#555">(e.g. 7D)</span></label>
+    <label for="input-time-step">Time step <span style="color:#555">(e.g. 7D, 2W, 1Y)</span></label>
     <input id="input-time-step" type="text" placeholder="default" />
   </div>
+
+  <div class="level-block" id="level-block-district" data-level="district">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="district" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">District</span>
+      <span class="level-hint">macro &middot; 2&ndash;6 mi</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="anim-slider-district" data-level="district"
+             min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="anim-stat-clusters-district">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="anim-stat-noise-district">&mdash;</span></span>
+    </div>
+  </div>
+
+  <div class="level-block" id="level-block-neighborhood" data-level="neighborhood">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="neighborhood" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">Neighborhood</span>
+      <span class="level-hint">meso &middot; 0.5&ndash;2 mi</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="anim-slider-neighborhood" data-level="neighborhood"
+             min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="anim-stat-clusters-neighborhood">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="anim-stat-noise-neighborhood">&mdash;</span></span>
+    </div>
+  </div>
+
+  <div class="level-block" id="level-block-street" data-level="street">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="street" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">Street</span>
+      <span class="level-hint">micro &middot; 300&ndash;2500 ft</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="anim-slider-street" data-level="street"
+             min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="anim-stat-clusters-street">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="anim-stat-noise-street">&mdash;</span></span>
+    </div>
+  </div>
+
   <button id="dbscan-apply">Apply</button>
   <button id="dbscan-reset">Reset</button>
   <span id="dbscan-controls-error"></span>
@@ -386,6 +505,7 @@
 
   function buildDbscanLegend(snapshot) {
     const sections = LEVEL_DRAW_ORDER
+      .filter(levelName => snapshot.levels[levelName])
       .map(levelName => {
         const polygons = snapshot.levels[levelName].features.filter(f => f.properties.feature_type === "polygon");
         if (!polygons.length) return "";
@@ -415,12 +535,22 @@
 
     const group = L.layerGroup();
     LEVEL_DRAW_ORDER.forEach(levelName => {
+      if (!snapshot.levels[levelName]) return;
       levelChildrenGroup(levelName, snapshot.levels[levelName]).addTo(group);
     });
     currentLayer = group.addTo(map);
 
     buildDbscanLegend(snapshot);
+    updateDbscanLevelStats(snapshot);
     frameLabel.textContent = `${snapshot.label} (${snapshot.n_incidents} incidents)`;
+  }
+
+  function updateDbscanLevelStats(snapshot) {
+    LEVEL_DRAW_ORDER.forEach(levelName => {
+      const meta = snapshot.levels[levelName] && snapshot.levels[levelName].metadata;
+      document.getElementById(`anim-stat-clusters-${levelName}`).textContent = meta ? meta.n_clusters : "—";
+      document.getElementById(`anim-stat-noise-${levelName}`).textContent = meta ? meta.n_noise : "—";
+    });
   }
 
   // ── Shared playback ─────────────────────────────────────────────────────
@@ -499,6 +629,32 @@
   });
 
   // ── DBSCAN windowing controls ────────────────────────────────────────────
+  // Same per-level slider ranges as cluster-lab.html: slider=0 (Sparse) -> large
+  // eps/low min_pts (few big clusters), slider=100 (Dense) -> small eps/high min_pts.
+  const LEVEL_PRESETS = {
+    district:     { epsMax: 30000, epsMin: 10000, ptsMin: 15, ptsMax: 50 },
+    neighborhood: { epsMax: 10000, epsMin: 3000,  ptsMin: 5,  ptsMax: 20 },
+    street:       { epsMax: 2500,  epsMin: 300,   ptsMin: 2,  ptsMax: 8  },
+  };
+
+  const levelEnabled = { district: true, neighborhood: true, street: true };
+
+  function levelToParams(levelName, sliderVal) {
+    const t = sliderVal / 100;
+    const p = LEVEL_PRESETS[levelName];
+    // log scale for eps: at t=0 (Sparse) -> epsMax; at t=1 (Dense) -> epsMin
+    const eps = Math.round(Math.exp(Math.log(p.epsMax) + (Math.log(p.epsMin) - Math.log(p.epsMax)) * t));
+    return { eps, minPts: Math.round(p.ptsMin + (p.ptsMax - p.ptsMin) * t) };
+  }
+
+  document.querySelectorAll(".level-toggle").forEach(checkbox => {
+    checkbox.addEventListener("change", () => {
+      const levelName = checkbox.dataset.level;
+      levelEnabled[levelName] = checkbox.checked;
+      document.getElementById(`level-block-${levelName}`).classList.toggle("level-off", !checkbox.checked);
+    });
+  });
+
   async function applyDbscanWindowing() {
     const params = {};
     const startDate     = document.getElementById("input-start-date").value;
@@ -509,6 +665,19 @@
     if (endDate)      params.end_date = endDate;
     if (windowLength) params.window_length = windowLength;
     if (timeStep)     params.time_step = timeStep;
+
+    const enabledLevels = LEVEL_DRAW_ORDER.filter(levelName => levelEnabled[levelName]);
+    if (!enabledLevels.length) {
+      dbscanError.textContent = "Enable at least one cluster level";
+      return;
+    }
+    params.levels = enabledLevels.join(",");
+    enabledLevels.forEach(levelName => {
+      const sliderVal = Number(document.getElementById(`anim-slider-${levelName}`).value);
+      const { eps, minPts } = levelToParams(levelName, sliderVal);
+      params[`${levelName}_eps`] = eps;
+      params[`${levelName}_min_pts`] = minPts;
+    });
 
     pause();
     clearLayer();
@@ -537,6 +706,12 @@
     document.getElementById("input-end-date").value = "";
     document.getElementById("input-window-length").value = "";
     document.getElementById("input-time-step").value = "";
+    document.querySelectorAll(".level-toggle").forEach(checkbox => {
+      checkbox.checked = true;
+      levelEnabled[checkbox.dataset.level] = true;
+      document.getElementById(`level-block-${checkbox.dataset.level}`).classList.remove("level-off");
+    });
+    document.querySelectorAll(".level-slider").forEach(slider => { slider.value = 50; });
     dbscanError.textContent = "";
     applyDbscanWindowing();
   });

@@ -11,9 +11,12 @@ shorter (overlapping windows, sharing some incidents), equal to it
 longer (gaps between windows, e.g. one window per February across the last
 5 years: window_length=~1 month, time_step=1 year via
 pandas.DateOffset(years=1)). Each snapshot only includes incidents that fall
-inside its own window. eps/min_pts stay fixed per cluster level (street/
-neighborhood/district, from cluster_levels in ml/dbscan/DBSCANCluster.py)
-across every snapshot — only the incident set changes.
+inside its own window. eps/min_pts default to the fixed per-level values in
+cluster_levels (street/neighborhood/district, from
+ml/dbscan/DBSCANCluster.py) across every snapshot, but callers may override
+which levels run and their eps/min_pts via `level_configs` (e.g. per-level
+toggles/sliders from the frontend) — only the incident set changes
+otherwise.
 
 When a user does not enter a window size or time step, default is the
 time between the start date and the end date.
@@ -44,10 +47,11 @@ def build_snapshots(
     end_date=None,
     window_length=None,
     time_step=None,
+    level_configs=None,
 ) -> list:
     """Slide a window of `window_length` across [start_date, end_date] in
-    steps of `time_step` and run DBSCAN — at every cluster_levels level — on
-    each window's own incidents only.
+    steps of `time_step` and run DBSCAN — at every level in `level_configs` —
+    on each window's own incidents only.
 
     `time_step` may be shorter than `window_length` (overlapping windows),
     equal to it (sequential, non-overlapping), or longer than it (gaps
@@ -59,12 +63,20 @@ def build_snapshots(
     start_date/end_date default to the CSV's full occurred_at range;
     window_length/time_step default to that range split into
     DEFAULT_N_WINDOWS equal, non-overlapping windows (the old fixed
-    5-snapshot behavior).
+    5-snapshot behavior) — leaving both blank also means "just one window",
+    i.e. a single DBSCAN snapshot for [start_date, end_date] rather than an
+    animation.
+
+    `level_configs` is a {level_name: {epsilon, min_pts, color}} dict
+    overriding which levels run and their parameters (e.g. from user-facing
+    per-level toggles/sliders); defaults to `cluster_levels`
+    (street/neighborhood/district) when omitted.
 
     Returns a list of
     {label, window_start, window_end, n_incidents, levels: {level_name: geojson}}
     dicts in time order.
     """
+    level_configs = level_configs if level_configs is not None else cluster_levels
     incidents = load_csv_incidents_with_time()
     times = pd.to_datetime([inc["occurred_at"] for inc in incidents])
 
@@ -77,7 +89,7 @@ def build_snapshots(
         end_date = end_date.tz_localize(times.tz)
     if window_length is None:
         window_length = (end_date - start_date) # set window
-    if time_step is None:
+    if time_step or window_length is None: # if either is none need to have one frame
         time_step = window_length
 
     if start_date + window_length <= start_date:
@@ -102,7 +114,7 @@ def build_snapshots(
                 min_pts=settings["min_pts"],
                 cluster_color=settings["color"],
             )
-            for level_name, settings in cluster_levels.items()
+            for level_name, settings in level_configs.items()
         }
         snapshots.append({
             "label": f"{window_start.strftime('%Y-%m-%d %H:%M')} – {window_end.strftime('%Y-%m-%d %H:%M')}",
