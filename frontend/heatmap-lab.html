@@ -48,7 +48,12 @@
       color: #fff;
       font-weight: 600;
     }
-    #bandwidth-slider {
+    #bandwidth-controls {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+    .bandwidth-slider {
       width: 200px;
     }
 
@@ -90,11 +95,7 @@
     <strong>KDE Heatmap Lab</strong>
     <span>Lee County Incidents — dev prototype</span>
   </div>
-
-  <div class="param-row">
-    <label for="bandwidth-slider">Bandwidth: <span id="bandwidth-value">—</span></label>
-    <input type="range" id="bandwidth-slider" min="0" max="1" step="1" value="0" disabled />
-  </div>
+  <div id="bandwidth-controls"></div>
 </div>
 
 <div id="map"></div>
@@ -113,12 +114,14 @@
     maxZoom: 19,
   }).addTo(map);
 
-  const slider = document.getElementById("bandwidth-slider");
-  const valueLabel = document.getElementById("bandwidth-value");
+  const controls = document.getElementById("bandwidth-controls");
 
   let overlayLayer = null;
   let legendControl = null;
   let debounceTimer = null;
+  // one slider and value label per non-noise cluster level; index i -> cluster level i
+  let sliders = [];
+  let valueLabels = [];
 
   function renderHeatmap(data) {
     // remove previous overlay/legend before adding new one
@@ -149,35 +152,83 @@
     legendControl.addTo(map);
   }
 
-  function fetchHeatmap(bandwidth) {
-    const url = bandwidth === undefined
-      ? "/api/heatmap"
-      : `/api/heatmap?bandwidth=${bandwidth}`;
+  function buildSliders(data) {
+    controls.innerHTML = "";
+    sliders = [];
+    valueLabels = [];
 
-      fetch(url)
-        .then(res => res.json())
-        .then(data => {
-          renderHeatmap(data);
+    data.bandwidths.forEach((bw, i) => {
+      const row = document.createElement("div");
+      row.className = "param-row";
 
-          // initialize slider range/value on first load only
-          if (slider.disabled) {
-            slider.min = data.min_bandwidth;
-            slider.max = data.max_bandwidth;
-            slider.disabled = false;
-          }
-          slider.value = data.bandwidth;
-          valueLabel.textContent = Math.round(data.bandwidth);
-        })
-        .catch(err => console.error("Heatmap fetch failed: ", err));
+      const label = document.createElement("label");
+      label.htmlFor = `bandwidth-slider-${i}`;
+      label.textContent = `Level ${i} bandwidth: `;
+      const valueSpan = document.createElement("span");
+      valueSpan.textContent = Math.round(bw);
+      label.appendChild(valueSpan);
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.id = `bandwidth-slider-${i}`;
+      slider.className = "bandwidth-slider";
+      slider.min = data.min_bandwidth;
+      slider.max = data.max_bandwidth;
+      slider.step = 1;
+      slider.value = bw;
+
+      slider.addEventListener("input", () => {
+        valueSpan.textContent = slider.value;
+        scheduleFetch();
+      });
+
+      row.append(label, slider);
+      controls.appendChild(row);
+      sliders.push(slider);
+      valueLabels.push(valueSpan);
+    });
   }
 
-  slider.addEventListener("input", () => {
-    valueLabel.textContent = slider.value;
+  // one shared debounce: moving any slider sends all current values
+  function scheduleFetch() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => fetchHeatmap(Number(slider.value)), 400);
-  });
+    debounceTimer = setTimeout(() => {
+      fetchHeatmap(sliders.map(s => Number(s.value)));
+    }, 400);
+  }
 
-  // boot: fetch with no bandwidth parameter, letting the backend supply its default
+  function fetchHeatmap(bandwidths) {
+    // repeated params: ?bandwidth=3000&bandwidth=1500
+    const params = new URLSearchParams();
+    if (bandwidths) bandwidths.forEach(bw => params.append("bandwidth", bw));
+    const query = params.toString();
+    const url = query ? `/api/heatmap?${query}` : "/api/heatmap";
+
+    fetch(url)
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      })
+      .then(data => {
+        renderHeatmap(data);
+
+        if (sliders.length === 0) {
+          // first load: build one slider per bandwidth the backend returned
+          buildSliders(data);
+        } 
+        else {
+          // later loads: sync sliders to the backend's clamped values
+          data.bandwidths.forEach((bw, i) => {
+            sliders[i].value = bw;
+            valueLabels[i].textContent = Math.round(bw);
+          });
+        }
+      })
+      .catch(err => console.error("Heatmap fetch failed: ", err));
+  }
+
+  // boot: fetch with no bandwidth params, letting the backend supply its defaults
   fetchHeatmap();  
 })();
 </script>
