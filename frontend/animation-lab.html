@@ -252,7 +252,33 @@
     #status-dot.error    { background: #E63946; }
 
     /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map-container { position: relative; flex: 1; display: flex; }
     #map { flex: 1; }
+
+    #map-loading {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      background: rgba(15, 15, 30, 0.55);
+      color: #eee;
+      font-size: 0.85rem;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    #map-loading.visible { display: flex; }
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #E9C46A;
+      border-radius: 50%;
+      animation: spinner-rotate 0.8s linear infinite;
+    }
+    @keyframes spinner-rotate { to { transform: rotate(360deg); } }
 
     /* ── Legend ───────────────────────────────────────────────────────────── */
     .anim-legend {
@@ -395,7 +421,13 @@
   <span id="dbscan-controls-error"></span>
 </div>
 
-<div id="map"></div>
+<div id="map-container">
+  <div id="map"></div>
+  <div id="map-loading">
+    <div class="spinner"></div>
+    <span id="map-loading-label">Loading&hellip;</span>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -431,15 +463,19 @@
 
   const cache = { kde: null, dbscan: null }; // { bounds?, frames } per mode, fetched once
 
-  const statusDot  = document.getElementById("status-dot");
-  const scrub      = document.getElementById("scrub");
-  const frameLabel = document.getElementById("frame-label");
-  const statFrame  = document.getElementById("stat-frame");
-  const playBtn    = document.getElementById("btn-play");
+  const statusDot   = document.getElementById("status-dot");
+  const scrub       = document.getElementById("scrub");
+  const frameLabel  = document.getElementById("frame-label");
+  const statFrame   = document.getElementById("stat-frame");
+  const playBtn     = document.getElementById("btn-play");
+  const mapLoading  = document.getElementById("map-loading");
+  const mapLoadingLabel = document.getElementById("map-loading-label");
 
-  function setStatus(state) {
+  function setStatus(state, loadingMessage) {
     statusDot.className = "";
     if (state) statusDot.classList.add(state);
+    mapLoading.classList.toggle("visible", state === "loading");
+    if (state === "loading") mapLoadingLabel.textContent = loadingMessage || "Loading\u2026";
   }
 
   function clearLegend() {
@@ -603,7 +639,10 @@
   async function loadMode(nextMode) {
     pause();
     clearLayer();
-    setStatus("loading");
+    setStatus(
+      "loading",
+      nextMode === "dbscan" ? "Computing DBSCAN snapshots\u2026" : "Loading KDE frames\u2026"
+    );
 
     if (!cache[nextMode]) {
       const res = await fetch(`/api/animation/${nextMode}`);
@@ -681,7 +720,7 @@
 
     pause();
     clearLayer();
-    setStatus("loading");
+    setStatus("loading", "Computing DBSCAN snapshots\u2026");
     dbscanError.textContent = "";
 
     const qs = new URLSearchParams(params).toString();
