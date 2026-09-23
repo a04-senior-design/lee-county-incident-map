@@ -106,6 +106,13 @@ def heatmap():
             return jsonify({
                 "error": f"Expected {num_clusters} bandwidths, got {len(requested_bandwidths)}. Reload the page."
             }), 400
+        # guard: bandwidths must be non-increasing (level 0 >= level 1 >= level 2)
+        for i in range(len(requested_bandwidths) - 1):
+            if requested_bandwidths[i] < requested_bandwidths[i + 1]:
+                return jsonify({
+                    "error": f"Bandwidths must be non-increasing: level {i} ({requested_bandwidths[i]}) "
+                    f"< level {i + 1} ({requested_bandwidths[i + 1]})."
+                    }), 400
         # clamp each slider value to the shared limits
         bandwidths = [max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, bw)) for bw in requested_bandwidths]
     else:

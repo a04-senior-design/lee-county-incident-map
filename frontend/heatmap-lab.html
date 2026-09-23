@@ -56,6 +56,12 @@
     .bandwidth-slider {
       width: 200px;
     }
+    .bandwidth-hint {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #E9C46A;
+      white-space: nowrap;
+    }
 
     /* ── Map ──────────────────────────────────────────────────────────────── */
     #map { flex: 1; }
@@ -178,6 +184,12 @@
       slider.value = bw;
 
       slider.addEventListener("input", () => {
+        // block: keep this slider between its neighbors (level i-1 >= level i >= level i+1)
+        let value = Number(slider.value);
+        if (i > 0) value = Math.min(value, Number(sliders[i - 1].value));
+        if (i < sliders.length - 1) value = Math.max(value, Number(sliders[i + 1].value));
+        slider.value = value;
+
         valueSpan.textContent = slider.value;
         scheduleFetch();
       });
@@ -187,6 +199,14 @@
       sliders.push(slider);
       valueLabels.push(valueSpan);
     });
+
+    // hint describing the ordering constraint, e.g. "Constraint: Level 0 >= Level 1 >= Level 2"
+    if (data.bandwidths.length > 1) {
+      const hint = document.createElement("div");
+      hint.className = "bandwidth-hint";
+      hint.textContent = "Constraint: " + data.bandwidths.map((_, i) => `Level ${i}`).join(" >= ");
+      controls.appendChild(hint);
+    }
   }
 
   // one shared debounce: moving any slider sends all current values
