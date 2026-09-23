@@ -20,10 +20,11 @@ CORS(app, resources={r"/api/*": {"origins": allowed_origin}})
 
 def _parse_dbscan_level_overrides(args) -> dict:
     """Build a {level_name: {epsilon, min_pts, color}} dict from per-level
-    `<level>_eps`/`<level>_min_pts` query params, falling back to
-    cluster_levels defaults; omits any level left out of `levels`
-    (a comma-separated list of enabled level names) so it's excluded from
-    the DBSCAN run entirely."""
+    `<level>_eps` query params, falling back to cluster_levels defaults for
+    epsilon; min_pts is always the cluster_levels fixed value (not user-
+    adjustable). Omits any level left out of `levels` (a comma-separated
+    list of enabled level names) so it's excluded from the DBSCAN run
+    entirely."""
     enabled = args.get("levels")
     enabled_names = set(enabled.split(",")) if enabled else set(cluster_levels.keys())
 
@@ -32,8 +33,7 @@ def _parse_dbscan_level_overrides(args) -> dict:
         if name not in enabled_names:
             continue
         eps = float(args.get(f"{name}_eps", defaults["epsilon"]))
-        min_pts = int(args.get(f"{name}_min_pts", defaults["min_pts"]))
-        level_configs[name] = {"epsilon": eps, "min_pts": min_pts, "color": defaults["color"]}
+        level_configs[name] = {"epsilon": eps, "min_pts": defaults["min_pts"], "color": defaults["color"]}
     return level_configs
 
 
@@ -70,7 +70,7 @@ def animation_dbscan():
     window_length = request.args.get("window_length")
     time_step = request.args.get("time_step")
     has_level_overrides = any(
-        key == "levels" or key.endswith("_eps") or key.endswith("_min_pts")
+        key == "levels" or key.endswith("_eps")
         for key in request.args
     )
 
@@ -104,12 +104,10 @@ def incidents():
 def clusters():
     try:
         eps = float(request.args.get("eps", 13123.0))
-    #     min_pts = int(request.args.get("min_pts", 20))
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid parameters"}), 400
 
-    # eps = 4 # max(500.0, min(50000.0, eps))
-    min_pts = 4 # max(2, min(100, min_pts))
+    min_pts = 4  # fixed backend constant, not user-adjustable
 
     level = request.args.get("level")
     cluster_color = cluster_levels[level]["color"] if level in cluster_levels else None
