@@ -19,7 +19,7 @@ body {
 
 #top-bar {
   position: fixed;
-  top: 0;
+  top: 200px;
   left: 0;
   right: 0;
   z-index: 1000;
@@ -182,7 +182,7 @@ body {
 }
 .mapWrapper {
   position: fixed;
-  top: 48px; /* height of top bar */
+  top: 480px; /* height of top bar */
   left: 0;
   right: 0;
   bottom: 32px; /* height of footer bar */
@@ -285,7 +285,9 @@ body {
   width: 100%;
 }
 .popup-address h3{
-
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 .popup-address h5{
   color: white;
@@ -349,37 +351,9 @@ body {
   transition: 0.5s;
 }
 
-/* ── ADDRESS SEARCH BAR ───────────────────────────────────────────────────────────────────── */
-.leaflet-control-geosearch .glass {
-  width: 370px;
-  padding: 10px 10px;
-  font-size: 18px;
-  border-radius: 8px;
+.leaflet-control-attribution {
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  position: absolute;
 }
-.leaflet-control-geosearch form{
-  position: absolute !important;
-  max-width: 380px !important;
-  background: red;
-  padding: 0 !important;
-  top: 100px !important;
-  border-radius: 4px !important;
-  padding: 5px !important;
-  border: 2px solid #525050;
-}
-.leaflet-control-geosearch button.reset{
-  padding: 2.5px 0px !important;
-  border-radius: 2px !important;
-  width: 40px;
-  left: 336px;
-  top: 0;
-  font-size: 20px !important;
-  font-weight: normal !important;
-  
-}
-.leaflet-control-geosearch .results {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-  color: black;
-}
-

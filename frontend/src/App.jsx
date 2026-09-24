@@ -1,13 +1,13 @@
-import { useState } from "react";
-import "./App.css";
-import "./components/LandingPage.css"
-// import LandingPage from "./components/LandingPage";
-import MapPage from "./components/MapPage";
-function App() {
 
+// import LandingPage from "./components/LandingPage";
+import MapPage from './components/MapPage'
+import Container from '@mui/material/Container'
+function App() {
   return (
-    <MapPage/>
-  );
+    <Container disableGutters maxWidth={false} sx={{ height: '100vh' }}>
+      <MapPage />
+    </Container>
+  )
 }
 
-export default App;
+export default App
