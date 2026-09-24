@@ -6,15 +6,21 @@ import { ThemeProvider } from '@mui/material/styles'
 import theme from './theme'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import Login from './Pages/Login/Login.jsx'
+import { MantineProvider } from '@mantine/core'
+import '@mantine/core/styles.css'
+// ‼️ import dates styles after core package styles
+import '@mantine/dates/styles.css'
 const router = createBrowserRouter([
   { path: '/', element: <App /> },
   { path: '/login', element: <Login /> }
 ])
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <RouterProvider router={router} />
-    </ThemeProvider>
+    <MantineProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <RouterProvider router={router} />
+      </ThemeProvider>
+    </MantineProvider>
   </StrictMode>
 )

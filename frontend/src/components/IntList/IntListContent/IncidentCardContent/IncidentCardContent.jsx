@@ -115,7 +115,7 @@ function IncidentCardContent({
               onClick={() => {
                 if (latlon === 1) {
                   getLocation(incident.lat, incident.lon)
-                  getIncidentID(incident.id)
+                  getIncidentID(incident.source_incident_id)
                 } else {
                   setNoLocationMove({
                     address: incident.address,

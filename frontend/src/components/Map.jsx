@@ -28,9 +28,10 @@ function MoveMap({ selectedLocation, markerRef = null }) {
   useEffect(() => {
     if (selectedLocation) {
       map.flyTo([selectedLocation[0], selectedLocation[1]], 18, {
-        duration: 1.2
+        duration: 1.4
       })
       map.once('moveend', () => {
+        console.log(markerRef)
         markerRef?.current?.openPopup()
       })
     }
@@ -405,7 +406,7 @@ function Map({
               key={incident.source_incident_id}
               position={[incident.lat, incident.lon]}
               icon={createIncidentIcon(incident.nature)}
-              ref={idPopup === incident.id ? markerRef : null}
+              ref={idPopup === incident.source_incident_id ? markerRef : null}
             >
               <Popup>
                 <div className='popup-address'>
