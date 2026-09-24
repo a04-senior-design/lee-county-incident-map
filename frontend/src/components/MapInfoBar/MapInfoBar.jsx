@@ -5,19 +5,18 @@ import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Chip from '@mui/material/Chip'
 import ModeStandbyIcon from '@mui/icons-material/ModeStandby'
-import FormControl from '@mui/material/FormControl'
-import Select from '@mui/material/Select'
 import Checkbox from '@mui/material/Checkbox'
 import Divider from '@mui/material/Divider'
+import DatePicker from '../DatePicker/DatePicker'
 function MapInfoBar({
-  daysAgo,
-  setDaysAgo,
   selectedNatures,
   setSelectedNatures,
   filteredListWithLocation,
   allType,
   natures,
-  onNatureChange
+  onNatureChange,
+  dateRange,
+  setDateRange
 }) {
   const [anchorEl, setAnchorEl] = useState(null)
   const open = Boolean(anchorEl)
@@ -39,7 +38,7 @@ function MapInfoBar({
           justifyContent: 'right', //{xs:'space-evenly', md:'center'}
           gap: 2,
           // flexDirection:{xs:'column', md:'row'},
-          width: { sm: '100%', md: '500px' },
+          width: { sm: '100%', md: '570px' },
           height: (theme) => theme.mapCustom.mapInfoBarHeight,
 
           borderBottomLeftRadius: '6px'
@@ -64,64 +63,18 @@ function MapInfoBar({
             : '- incidents'
         }
       />
-      <FormControl
+     
+      <Box
         sx={{
-          width: '140px',
-          '& .MuiFormLabel-root': {
-            fontSize: '16px',
-            p: 0,
-            top: -10
+          width: '900px',
+          '& .m_8fb7ebe7': {
+            fontWeight: 500
           }
         }}
       >
-        <Select
-          labelId='demo-simple-select-label'
-          id='demo-simple-select'
-          value={daysAgo}
-          onChange={(e) => setDaysAgo(Number(e.target.value))}
-          sx={[
-            {
-              height: '30px',
-              width: '140px',
-              fontWeight: 500
-            },
-            (theme) =>
-              theme.applyStyles('dark', {
-                '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'white'
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'white'
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'white'
-                },
-                '.MuiSvgIcon-root': {
-                  color: 'white'
-                }
-              }),
-            (theme) =>
-              theme.applyStyles('light', {
-                '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#424242'
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#424242'
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#424242'
-                },
-                '.MuiSvgIcon-root': {
-                  color: '#424242'
-                }
-              })
-          ]}
-        >
-          <MenuItem value={3}>3 days ago</MenuItem>
-          <MenuItem value={7}>7 days ago</MenuItem>
-          <MenuItem value={30}>30 days ago</MenuItem>
-        </Select>
-      </FormControl>
+        <DatePicker setDateRange={setDateRange} dateRange={dateRange} />
+      </Box>
+
       <Chip
         variant='outlined'
         onClick={handleClick}

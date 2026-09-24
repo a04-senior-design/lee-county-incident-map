@@ -9,6 +9,8 @@ import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import ToolDial from './ToolDial/ToolDial'
 import AppAlert from './AppAlert/AppAlert'
+import dayjs from 'dayjs'
+const today = dayjs()
 function MapPage() {
   // ── Constants ──────────────────────────────────────────────────────────────
   // Color palette keyed by incident nature (first word, lowercase)
@@ -33,6 +35,10 @@ function MapPage() {
   const [selectedNatures, setSelectedNatures] = useState([])
   const [locationMove, setLocationMove] = useState(null) //state to get lat, lng when user click on the item
   const [idPopup, setIdPopup] = useState(null) //state to get the id when user click on incident on the list
+  const [dateRange, setDateRange] = useState([
+    today.subtract(7, 'day').format('YYYY-MM-DD'),
+    today.format('YYYY-MM-DD')
+  ])
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
   const [isPulled, setIsPulled] = useState(false) //pull out the interactive list
@@ -48,11 +54,13 @@ function MapPage() {
   })
   // ── Data loading ───────────────────────────────────────────────────────────
   useEffect(() => {
+    const [fromDay, toDay] = dateRange
+    if (!fromDay || !toDay) return
     async function fetchData() {
       try {
         console.log('await....')
         const res = await fetch(
-          `${API_BASE_URL}/api/v1/incidents?days=${daysAgo}&limit=500`
+          `${API_BASE_URL}/api/v1/incidents?from=${fromDay}&to=${toDay}&limit=500`
         )
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
@@ -75,7 +83,7 @@ function MapPage() {
       }
     }
     fetchData()
-  }, [daysAgo])
+  }, [dateRange])
   // useEffect(() => {
   //   setSelectedNatures(natures)
   // }, [allIncidents, daysAgo])
@@ -266,6 +274,8 @@ function MapPage() {
               allType={allType}
               natures={natures}
               onNatureChange={onNatureChange}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
             />
           </Box>
           <Box
