@@ -177,6 +177,49 @@
   </div>
 
   <div id="controls">
+    
+    <div class="level-block" id="level-block-street" data-level="street">
+      <div class="level-header">
+        <label class="toggle-label">
+          <input type="checkbox" class="level-toggle" data-level="street" checked />
+          <span class="toggle-track"></span>
+        </label>
+        <span class="level-name">Street</span>
+        <span class="level-hint">micro &middot; 300&ndash;2500 ft</span>
+      </div>
+      <div class="level-slider-row">
+        <span>Sparse</span>
+        <input type="range" class="level-slider" id="slider-street" data-level="street"
+        min="0" max="100" step="1" value="50" />
+        <span>Dense</span>
+      </div>
+      <div class="level-stats">
+        <span class="stat-pill">Clusters: <span id="stat-clusters-street">&mdash;</span></span>
+        <span class="stat-pill">Noise: <span id="stat-noise-street">&mdash;</span></span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="level-block" id="level-block-neighborhood" data-level="neighborhood">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="neighborhood" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">Neighborhood</span>
+      <span class="level-hint">meso &middot; 0.5&ndash;2 mi</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="slider-neighborhood" data-level="neighborhood"
+      min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="stat-clusters-neighborhood">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="stat-noise-neighborhood">&mdash;</span></span>
+    </div>
+  </div>
 
     <div class="level-block" id="level-block-district" data-level="district">
       <div class="level-header">
@@ -198,51 +241,8 @@
         <span class="stat-pill">Noise: <span id="stat-noise-district">&mdash;</span></span>
       </div>
     </div>
-
-    <div class="level-block" id="level-block-neighborhood" data-level="neighborhood">
-      <div class="level-header">
-        <label class="toggle-label">
-          <input type="checkbox" class="level-toggle" data-level="neighborhood" checked />
-          <span class="toggle-track"></span>
-        </label>
-        <span class="level-name">Neighborhood</span>
-        <span class="level-hint">meso &middot; 0.5&ndash;2 mi</span>
-      </div>
-      <div class="level-slider-row">
-        <span>Sparse</span>
-        <input type="range" class="level-slider" id="slider-neighborhood" data-level="neighborhood"
-               min="0" max="100" step="1" value="50" />
-        <span>Dense</span>
-      </div>
-      <div class="level-stats">
-        <span class="stat-pill">Clusters: <span id="stat-clusters-neighborhood">&mdash;</span></span>
-        <span class="stat-pill">Noise: <span id="stat-noise-neighborhood">&mdash;</span></span>
-      </div>
-    </div>
-
-    <div class="level-block" id="level-block-street" data-level="street">
-      <div class="level-header">
-        <label class="toggle-label">
-          <input type="checkbox" class="level-toggle" data-level="street" checked />
-          <span class="toggle-track"></span>
-        </label>
-        <span class="level-name">Street</span>
-        <span class="level-hint">micro &middot; 300&ndash;2500 ft</span>
-      </div>
-      <div class="level-slider-row">
-        <span>Sparse</span>
-        <input type="range" class="level-slider" id="slider-street" data-level="street"
-               min="0" max="100" step="1" value="50" />
-        <span>Dense</span>
-      </div>
-      <div class="level-stats">
-        <span class="stat-pill">Clusters: <span id="stat-clusters-street">&mdash;</span></span>
-        <span class="stat-pill">Noise: <span id="stat-noise-street">&mdash;</span></span>
-      </div>
-    </div>
-
   </div>
-
+  
   <div id="stats">
     <div id="status-dot"></div>
     <div class="stat-pill">Total pts: <span id="stat-total">&mdash;</span></div>
