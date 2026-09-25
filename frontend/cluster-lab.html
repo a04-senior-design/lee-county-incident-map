@@ -596,7 +596,7 @@
 
     try {
       const res = await fetch(
-        `${API}/api/animation/dbscan${qs ? "?" + qs : ""}`
+        `${API}/api/clusters${qs ? "?" + qs : ""}`
       );
 
       const body = await res.json();

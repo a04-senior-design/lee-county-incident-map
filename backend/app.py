@@ -15,7 +15,7 @@ from cache import get_incidents  # noqa: E402 — imported after env load
 from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
-from ml.generate_dbscan_snapshots import build_snapshots  # noqa: E402
+from ml.generate_dbscan_snapshots import build_snapshots, build_snapshots_from_points  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -93,30 +93,42 @@ def cluster_lab():
 
 @app.route("/api/clusters")
 def clusters():
-    try:
-        eps = float(request.args.get("eps", 13123.0))
-    except (ValueError, TypeError):
-        return jsonify({"error": "Invalid parameters"}), 400
-
-    min_pts = 4  # fixed backend constant, not user-adjustable
-
-    level = request.args.get("level")
-    cluster_color = cluster_levels[level]["color"] if level in cluster_levels else None
-
-    data = load_csv_incidents()
-    result = run_clusters(data, eps, min_pts, cluster_color=cluster_color)
-    return jsonify(result)
-
-@app.route("/api/clusters/multi")
-def clusters_multi():
-    data = load_csv_incidents()
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    has_level_overrides = any(
+        key == "levels" or key.endswith("_eps")
+        for key in request.args
+    )
     
-    all_results = {}
-    for level, settings in cluster_levels.items():
-        result = run_clusters(incidents=data, eps=settings["epsilon"], min_pts=settings["min_pts"], cluster_color=settings.get("color"))
-        all_results[level] = result
-        
-    return jsonify(all_results)
+    data_points, _, _ = load_points()
+    # easting = data_points_with_noise[:, 0]
+    # northing = data_points_with_noise[:, 1]
+
+    # no level params -> serve the precomputed snapshots, otherwise recompute on demand
+    if not any([start_date, end_date, has_level_overrides]):
+        return jsonify({"frames": dbscan_animation.load_snapshots()})
+
+    try:
+        level_configs = _parse_dbscan_level_overrides(request.args)
+        frames = build_snapshots_from_points(
+            points=data_points,
+            level_configs=level_configs,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"frames": frames})
+
+# @app.route("/api/clusters/multi")
+# def clusters_multi():
+#     data = load_csv_incidents()
+#     
+#     all_results = {}
+#     for level, settings in cluster_levels.items():
+#         result = run_clusters(incidents=data, eps=settings["epsilon"], min_pts=settings["min_pts"], cluster_color=settings.get("color"))
+#         all_results[level] = result
+#         
+#     return jsonify(all_results)
 
 
 @app.route("/animation-lab")
