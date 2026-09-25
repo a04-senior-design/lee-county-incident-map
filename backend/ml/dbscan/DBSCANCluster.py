@@ -23,6 +23,8 @@ from pyproj import Transformer
 CLUSTER_COLORS = ["#E63946", "#2A9D8F", "#E9C46A", "#457B9D", "#F4A261"]
 NOISE_COLOR = "#AAAAAA"
 
+inv_transformer = Transformer.from_crs("EPSG:2882", "EPSG:4326", always_xy=True)
+
 cluster_levels = {
     "street": {
         "epsilon": 1300,
@@ -245,6 +247,37 @@ def run_clusters(incidents: list, eps: float, min_pts: int, cluster_color: str =
     cluster = DBSCANCluster(points, levels=[{"epsilon": eps, "min_pts": min_pts}])
     return cluster.to_geojson(lats, lons, cluster_color=cluster_color)
 
+def run_clusters_from_points(points: np.ndarray, eps: float, min_pts: int, cluster_color: str = None) -> dict:
+    """Run DBSCAN directly on pre-projected coordinate points (EPSG:2882) and
+
+    return a GeoJSON FeatureCollection with WGS84 polygon geometries.
+
+    Parameters
+    ----------
+    points        : np.ndarray of shape (N, 2) containing [easting, northing] in feet
+    eps           : neighborhood radius in US survey feet
+    min_pts       : DBSCAN min_samples
+    cluster_color : hex/color string for GeoJSON feature properties
+
+    Returns
+    -------
+    GeoJSON FeatureCollection dict with top-level 'metadata'.
+    """
+    if points is None or len(points) == 0:
+        return {
+            "type": "FeatureCollection",
+            "features": [],
+            "metadata": {"n_clusters": 0, "n_noise": 0, "n_total": 0},
+        }
+
+    # Inverse transform easting/northing points back to WGS84 lon/lat
+    lons, lats = inv_transformer.transform(points[:, 0], points[:, 1])
+
+    # Run clustering directly on pre-projected points
+    cluster = DBSCANCluster(points, levels=[{"epsilon": eps, "min_pts": min_pts}])
+
+    return cluster.to_geojson(lats, lons, cluster_color=cluster_color)
+
 
 def compute_density_levels(incidents: list, levels: list) -> list:
     """
@@ -273,6 +306,17 @@ def compute_density_levels(incidents: list, levels: list) -> list:
     return [
         {"lat": float(lat), "lng": float(lon), "density_level": int(level)}
         for lat, lon, level in zip(lats, lons, cluster.density_levels)
+    ]
+
+def compute_density_levels_from_points(points : np.ndarray, levels: list) -> list:
+    if points is None or not levels:
+        return []
+    
+    cluster = DBSCANCluster(points, levels=levels)
+    
+    return [
+        {"easting": float(point[0]), "northing": float(point[1]), "density_level": int(level)}
+        for point, level in zip(points, cluster.density_levels)
     ]
 
 

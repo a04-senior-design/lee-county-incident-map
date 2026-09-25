@@ -33,14 +33,21 @@ import os
 import time
 import csv
 import pandas as pd
+import numpy as np
 from pandas.tseries.frequencies import to_offset
+import tempfile
 
-from ml.dbscan import cluster_levels, load_csv_incidents_with_time, run_clusters, compute_density_levels
+from ml.dbscan.DBSCANCluster import cluster_levels, load_csv_incidents_with_time, run_clusters, compute_density_levels, run_clusters_from_points, compute_density_levels_from_points
 
 DEFAULT_N_WINDOWS = 1
 
 _OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "dbscan_snapshots.json")
 
+"""Uncomment this to use real tmp folder"""
+# Get system temp directory (/tmp on macOS/Linux)
+# temp_dir = tempfile.gettempdir()
+# csv_path = os.path.join(temp_dir, "userID_dbscan.csv")
+csv_path = "userID_dbscan.csv"
 
 def build_snapshots(
     start_date=None,
@@ -145,13 +152,64 @@ def build_snapshots(
     # write the cluster density levels
     if only_one_frame:
         densities = compute_density_levels(density_incidents, list(level_configs.values()))
-        with open(os.path.join(os.path.dirname(__file__), "userID_dbscan.csv"), mode="w", newline="", encoding="utf-8") as file:
+        with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             writer.writerow(["lat", "lng", "cluster_density_level"])
             writer.writerows((row["lat"], row["lng"], row["density_level"]) for row in densities)
     
     return snapshots
 
+def build_snapshots_from_points(
+    points: np.ndarray,
+    level_configs=None,
+) -> list:
+    """Run DBSCAN — at every level in `level_configs` — directly on the provided
+
+    coordinate points.
+
+    `level_configs` is a {level_name: {epsilon, min_pts, color}} dict
+    overriding which levels run and their parameters; defaults to `cluster_levels`
+    when omitted.
+
+    Returns a list containing a single snapshot dict:
+    [{label, n_incidents, levels: {level_name: geojson}}]
+    """
+    level_configs = level_configs if level_configs is not None else cluster_levels
+
+    start_time = time.perf_counter()
+
+    levels = {
+        level_name: run_clusters_from_points(
+            points,
+            eps=settings["epsilon"],
+            min_pts=4,
+            cluster_color=settings["color"],
+        )
+        for level_name, settings in level_configs.items()
+    }
+
+    snapshots = [
+        {
+            "label": "All Incidents",
+            "n_incidents": len(points),
+            "levels": levels,
+        }
+    ]
+
+    end_time = time.perf_counter()
+    print(
+        f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds"
+    )
+
+    # Compute density levels for all input points and export CSV
+    densities = compute_density_levels_from_points(points, list(level_configs.values()))
+
+    with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(["easting", "northing", "cluster_density_level"])
+        writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
+
+    return snapshots
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
