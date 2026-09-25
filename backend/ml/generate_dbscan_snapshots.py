@@ -31,11 +31,11 @@ import argparse
 import json
 import os
 import time
-
+import csv
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
-from ml.dbscan import cluster_levels, load_csv_incidents_with_time, run_clusters
+from ml.dbscan import cluster_levels, load_csv_incidents_with_time, run_clusters, compute_density_levels
 
 DEFAULT_N_WINDOWS = 5
 
@@ -79,9 +79,12 @@ def build_snapshots(
     level_configs = level_configs if level_configs is not None else cluster_levels
     incidents = load_csv_incidents_with_time()
     times = pd.to_datetime([inc["occurred_at"] for inc in incidents])
+    
+    only_one_frame = False
 
     start_date = pd.Timestamp(start_date) if start_date is not None else times.min()
     end_date = pd.Timestamp(end_date) if end_date is not None else times.max()
+    
     # user-supplied dates are typically tz-naive ("2026-06-30"); occurred_at is tz-aware
     if start_date.tzinfo is None and times.tz is not None:
         start_date = start_date.tz_localize(times.tz)
@@ -89,6 +92,7 @@ def build_snapshots(
         end_date = end_date.tz_localize(times.tz)
     if window_length is None:
         window_length = (end_date - start_date) # set window
+        only_one_frame = True
     if time_step is None: 
         time_step = window_length # creates one snapshot of clustering
 
@@ -100,13 +104,23 @@ def build_snapshots(
     start_time = time.perf_counter() # start timer
     
     snapshots = []
+    seen_ids = set()
+    density_incidents = [] # union of incidents in a window
     window_start = start_date
+    
     while window_start < end_date:
         window_end = min(window_start + window_length, end_date)
         window_incidents = [
-            inc for inc in incidents
-            if window_start <= inc["occurred_at"] <= window_end
+            incident for incident in incidents
+            if window_start <= incident["occurred_at"] <= window_end
         ]
+        
+        if only_one_frame:
+            for incident in window_incidents:
+                if id(incident) not in seen_ids:
+                    seen_ids.add(id(incident))
+                    density_incidents.append(incident)
+                 
         levels = {
             level_name: run_clusters(
                 window_incidents,
@@ -127,6 +141,13 @@ def build_snapshots(
     
     end_time = time.perf_counter()
     print(f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds")
+    
+    if only_one_frame:
+        densities = compute_density_levels(density_incidents, list(level_configs.values()))
+        with open(os.path.join(os.path.dirname(__file__), "userID_dbscan.csv"), mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["lat", "lng", "cluster_density_level"])
+            writer.writerows((row["lat"], row["lng"], row["density_level"]) for row in densities)
     
     return snapshots
 
