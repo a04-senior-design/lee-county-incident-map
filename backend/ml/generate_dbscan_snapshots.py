@@ -37,7 +37,7 @@ from pandas.tseries.frequencies import to_offset
 
 from ml.dbscan import cluster_levels, load_csv_incidents_with_time, run_clusters, compute_density_levels
 
-DEFAULT_N_WINDOWS = 5
+DEFAULT_N_WINDOWS = 1
 
 _OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "dbscan_snapshots.json")
 
@@ -142,6 +142,7 @@ def build_snapshots(
     end_time = time.perf_counter()
     print(f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds")
     
+    # write the cluster density levels
     if only_one_frame:
         densities = compute_density_levels(density_incidents, list(level_configs.values()))
         with open(os.path.join(os.path.dirname(__file__), "userID_dbscan.csv"), mode="w", newline="", encoding="utf-8") as file:
