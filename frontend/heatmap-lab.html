@@ -80,6 +80,14 @@
       white-space: nowrap;
       cursor: pointer;
     }
+    .cluster-set-option.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .cluster-set-note {
+      font-size: 0.68rem;
+      color: #E9C46A;
+    }
 
     /* ── Map ──────────────────────────────────────────────────────────────── */
     #map { flex: 1; }
@@ -151,6 +159,15 @@
   let radiosBuilt = false;
   // index of the cluster set currently shown, as confirmed by the backend
   let currentClusterSet = null;
+  // radio inputs by index (0 = all points, 1 = cluster analysis), and the note explaining a disabled option
+  let radios = [];
+  let clusterNote = null;
+
+  // explanation shown when "Includes cluster analysis" is disabled, keyed by the backend's dbscan_status
+  const CLUSTER_STATUS_NOTES = {
+    missing: "Run cluster analysis in cluster-lab first.",
+    all_noise: "Last cluster run found only noise. Try larger epsilon values in cluster-lab.",
+  };
 
   function renderHeatmap(data) {
     // remove previous overlay/legend before adding new one
@@ -234,6 +251,7 @@
 
   function buildClusterSetRadios(data) {
     clusterSetControls.innerHTML = "";
+    radios = [];
 
     const title = document.createElement("div");
     title.className = "cluster-set-title";
@@ -258,10 +276,27 @@
 
       option.append(radio, text);
       clusterSetControls.appendChild(option);
+      radios.push(radio);
     });
+
+    clusterNote = document.createElement("div");
+    clusterNote.className = "cluster-set-note";
+    clusterSetControls.appendChild(clusterNote);
 
     radiosBuilt = true;
   }
+
+  // enable "Includes cluster analysis" only when cluster-lab's results are usable, otherwise show why
+  function updateClusterAvailability(status) {
+    if (!radiosBuilt || !status) return;
+    const clusterRadio = radios[1];
+    const available = (status === "available");
+
+    clusterRadio.disabled = !available;
+    clusterRadio.parentElement.classList.toggle("disabled", !available);
+    clusterNote.textContent = available ? "" : (CLUSTER_STATUS_NOTES[status] || "");
+  }
+
 
   // one shared debounce: moving any slider sends all current values
   function scheduleFetch() {
@@ -282,7 +317,11 @@
     fetch(url)
       .then(async res => {
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (!res.ok) {
+          const err = new Error(data.error || `HTTP ${res.status}`);
+          err.data = data;
+          throw err;
+        }
         return data;
       })
       .then(data => {
@@ -290,6 +329,7 @@
 
         // radio buttons: built once, from the backend's label list
         if (!radiosBuilt) buildClusterSetRadios(data);
+        updateClusterAvailability(data.dbscan_status);
 
         if (data.cluster_set !== currentClusterSet) {
           // first load or cluster set switched: slider count may differ, so rebuild
@@ -304,7 +344,13 @@
           });
         }
       })
-      .catch(err => console.error("Heatmap fetch failed: ", err));
+      .catch(err => {
+        console.error("Heatmap fetch failed: ", err);
+        // cluster-related errors carry dbscan_status: disable the option and show why
+        if (err.data) updateClusterAvailability(err.data.dbscan_status);
+        // the request failed, so re-select the option whose heatmap is still on screen 
+        if (radiosBuilt && currentClusterSet !== null) radios[currentClusterSet].checked = true;
+      });
   }
 
   // boot: fetch with no bandwidth params, letting the backend supply its defaults

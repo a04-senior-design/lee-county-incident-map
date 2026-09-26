@@ -23,17 +23,11 @@ MAX_BANDWIDTH = 10000
 MIN_BANDWIDTH = 500
 DEFAULT_BANDWIDTH = 1500
 DEFAULT_CLUSTER_SET = 0
-# radio button labels, one per entry in cluster_sets (same order)
+# radio button labels
 CLUSTER_SET_LABELS = [
     "No cluster analysis (all points)", 
-    "1 level",
-    "2 levels",
-    "3 levels",
+    "Includes cluster analysis",
 ]
-
-DBSCAN_CLUSTER_LEVELS1 = np.array([-1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, 0, -1, 0, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1]) 
-DBSCAN_CLUSTER_LEVELS2 = np.array([-1, -1, 0, 1, 1, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, -1, -1, -1, 1, 1, -1, 0, 0, -1, 0, -1, -1, 1, -1, -1, 1, 0, 0, 0, -1, 0, 0, -1, 0, -1, -1, 0, 0, -1, -1, 0, -1, 0, 1, -1, 1, -1, -1, 1, 0, -1, -1, 1, 1, 1, -1, 1, 1, -1, -1, 0, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, 0, -1, -1, 0, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, -1, 1, -1, 0, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, 0, 1, -1, 0, -1, 0, -1, -1, -1, 0, 1, 0, 0, -1, -1, -1, -1, 0, 0, -1, 1, -1, -1, -1, -1, 0, 0, 0, -1, 0, -1, 0, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 0, -1, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, 1, -1, 1, 0, -1, -1, -1, -1, 0, 0, -1, -1, 1, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, 1, 0, -1, -1, -1, 1, -1, 1, 1, -1, -1, 0, 1, -1, -1, -1, 0, 0, 0, -1, 1, -1, -1, 0, -1, -1, 0, -1, -1, 0, -1, 1, -1, -1, -1, 0, -1, -1])
-DBSCAN_CLUSTER_LEVELS3 = np.array([0, 0, 1, 2, 2, 0, 1, -1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 2, 2, 0, 1, 1, 0, 1, 0, 0, 2, -1, 0, 2, 1, 1, 1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, 0, 1, 0, 1, 2, 0, 2, 0, 0, 2, 1, 0, 0, 2, 2, 2, 0, 2, 2, 0, 0, 1, 1, 0, -1, 0, 1, 1, 0, 0, 0, 0, -1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, -1, 0, 0, 0, 2, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 1, 2, 1, 1, 0, 0, 0, 0, 1, 1, 0, 2, 0, 0, 0, -1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 1, 0, 0, 0, 0, 1, 1, 0, 0, 2, 1, 1, 0, 2, 0, 0, 1, 0, 0, 1, 2, 1, 0, 0, 0, 2, 0, 2, 2, 0, -1, 1, 2, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0, 1, 0, -1, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0])
 
 CSV_PATH = os.path.join(
     os.path.dirname(__file__), 
@@ -211,25 +205,40 @@ def heatmap():
     except ValueError:
         return jsonify({"error": "Invalid cluster_set parameter"}), 400  
 
-    # input data based on a sample of x-y coordinates (easting/northing) from County incident data
-    data_points_with_noise, _, _ = load_points()
-    easting = data_points_with_noise[:, 0]
-    northing = data_points_with_noise[:, 1]
-
-    # selectable cluster level sets; index match CLUSTER_SET_LABELS
-    cluster_sets = [
-        np.zeros(len(data_points_with_noise), dtype=int), # no cluster analysis: every point is cluster level 0
-        DBSCAN_CLUSTER_LEVELS1,
-        DBSCAN_CLUSTER_LEVELS2,
-        DBSCAN_CLUSTER_LEVELS3,
-    ]
-
-    if not 0 <= cluster_set < len(cluster_sets):
+    # guard: cluster_set must match one of the radio button options
+    if not 0 <= cluster_set < len(CLUSTER_SET_LABELS):
         return jsonify({
-            "error": f"cluster_set must be between 0 and {len(cluster_sets) - 1}, got {cluster_set}."
+            "error": f"cluster_set must be between 0 and {len(CLUSTER_SET_LABELS) - 1}"
         }), 400
 
-    dbscan_cluster_levels = cluster_sets[cluster_set]
+    # status of cluster-lab's DBSCAN results: "missing", "all_noise", or "available"
+    dbscan_df = None 
+    if not os.path.exists("userID_dbscan.csv"):
+        dbscan_status = "missing"
+    else:
+        dbscan_df = pd.read_csv("userID_dbscan.csv")
+        if (dbscan_df["cluster_density_level"] == -1).all():
+            dbscan_status = "all_noise"
+        else:
+            dbscan_status = "available"
+
+    # guard: cluster analysis requires the DBSCAN results written by cluster-lab
+    if cluster_set == 1 and dbscan_status == "missing":
+        return jsonify({
+            "error": "No cluster analysis results found. Run cluster analysis in cluster-lab first.",
+            "dbscan_status": dbscan_status,
+        }), 400
+    
+    # cluster analysis selected: use DBSCAN results from cluster-lab; otherwise use all points as one level
+    if cluster_set == 1:
+        data_points_with_noise = dbscan_df[["easting", "northing"]].to_numpy()
+        dbscan_cluster_levels = dbscan_df["cluster_density_level"].to_numpy()
+    else:
+        data_points_with_noise, _, _ = load_points()
+        dbscan_cluster_levels = np.zeros(len(data_points_with_noise), dtype=int)
+
+    easting = data_points_with_noise[:, 0]
+    northing = data_points_with_noise[:, 1]
 
     # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
     padding = 100
@@ -244,6 +253,13 @@ def heatmap():
     unique_cluster_levels = np.unique(dbscan_cluster_levels)
     num_clusters = np.count_nonzero(unique_cluster_levels != -1)
     print(f'num_clusters: {num_clusters}')
+
+    # guard: DBSCAN classified every point as noise, so there is nothing for the KDE to fit
+    if num_clusters == 0:
+        return jsonify({
+            "error": "Cluster analysis classified every point as noise. Try larger epsilon values in cluster-lab.",
+            "dbscan_status": dbscan_status,
+        }), 400
 
     if requested_bandwidths:
         # guard: the frontend must send exactly one bandwidth per non-noise cluster level
@@ -292,6 +308,7 @@ def heatmap():
         "max_bandwidth": MAX_BANDWIDTH,
         "cluster_set": cluster_set,
         "cluster_set_labels": CLUSTER_SET_LABELS,
+        "dbscan_status": dbscan_status,
     }
 
     return jsonify(result)
