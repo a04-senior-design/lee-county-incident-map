@@ -55,6 +55,23 @@ def _where(conditions: list[str]) -> str:
     return " WHERE " + " AND ".join(conditions) if conditions else ""
 
 
+# 26959 is a Florida projection and ST_Transform raises "point outside of projection
+# domain" for a box on the far side of the globe near the equator, which a map client
+# sends whenever someone pans away. Clipping to a window that transforms cannot change
+# a result: no incident, not even a badly geocoded one, sits outside it.
+TRANSFORMABLE = (-125.0, 24.0, -66.0, 50.0)
+
+
+def _clip(bbox) -> list[float] | None:
+    west = max(bbox[0], TRANSFORMABLE[0])
+    south = max(bbox[1], TRANSFORMABLE[1])
+    east = min(bbox[2], TRANSFORMABLE[2])
+    north = min(bbox[3], TRANSFORMABLE[3])
+    if west >= east or south >= north:
+        return None
+    return [west, south, east, north]
+
+
 def _conditions(filters) -> tuple[list[str], list]:
     where: list[str] = []
     params: list = []
@@ -88,8 +105,12 @@ def _conditions(filters) -> tuple[list[str], list]:
         params.append(list(filters.cities))
 
     if filters.bbox:
-        where.append("i.geom && ST_Transform(ST_MakeEnvelope(%s, %s, %s, %s, 4326), 26959)")
-        params.extend(filters.bbox)
+        clipped = _clip(filters.bbox)
+        if clipped is None:
+            where.append("false")
+        else:
+            where.append("i.geom && ST_Transform(ST_MakeEnvelope(%s, %s, %s, %s, 4326), 26959)")
+            params.extend(clipped)
 
     if filters.mapped_only:
         where.append("(i.location_quality = 'in_county' AND i.geocode_trusted)")

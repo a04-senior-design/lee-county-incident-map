@@ -75,6 +75,18 @@ def test_bbox_filter(client):
     assert {i["source_incident_id"] for i in found} == {"25-005"}
 
 
+def test_a_bbox_the_projection_cannot_transform_is_empty_not_a_crash(client):
+    # 26959 is a Florida projection. These used to raise "point outside of projection
+    # domain" from PostGIS and come back as a 500.
+    for far_away in ("0,0,0.001,0.001", "10,5,12,7", "179,-1,180,1"):
+        assert get(client, f"bbox={far_away}") == []
+
+
+def test_a_worldwide_bbox_still_returns_the_county(client):
+    found = get(client, "bbox=-180,-90,180,90")
+    assert {i["source_incident_id"] for i in found} >= {"25-001", "25-005"}
+
+
 def test_date_range_filter(client):
     found = get(client, "from=2026-06-15&to=2026-06-15")
     assert {i["source_incident_id"] for i in found} == {"25-006"}
