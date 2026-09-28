@@ -4,6 +4,7 @@ import {
   TileLayer,
   useMap,
   Marker,
+  CircleMarker,
   Popup,
   Polygon
 } from 'react-leaflet'
@@ -31,7 +32,7 @@ function MoveMap({ selectedLocation, markerRef = null }) {
         duration: 1.4
       })
       map.once('moveend', () => {
-        console.log(markerRef)
+        //console.log(markerRef)
         markerRef?.current?.openPopup()
       })
     }
@@ -73,7 +74,7 @@ const LEECOUNTY_BOUNDARY = [
 ]
 const leeCountyPoints = LEECOUNTY_BOUNDARY[0]
 const LEECOUNTY_BOUNDS = L.latLngBounds(leeCountyPoints)
-let render = 0
+//let render = 0
 function Map({
   finalList,
   countyCenter,
@@ -84,8 +85,8 @@ function Map({
   noLocationMove,
   SetAlertContent
 }) {
-  render++
-  console.log('Map render: ', render)
+  //render++
+  //console.log('Map render: ', render)
   const markerRef = useRef(null) //useRef to mark the popup id
   const [selectedAddress, setSelectedAddress] = useState(null)
   const [isInside, setIsInside] = useState(false)
@@ -401,14 +402,28 @@ function Map({
         />
 
         <MarkerClusterGroup disableClusteringAtZoom={16}>
-          {finalList.map((incident) => (
-            <Marker
-              key={incident.source_incident_id}
+          {finalList.map((incident, index) => (
+            <CircleMarker
+              key={index}
+              center={[incident.lat, incident.lon]}
               position={[incident.lat, incident.lon]}
-              icon={createIncidentIcon(incident.nature)}
               ref={idPopup === incident.source_incident_id ? markerRef : null}
-            >
-              <Popup>
+              radius={8}
+              pathOptions={{
+                color: 'black', // Border color based on nature
+                fillColor: 'red', // Fill color
+                fillOpacity: 0.8,
+                weight: 2
+              }}
+            ></CircleMarker>
+          ))}
+        </MarkerClusterGroup>
+      </MapContainer>
+    </div>
+  )
+}
+{
+  /* <Popup>
                 <div className='popup-address'>
                   <h3>{incident.address}</h3>
                   <h5>{incident.city}</h5>
@@ -427,13 +442,6 @@ function Map({
                   <h4 className='popup-content-normal'>{`Disposition: ${incident.status}`}</h4>
                   <h4 className='popup-content-normal'>{`Date: ${incident.occurred_at}`}</h4>
                 </div>
-              </Popup>
-            </Marker>
-          ))}
-        </MarkerClusterGroup>
-      </MapContainer>
-    </div>
-  )
+              </Popup> */
 }
-
 export default memo(Map)

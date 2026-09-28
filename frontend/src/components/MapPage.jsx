@@ -28,7 +28,7 @@ function MapPage() {
     default: '#7f8c8d'
   }
   const LEE_COUNTY_CENTER = [26.56, -81.87]
-  const API_BASE_URL = 'http://localhost:5001'
+  const database = import.meta.env.VITE_API_BASE_URL
   // ── State ──────────────────────────────────────────────────────────────────
   const [daysAgo, setDaysAgo] = useState(3)
   const [allIncidents, setAllIncidents] = useState([])
@@ -52,43 +52,48 @@ function MapPage() {
     severity: '',
     content: ''
   })
-  // ── Data loading ───────────────────────────────────────────────────────────
   useEffect(() => {
     const [fromDay, toDay] = dateRange
     if (!fromDay || !toDay) return
+
     async function fetchData() {
       try {
         console.log('await....')
-        const res = await fetch(
-          `${API_BASE_URL}/api/v1/incidents?from=${fromDay}&to=${toDay}&limit=500`
-        )
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`  
+        const res = await fetch(url)
+        if (!res.ok) {
+          const errorText = await res.text()
+          throw new Error(`HTTP ${res.status}: ${errorText}`)
+        }
 
         const incidentList = await res.json()
+
+        //console.log('incidentList =', incidentList)
+
         setAllIncidents(incidentList.incidents)
+
         const newNatures = [
           ...new Set(
             incidentList.incidents.map((inc) => inc.category || 'Unknown')
           )
         ].sort()
-        setSelectedNatures(newNatures)
-        //should have popup complete ***********************
-        console.log('fetched successfully')
-        //console.log(incidentList)
 
-        //console.log(natures)
-        //console.log(filtered)
+        setSelectedNatures(newNatures)
+
+        console.log('fetched successfully')
       } catch (err) {
         console.error(err)
       }
     }
+
     fetchData()
   }, [dateRange])
+
   // useEffect(() => {
   //   setSelectedNatures(natures)
   // }, [allIncidents, daysAgo])
   //derived value
-  console.log('MapPage render')
+  //console.log('MapPage render')
   const filteredByDays = allIncidents
   const natures = [
     ...new Set(filteredByDays.map((inc) => inc.category || 'Unknown'))
@@ -176,7 +181,7 @@ function MapPage() {
         incidentColors={NATURE_COLORS}
         SetAlertContent={SetAlertContent}
       />
-      {console.log(noLocationMove)}
+      
 
       <Box
         sx={{
