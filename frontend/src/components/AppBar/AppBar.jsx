@@ -13,7 +13,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import LogoutIcon from '@mui/icons-material/Logout'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import Divider from '@mui/material/Divider'
-import Page from '/Users/dangk/lee-county-incident-map/frontend/src/assets/icon/pageIcon.svg?react'
+import Page from '../../assets/icon/pageIcon.svg?react'
 import SvgIcon from '@mui/material/SvgIcon'
 import Button from '@mui/material/Button'
 import InfoIcon from '@mui/icons-material/Info'
@@ -60,9 +60,9 @@ function AppBar() {
       <Box sx={{ display: 'flex', gap: 5, alignItems: 'center', cursor:'pointer' }}>
         <Box sx={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
           <SvgIcon
-            component={Page}
-            inheritViewBox
-            sx={{ color: 'white', width: 24, height: 24 }}
+          component={Page}
+          inheritViewBox
+          sx ={{color:'white', width:24, height:24}}
           />
           <Typography
             variant='span'
