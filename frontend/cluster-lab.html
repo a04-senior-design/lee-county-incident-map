@@ -672,6 +672,7 @@
         }
       } else {
         if (levelLayers[level]) map.removeLayer(levelLayers[level]);
+        fetchDbscan();
         buildLegend();
       }
     });
