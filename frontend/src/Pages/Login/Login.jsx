@@ -22,7 +22,7 @@ function Login() {
         <Paper
           elevation={3}
           sx={{
-            width: 'clamp(390px, 70vw,1200px)',
+            width: 'clamp(390px, 70vw,1100px)',
             height: '70vh',
             display: 'flex'
           }}
@@ -47,7 +47,7 @@ function Login() {
               }}
             />
           </Box>
-          <Paper sx={{ height: '100%', width: '40%' }}>
+          <Paper sx={{ height: '100%', width: '62%' }}>
             <Box>
               <Box>
                 <Typography

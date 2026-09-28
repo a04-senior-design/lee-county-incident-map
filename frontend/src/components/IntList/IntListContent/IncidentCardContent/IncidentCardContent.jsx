@@ -29,10 +29,10 @@ function IncidentCardContent({
   }
   return (
     <>
-      {incidentList?.map((incident) => (
+      {incidentList?.map((incident,index) => (
         <Card
           elevation={2}
-          key={incident.source_incident_id}
+          key={index}
           sx={[
             {
               width: '95%',

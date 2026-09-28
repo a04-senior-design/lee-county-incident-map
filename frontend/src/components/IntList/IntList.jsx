@@ -57,6 +57,7 @@ function IntList({
   const handleChange = (event, newValue) => {
     setValue(newValue)
   }
+console.log("ActivityList rendered open is", open);
 
   const theme = useTheme()
   const smallScreen = useMediaQuery(theme.breakpoints.down('sm'))
@@ -131,13 +132,14 @@ function IntList({
   //console.log(listWithLocation)
   return (
     <div>
+      
       <Button
         variant='outlined'
         startIcon={<KeyboardDoubleArrowRightIcon />}
-        onClick={toggleDrawer(() => {
+        onClick={() => {
           setOpen(!open)
           setIsPulled(!open)
-        })}
+        }}
         sx={(theme) =>
           theme.applyStyles('dark', {
             color: 'rgba(255, 255, 255, 0.92)',
@@ -170,6 +172,7 @@ function IntList({
         onClose={toggleDrawer(false)}
       >
         {DrawerList}
+        
       </Drawer>
     </div>
   )
