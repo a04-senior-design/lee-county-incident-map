@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KDE Heatmap Lab — Lee County</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    #top-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.2rem;
+      background: rgba(15, 15, 30, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #branding { line-height: 1.3; }
+    #branding strong { font-size: 1rem; color: #fff; }
+    #branding span   { display: block; font-size: 0.72rem; color: #888; }
+
+    /* ── Bandwidth Slide ──────────────────────────────────────────────────── */
+
+    .param-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .param-row label {
+      font-size: 0.75rem;
+      color: #aaa;
+      white-space: nowrap;
+    }
+    .param-row label span {
+      color: #fff;
+      font-weight: 600;
+    }
+    #bandwidth-controls {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+    .bandwidth-slider {
+      width: 200px;
+    }
+    .bandwidth-hint {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #E9C46A;
+      white-space: nowrap;
+    }
+    #cluster-set-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+    .cluster-set-title {
+      font-weight: 600;
+      color: #fff;
+    }
+    .cluster-set-option {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map { flex: 1; }
+
+    /* ── Legend ───────────────────────────────────────────────────────────── */
+    .legend {
+      background: rgba(15, 15, 30, 0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.75rem;
+      color: #eee;
+    }
+    .legend-caption {
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .legend-gradient {
+      width: 180px;
+      height: 12px;
+      border-radius: 2px;
+      margin-bottom: 0.3rem;
+    }
+    .legend-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: #aaa;
+    }
+
+  </style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div id="branding">
+    <strong>KDE Heatmap Lab</strong>
+    <span>Lee County Incidents — dev prototype</span>
+  </div>
+  <div id="cluster-set-controls"></div>
+  <div id="bandwidth-controls"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const DEFAULT_ZOOM = 11;
+
+  // map setup
+  const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  const controls = document.getElementById("bandwidth-controls");
+  const clusterSetControls = document.getElementById("cluster-set-controls");
+
+  let overlayLayer = null;
+  let legendControl = null;
+  let debounceTimer = null;
+  // one slider and value label per non-noise cluster level; index i -> cluster level i
+  let sliders = [];
+  let valueLabels = [];
+  let radiosBuilt = false;
+  // index of the cluster set currently shown, as confirmed by the backend
+  let currentClusterSet = null;
+
+  function renderHeatmap(data) {
+    // remove previous overlay/legend before adding new one
+    if (overlayLayer) map.removeLayer(overlayLayer);
+    if (legendControl) legendControl.remove();
+
+    const b = data.bounds;
+    const imageBounds = [[b.south, b.west], [b.north, b.east]];
+    overlayLayer = L.imageOverlay(data.image, imageBounds, {opacity: 0.8}).addTo(map);
+
+    // build and add the density legend
+    const legend = data.legend;
+    const gradientCss = `linear-gradient(to right, ${legend.colors.join(", ")})`;
+    const tickLabels = legend.ticks
+      .map(t => `<span>${Number(t.toPrecision(2))}</span>`)
+      .join("");
+
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `
+        <div class="legend-caption">${legend.caption}</div>
+        <div class="legend-gradient" style="background: ${gradientCss};"></div>
+        <div class="legend-ticks">${tickLabels}</div>
+      `;
+      return div;
+    };
+    legendControl.addTo(map);
+  }
+
+  function buildSliders(data) {
+    controls.innerHTML = "";
+    sliders = [];
+    valueLabels = [];
+
+    data.bandwidths.forEach((bw, i) => {
+      const row = document.createElement("div");
+      row.className = "param-row";
+
+      const label = document.createElement("label");
+      label.htmlFor = `bandwidth-slider-${i}`;
+      label.textContent = `Level ${i} bandwidth: `;
+      const valueSpan = document.createElement("span");
+      valueSpan.textContent = Math.round(bw);
+      label.appendChild(valueSpan);
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.id = `bandwidth-slider-${i}`;
+      slider.className = "bandwidth-slider";
+      slider.min = data.min_bandwidth;
+      slider.max = data.max_bandwidth;
+      slider.step = 1;
+      slider.value = bw;
+
+      slider.addEventListener("input", () => {
+        // block: keep this slider between its neighbors (level i-1 >= level i >= level i+1)
+        let value = Number(slider.value);
+        if (i > 0) value = Math.min(value, Number(sliders[i - 1].value));
+        if (i < sliders.length - 1) value = Math.max(value, Number(sliders[i + 1].value));
+        slider.value = value;
+
+        valueSpan.textContent = slider.value;
+        scheduleFetch();
+      });
+
+      row.append(label, slider);
+      controls.appendChild(row);
+      sliders.push(slider);
+      valueLabels.push(valueSpan);
+    });
+
+    // hint describing the ordering constraint, e.g. "Constraint: Level 0 >= Level 1 >= Level 2"
+    if (data.bandwidths.length > 1) {
+      const hint = document.createElement("div");
+      hint.className = "bandwidth-hint";
+      hint.textContent = "Constraint: " + data.bandwidths.map((_, i) => `Level ${i}`).join(" >= ");
+      controls.appendChild(hint);
+    }
+  }
+
+  function buildClusterSetRadios(data) {
+    clusterSetControls.innerHTML = "";
+
+    const title = document.createElement("div");
+    title.className = "cluster-set-title";
+    title.textContent = "Cluster set";
+    clusterSetControls.appendChild(title);
+
+    data.cluster_set_labels.forEach((text, i) => {
+      const option = document.createElement("label");
+      option.className = "cluster-set-option";
+
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "cluster-set";
+      radio.value = i;
+      radio.checked = (i === data.cluster_set);
+
+      radio.addEventListener("change", () => {
+        // cancel any pending slider fetch, then switch sets with no bandwidths
+        clearTimeout(debounceTimer);
+        fetchHeatmap(null, i);
+      });
+
+      option.append(radio, text);
+      clusterSetControls.appendChild(option);
+    });
+
+    radiosBuilt = true;
+  }
+
+  // one shared debounce: moving any slider sends all current values
+  function scheduleFetch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      fetchHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
+    }, 400);
+  }
+
+  function fetchHeatmap(bandwidths, clusterSet) {
+    // e.g. ?cluster_set=2&bandwidth=3000&bandwidth=1500
+    const params = new URLSearchParams();
+    if (clusterSet !== undefined && clusterSet !== null) params.append("cluster_set", clusterSet);
+    if (bandwidths) bandwidths.forEach(bw => params.append("bandwidth", bw));
+    const query = params.toString();
+    const url = query ? `/api/heatmap?${query}` : "/api/heatmap";
+
+    fetch(url)
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      })
+      .then(data => {
+        renderHeatmap(data);
+
+        // radio buttons: built once, from the backend's label list
+        if (!radiosBuilt) buildClusterSetRadios(data);
+
+        if (data.cluster_set !== currentClusterSet) {
+          // first load or cluster set switched: slider count may differ, so rebuild
+          currentClusterSet = data.cluster_set;
+          buildSliders(data);
+        }
+        else {
+          // same cluster set: sync sliders to the backend's clamped values
+          data.bandwidths.forEach((bw, i) => {
+            sliders[i].value = bw;
+            valueLabels[i].textContent = Math.round(bw);
+          });
+        }
+      })
+      .catch(err => console.error("Heatmap fetch failed: ", err));
+  }
+
+  // boot: fetch with no bandwidth params, letting the backend supply its defaults
+  fetchHeatmap();  
+})();
+</script>
+</body>
+</html>
