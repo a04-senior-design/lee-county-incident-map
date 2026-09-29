@@ -4,6 +4,7 @@ import IntList from '../IntList/IntList'
 import Button from '@mui/material/Button'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import WorkspacesIcon from '@mui/icons-material/Workspaces'
+import { useState } from 'react'
 
 function BoardBar({
   filteredListWithLocation,
@@ -16,6 +17,14 @@ function BoardBar({
   setIsPulled,
   incidentColors
 }) {
+  const [activeBtn, setActiveBtn] = useState({
+    search: false,
+    dbscan: false,
+    heatMap: false,
+    animation: false
+  })
+  
+  
   return (
     <Box
       sx={[
@@ -65,10 +74,15 @@ function BoardBar({
           Adress Search
         </Button>
         <Button
-          sx={(theme) =>
+          sx={[(theme) =>
             theme.applyStyles('dark', {
               color: 'rgba(255, 255, 255, 0.92)'
-            })
+            }),
+            {
+              '&:focus':{
+                outline:'2px solid red'
+              }
+            }]
           }
           startIcon={<WorkspacesIcon />}
         >
