@@ -23,10 +23,10 @@ MAX_BANDWIDTH = 10000
 MIN_BANDWIDTH = 500
 DEFAULT_BANDWIDTH = 1500
 DEFAULT_CLUSTER_SET = 0
-# radio button labels
+# labels for the KDE heat map's cluster set radios; index = cluster_set
 CLUSTER_SET_LABELS = [
-    "No cluster analysis (all points)", 
-    "Includes cluster analysis",
+    "KDE Heat Map (all points)", 
+    "KDE Heat Map (by cluster density level)",
 ]
 
 CSV_PATH = os.path.join(
@@ -186,14 +186,14 @@ def health():
     return jsonify({"status": "ok"})
 
 
-@app.route("/heatmap-lab")
-def heatmap_lab():
+@app.route("/cluster-heatmap-lab")
+def cluster_heatmap_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-    return send_from_directory(frontend_dir, "heatmap-lab.html")
+    return send_from_directory(frontend_dir, "cluster-heatmap-lab.html")
     
 
-@app.route("/api/heatmap")
-def heatmap():
+@app.route("/api/kde-heatmap")
+def kde_heatmap():
 
     try:
         requested_bandwidths = [float(bw) for bw in request.args.getlist("bandwidth")]

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KDE Heatmap Lab — Lee County</title>
+  <title>Cluster and Heat Map Lab — Lee County</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,34 +27,34 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    /* main bar: branding + cluster set */
+    /* main bar: branding + analysis radios */
     #top-bar {
       background: rgba(15, 15, 30, 0.95);
     }
 
-     #cluster-set-controls {
+     #analysis-controls {
       display: flex;
       flex-direction: column;
       gap: 0.15rem;
       font-size: 0.75rem;
       color: #aaa;
     }
-    .cluster-set-title {
+    .analysis-title {
       font-weight: 600;
       color: #fff;
     }
-    .cluster-set-option {
+    .analysis-option {
       display: flex;
       align-items: center;
       gap: 0.35rem;
       white-space: nowrap;
       cursor: pointer;
     }
-    .cluster-set-option.disabled {
+    .analysis-option.disabled {
       opacity: 0.45;
       cursor: not-allowed;
     }
-    .cluster-set-note {
+    .analysis-note {
       font-size: 0.68rem;
       color: #E9C46A;
     }
@@ -66,15 +66,17 @@
     }
 
     /* show only the current mode's controls */
-    #secondary-bar[data-mode="heatmap"]  #dbscan-controls,
-    #secondary-bar[data-mode="clusters"] #bandwidth-controls {
+    #secondary-bar:not([data-mode="kde-heatmap"])      #bandwidth-controls,
+    #secondary-bar:not([data-mode="clusters"]) #dbscan-controls,
+    #secondary-bar:not([data-mode="gistar-heatmap"])   #gistar-controls {
       display: none;
     }
 
     /* hide the whole bar while the current mode's controls are empty
-       (before the first heatmap response, and in cluster mode until it has controls) */
-    #secondary-bar[data-mode="heatmap"]:has(> #bandwidth-controls:empty),
-    #secondary-bar[data-mode="clusters"]:has(> #dbscan-controls:empty) {
+       (before the first KDE response, and in the placeholder modes until they have controls) */
+    #secondary-bar[data-mode="kde-heatmap"]:has(> #bandwidth-controls:empty),
+    #secondary-bar[data-mode="clusters"]:has(> #dbscan-controls:empty),
+    #secondary-bar[data-mode="gistar-heatmap"]:has(> #gistar-controls:empty) {
       display: none;
     }
 
@@ -143,21 +145,23 @@
 </head>
 <body>
 
-<!-- main control bar: branding + cluster set radios -->
+<!-- main control bar: branding + analysis radios -->
 <div id="top-bar" class="control-bar">
   <div id="branding">
-    <strong>KDE Heatmap Lab</strong>
+    <strong>Cluster and Heat Map Lab</strong>
     <span>Lee County Incidents — dev prototype</span>
   </div>
-  <div id="cluster-set-controls"></div>
+  <div id="analysis-controls"></div>
 </div>
 
 <!-- secondary control bar: its contents depend on the mode chosen in the top bar -->
-<div id="secondary-bar" class="control-bar" data-mode="heatmap">
-  <!-- heatmap mode: bandwidth sliders (built from /api/heatmap) -->
-  <div id="bandwidth-controls"></div>
+<div id="secondary-bar" class="control-bar" data-mode="kde-heatmap">
   <!-- cluster mode: cluster-lab's controls will go here (empty placeholder for now) -->
   <div id="dbscan-controls"></div>
+  <!-- kde-heatmap mode: bandwidth sliders (built from /api/kde-heatmap) -->
+  <div id="bandwidth-controls"></div>
+  <!-- gistar-heatmap mode: Getis-Ord Gi* controls will go here (empty placeholder for now) -->
+  <div id="gistar-controls"></div>
 </div>
 
 <div id="map"></div>
@@ -177,7 +181,7 @@
   }).addTo(map);
 
   const controls = document.getElementById("bandwidth-controls");
-  const clusterSetControls = document.getElementById("cluster-set-controls");
+  const analysisControls = document.getElementById("analysis-controls");
   const secondaryBar = document.getElementById("secondary-bar");
 
   let overlayLayer = null;
@@ -192,21 +196,21 @@
   // radio inputs by index (0 = all points, 1 = includes cluster analysis), and the note explaining a disabled option
   let radios = [];
   let clusterNote = null;
-  // "heatmap" (the two backend cluster sets) or "clusters" (the Cluster Analysis placeholder)
-  let mode = "heatmap";
-  // frontend-only "Cluster Analysis" radio; not in radios[], never sent to /api/heatmap
-  let placeholderRadio = null;
+  // "kde-heatmap" (the two /api/kde-heatmap cluster sets), "clusters" (Cluster Analysis), or "gistar-heatmap" (Getis-Ord Gi*)
+  let mode = "kde-heatmap";
+  // frontend-only radios by mode ("clusters", "gistar-heatmap"); not in radios[], never sent to /api/kde-heatmap
+  const modeRadios = {};
 
-  // explanation shown when "Includes cluster analysis" is disabled, keyed by the backend's dbscan_status
+  // explanation shown when cluster-dependent-KDE is disabled, keyed by the backend's dbscan_status
   const CLUSTER_STATUS_NOTES = {
-    missing: "Run cluster analysis in cluster-lab first.",
+    missing: "Run cluster analysis first.",
     all_noise: "Last cluster run found only noise. Try larger epsilon values in cluster-lab.",
   };
 
-  // replace the heatmap overlay and density legend with the ones in data (image, bounds, legend).
-  // both are stored in overlayLayer/legendControl but only added to the map in heatmap mode;
-  // in cluster mode, setMode("heatmap") adds them when the user switches back.
-  function renderHeatmap(data) {
+  // replace the KDE heat map overlay and density legend with the ones in data (image, bounds, legend).
+  // both are stored in overlayLayer/legendControl but only added to the map in kde-heatmap mode;
+  // in other modes, setMode("kde-heatmap") adds them when the user switches back.
+  function renderKDEHeatmap(data) {
     // remove previous overlay/legend before adding new one
     if (overlayLayer) map.removeLayer(overlayLayer);
     if (legendControl) legendControl.remove();
@@ -233,8 +237,9 @@
       return div;
     };
     
-    // only draw if heatmap mode is showing; otherwise setMode("heatmap") adds them later
-    if (mode === "heatmap") {
+    // show the new KDE overlay and legend only if the KDE heat map is the active mode.
+    // in another mode they're just saved; setMode puts them on the map when the user switches back.
+    if (mode === "kde-heatmap") {
       overlayLayer.addTo(map);
       legendControl.addTo(map);
     }
@@ -294,61 +299,70 @@
     }
   }
 
-  // build the "Cluster set" radios once, from the first heatmap response.
-  // lists the frontend-only "Cluster Analysis" placeholder first (switches to cluster mode, no request),
-  // then one radio per backend label in data.cluster_set_labels; radios[i] matches cluster_set = i.
-  function buildClusterSetRadios(data) {
-    clusterSetControls.innerHTML = "";
+  // add a frontend-only radio that switches to its own mode (no request yet)
+  function addModeRadio(label, modeName) {
+    const option = document.createElement("label");
+    option.className = "analysis-option";
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "analysis-set";
+    radio.value = modeName;
+
+    radio.addEventListener("change", () => {
+      clearTimeout(debounceTimer);   // drop any pending slider fetch
+      setMode(modeName);
+      // later: fetch and render this mode's results here
+    });
+
+    option.append(radio, label);
+    analysisControls.appendChild(option);
+    modeRadios[modeName] = radio;
+  }
+
+  // build the analysis radios once, from the first KDE heat map response (/api/kde-heatmap).
+  // order: Cluster Analysis (frontend-only), one radio per backend label in data.cluster_set_labels
+  // (radios[i] matches cluster_set = i), then Getis-Ord Gi* Heat Map (frontend-only).
+  function buildAnalysisRadios(data) {
+    analysisControls.innerHTML = "";
     radios = [];
 
     const title = document.createElement("div");
-    title.className = "cluster-set-title";
-    title.textContent = "Cluster set";
-    clusterSetControls.appendChild(title);
+    title.className = "analysis-title";
+    title.textContent = "Analysis";
+    analysisControls.appendChild(title);
 
-    // placeholder option, listed first: switches to cluster mode (no request yet)
-    const placeholderOption = document.createElement("label");
-    placeholderOption.className = "cluster-set-option";
-
-    placeholderRadio = document.createElement("input");
-    placeholderRadio.type = "radio";
-    placeholderRadio.name = "cluster-set";
-    placeholderRadio.value = "clusters";
-
-    placeholderRadio.addEventListener("change", () => {
-      clearTimeout(debounceTimer);   // drop any pending slider fetch
-      setMode("clusters");
-      // later: fetch and render cluster-lab's DBSCAN results here
-    });
-
-    placeholderOption.append(placeholderRadio, "Cluster Analysis");
-    clusterSetControls.appendChild(placeholderOption);
+    // frontend-only option listed first; switches to its own mode
+    addModeRadio("Cluster Analysis", "clusters");
 
     data.cluster_set_labels.forEach((text, i) => {
       const option = document.createElement("label");
-      option.className = "cluster-set-option";
+      option.className = "analysis-option";
 
       const radio = document.createElement("input");
       radio.type = "radio";
-      radio.name = "cluster-set";
+      radio.name = "analysis-set";
       radio.value = i;
       radio.checked = (i === data.cluster_set);
 
       radio.addEventListener("change", () => {
         clearTimeout(debounceTimer);
-        setMode("heatmap");
-        // coming back from Cluster Analysis to the set already shown: reuse it, no refetch
-        if (i !== currentClusterSet) fetchHeatmap(null, i);
+        setMode("kde-heatmap");
+        // coming back from another mode to the set already shown: reuse it, no refetch
+        if (i !== currentClusterSet) fetchKDEHeatmap(null, i);
       });
 
       option.append(radio, text);
-      clusterSetControls.appendChild(option);
+      analysisControls.appendChild(option);
       radios.push(radio);
     });
 
     clusterNote = document.createElement("div");
-    clusterNote.className = "cluster-set-note";
-    clusterSetControls.appendChild(clusterNote);
+    clusterNote.className = "analysis-note";
+    analysisControls.appendChild(clusterNote);
+
+    // frontend-only option listed last; switches to its own mode
+    addModeRadio("Getis-Ord Gi* Heat Map", "gistar-heatmap");
 
     radiosBuilt = true;
   }
@@ -369,12 +383,12 @@
     mode = newMode;
     secondaryBar.dataset.mode = newMode;
 
-    // heatmap layers are kept, not destroyed, so coming back needs no refetch
-    const showHeatmap = (newMode === "heatmap");
-    if (overlayLayer)  showHeatmap ? overlayLayer.addTo(map)  : map.removeLayer(overlayLayer);
-    if (legendControl) showHeatmap ? legendControl.addTo(map) : legendControl.remove();
+    // KDE heat map layer is kept, not destroyed, so coming back needs no refetch
+    const showKDEHeatmap = (newMode === "kde-heatmap");
+    if (overlayLayer)  showKDEHeatmap ? overlayLayer.addTo(map)  : map.removeLayer(overlayLayer);
+    if (legendControl) showKDEHeatmap ? legendControl.addTo(map) : legendControl.remove();
 
-    // later: show/hide cluster-lab's layer groups and legend here
+    // later: show/hide the cluster and Gi* layers and legends here
 
     map.invalidateSize();   // the second bar's height changed
   }
@@ -384,20 +398,20 @@
   function scheduleFetch() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      fetchHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
+      fetchKDEHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
     }, 400);
   }
 
-  // fetch /api/heatmap and update the page with the result.
+  // fetch /api/kde-heatmap and update the page with the result.
   // bandwidths: one value per slider (Level 0, 1, ...), or null to use the backend's defaults.
   // clusterSet: 0 = all points, 1 = includes cluster analysis, or null for the backend's default (0).
-  // e.g. fetchHeatmap([3000, 1500], 1) -> /api/heatmap?cluster_set=1&bandwidth=3000&bandwidth=1500
-  function fetchHeatmap(bandwidths, clusterSet) {
+  // e.g. fetchKDEHeatmap([3000, 1500], 1) -> /api/kde-heatmap?cluster_set=1&bandwidth=3000&bandwidth=1500
+  function fetchKDEHeatmap(bandwidths, clusterSet) {
     const params = new URLSearchParams();
     if (clusterSet !== undefined && clusterSet !== null) params.append("cluster_set", clusterSet);
     if (bandwidths) bandwidths.forEach(bw => params.append("bandwidth", bw));
     const query = params.toString();
-    const url = query ? `/api/heatmap?${query}` : "/api/heatmap";
+    const url = query ? `/api/kde-heatmap?${query}` : "/api/kde-heatmap";
 
     fetch(url)
       .then(async res => {
@@ -410,10 +424,10 @@
         return data;
       })
       .then(data => {
-        renderHeatmap(data);
+        renderKDEHeatmap(data);
 
         // radio buttons: built once, from the backend's label list
-        if (!radiosBuilt) buildClusterSetRadios(data);
+        if (!radiosBuilt) buildAnalysisRadios(data);
         updateClusterAvailability(data.dbscan_status);
 
         if (data.cluster_set !== currentClusterSet) {
@@ -431,19 +445,19 @@
         }
       })
       .catch(err => {
-        console.error("Heatmap fetch failed: ", err);
+        console.error("KDEHeatmap fetch failed: ", err);
         // cluster-related errors carry dbscan_status: disable the option and show why
         if (err.data) updateClusterAvailability(err.data.dbscan_status);
-        // the request failed, so re-select the option whose heatmap is still stored,
-        // unless the user has since switched to Cluster Analysis
-        if (radiosBuilt && currentClusterSet !== null && mode === "heatmap") {
+        // the request failed, so re-select the option whose KDE heat map is still stored,
+        // unless the user has since switched to another mode
+        if (radiosBuilt && currentClusterSet !== null && mode === "kde-heatmap") {
           radios[currentClusterSet].checked = true;
         }
       });
   }
 
   // boot: fetch with no bandwidth params, letting the backend supply its defaults
-  fetchHeatmap();  
+  fetchKDEHeatmap();  
 })();
 </script>
 </body>
