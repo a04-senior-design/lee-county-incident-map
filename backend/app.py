@@ -247,12 +247,10 @@ def kde_heatmap():
     y_min = np.min(northing) - padding
     y_max = np.max(northing) + padding
     increment = 300
-    print(f'increment = {increment}')
 
     # one bandwidth per non-noise cluster level, ordered by ascending level (0, 1, 2) - least dense to most dense
     unique_cluster_levels = np.unique(dbscan_cluster_levels)
     num_clusters = np.count_nonzero(unique_cluster_levels != -1)
-    print(f'num_clusters: {num_clusters}')
 
     # guard: DBSCAN classified every point as noise, so there is nothing for the KDE to fit
     if num_clusters == 0:
@@ -279,7 +277,6 @@ def kde_heatmap():
     else:
         # initial page load: no values sent, so use the shared default for every level
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
-    print(f'bandwidths: {bandwidths}')
     
 
     # instantiate a KDEHeatMap object
