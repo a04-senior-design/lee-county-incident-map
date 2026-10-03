@@ -21,7 +21,9 @@ def create_app(database_url: str | None = None) -> Flask:
 
     app = Flask(__name__)
     app.config["JWT_SECRET"] = os.environ["JWT_SECRET"]
+    # Neon drops every connection when it suspends after a few idle minutes.
     app.pool = ConnectionPool(url, min_size=1, max_size=8, timeout=5, open=True,
+                              check=ConnectionPool.check_connection,
                               kwargs={"row_factory": dict_row})
     CORS(app, resources={rf"{API}/*": {"origins": origins}}, supports_credentials=True)
     app.register_blueprint(auth.bp)
