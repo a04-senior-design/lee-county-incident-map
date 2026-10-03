@@ -15,12 +15,12 @@ const router = createBrowserRouter([
   { path: '/login', element: <Login /> }
 ])
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
+  
     <MantineProvider>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <RouterProvider router={router} />
       </ThemeProvider>
     </MantineProvider>
-  </StrictMode>
+  
 )

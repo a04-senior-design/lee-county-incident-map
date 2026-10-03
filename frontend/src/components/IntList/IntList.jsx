@@ -44,20 +44,20 @@ function IntList({
   getLocation,
   getIncidentID,
   setNoLocationMove,
+  isPulled,
   setIsPulled,
-  incidentColors
+  incidentColors,
+  analysisOn
 }) {
-  const [open, setOpen] = React.useState(false)
-
   const toggleDrawer = (newOpen) => () => {
-    setOpen(newOpen)
+    setIsPulled(newOpen)
   }
   const [value, setValue] = React.useState(0)
 
   const handleChange = (event, newValue) => {
     setValue(newValue)
   }
-console.log("ActivityList rendered open is", open);
+  //console.log("ActivityList rendered open is", isPulled);
 
   const theme = useTheme()
   const smallScreen = useMediaQuery(theme.breakpoints.down('sm'))
@@ -95,7 +95,6 @@ console.log("ActivityList rendered open is", open);
             }}
           />
           <Tab
-            
             label='Without Location'
             {...a11yProps(1)}
             sx={{
@@ -132,13 +131,11 @@ console.log("ActivityList rendered open is", open);
   //console.log(listWithLocation)
   return (
     <div>
-      
       <Button
         variant='outlined'
         startIcon={<KeyboardDoubleArrowRightIcon />}
         onClick={() => {
-          setOpen(!open)
-          setIsPulled(!open)
+          setIsPulled(!isPulled)
         }}
         sx={(theme) =>
           theme.applyStyles('dark', {
@@ -146,6 +143,7 @@ console.log("ActivityList rendered open is", open);
             borderColor: 'rgba(255, 255, 255, 0.5)'
           })
         }
+        disabled={analysisOn ? true : false}
       >
         Interactive List
       </Button>
@@ -168,11 +166,10 @@ console.log("ActivityList rendered open is", open);
             })
         ]}
         variant='persistent'
-        open={open}
+        open={isPulled}
         onClose={toggleDrawer(false)}
       >
         {DrawerList}
-        
       </Drawer>
     </div>
   )

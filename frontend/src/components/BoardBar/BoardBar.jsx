@@ -4,6 +4,7 @@ import IntList from '../IntList/IntList'
 import Button from '@mui/material/Button'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import WorkspacesIcon from '@mui/icons-material/Workspaces'
+import AssessmentIcon from '@mui/icons-material/Assessment'
 import { useState } from 'react'
 
 function BoardBar({
@@ -14,8 +15,11 @@ function BoardBar({
   setAddressSearch,
   addressSearch,
   setNoLocationMove,
+  isPulled,
   setIsPulled,
-  incidentColors
+  incidentColors,
+  analysisOn,
+  setAnalysisOn
 }) {
   const [activeBtn, setActiveBtn] = useState({
     search: false,
@@ -23,8 +27,7 @@ function BoardBar({
     heatMap: false,
     animation: false
   })
-  
-  
+
   return (
     <Box
       sx={[
@@ -59,8 +62,10 @@ function BoardBar({
           getLocation={getLocation}
           getIncidentID={getIncidentID}
           setNoLocationMove={setNoLocationMove}
+          isPulled={isPulled}
           setIsPulled={setIsPulled}
           incidentColors={incidentColors}
+          analysisOn={analysisOn}
         />
         <Button
           sx={(theme) =>
@@ -70,23 +75,30 @@ function BoardBar({
           }
           startIcon={<TravelExploreIcon />}
           onClick={() => setAddressSearch(!addressSearch)}
+          disabled={analysisOn ? true : false}
         >
           Adress Search
         </Button>
         <Button
-          sx={[(theme) =>
-            theme.applyStyles('dark', {
-              color: 'rgba(255, 255, 255, 0.92)'
-            }),
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
             {
-              '&:focus':{
-                outline:'2px solid red'
+              '&:focus': {
+                outline: '2px solid red'
               }
-            }]
-          }
-          startIcon={<WorkspacesIcon />}
+            }
+          ]}
+          startIcon={<AssessmentIcon />}
+          onClick={() => {
+            setAnalysisOn(!analysisOn)
+            setIsPulled(false)
+            setAddressSearch(false)
+          }}
         >
-          DBScan Cluster
+          Analysis Mode
         </Button>
         <Button
           sx={(theme) =>

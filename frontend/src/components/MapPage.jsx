@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography'
 import ToolDial from './ToolDial/ToolDial'
 import AppAlert from './AppAlert/AppAlert'
 import dayjs from 'dayjs'
+import Analysis from './Analysis/Analysis'
 const today = dayjs()
 function MapPage() {
   // ── Constants ──────────────────────────────────────────────────────────────
@@ -52,14 +53,20 @@ function MapPage() {
     severity: '',
     content: ''
   })
+  //── Analysis mode ───────────────────────────────────────────────────────────
+  const [analysisOn, setAnalysisOn] = useState(false)
+
   useEffect(() => {
     const [fromDay, toDay] = dateRange
     if (!fromDay || !toDay) return
 
     async function fetchData() {
       try {
+        console.log('fromDay:', fromDay)
+        console.log('toDay:', toDay)
         console.log('await....')
-        const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`  
+        const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`
+        //console.log('API URL:', url)
         const res = await fetch(url)
         if (!res.ok) {
           const errorText = await res.text()
@@ -68,7 +75,7 @@ function MapPage() {
 
         const incidentList = await res.json()
 
-        //console.log('incidentList =', incidentList)
+        console.log('incidentList =', incidentList)
 
         setAllIncidents(incidentList.incidents)
 
@@ -98,18 +105,30 @@ function MapPage() {
   const natures = [
     ...new Set(filteredByDays.map((inc) => inc.category || 'Unknown'))
   ].sort()
-  const filteredList = handleNature(filteredByDays, selectedNatures)
+  const filteredList = useMemo(
+    () => handleNature(filteredByDays, selectedNatures),
+    [filteredByDays, selectedNatures]
+  )
   //console.log('filtered by days', filteredByDays)
   //console.log(selectedNatures, natures)
   //const filteredList = handleNature(filteredByDays, selectedNatures)
-  const filteredListWithLocation = filteredList.filter(
-    (incident) => incident.lat !== null && incident.lon !== null
-  )
-  const filteredListWithoutLocation = filteredList.filter(
-    (incident) => incident.lat === null && incident.lon === null
+  const filteredListWithLocation = useMemo(
+    () =>
+      filteredList.filter(
+        (incident) => incident.lat !== null && incident.lon !== null
+      ),
+    [filteredList]
   )
 
-  //console.log('list with loc',filteredListWithLocation)
+  const filteredListWithoutLocation = useMemo(
+    () =>
+      filteredList.filter(
+        (incident) => incident.lat === null && incident.lon === null
+      ),
+    [filteredList]
+  )
+
+  console.log('list with loc', filteredListWithLocation)
   //console.log('list without loc',filteredListWithoutLocation)
   //check
 
@@ -177,11 +196,13 @@ function MapPage() {
         setAddressSearch={setAddressSearch}
         addressSearch={addressSearch}
         setNoLocationMove={setNoLocationMove}
+        isPulled={isPulled}
         setIsPulled={setIsPulled}
         incidentColors={NATURE_COLORS}
         SetAlertContent={SetAlertContent}
+        analysisOn={analysisOn}
+        setAnalysisOn={setAnalysisOn}
       />
-      
 
       <Box
         sx={{
@@ -287,7 +308,7 @@ function MapPage() {
             sx={{
               height: 'calc(100% - 50px)',
               width: isPulled === true ? 'calc(100% + 400px)' : '100%',
-              transform: isPulled ? 'translateX(-200px)' : 'translateX(0)',
+              transform: `translateX(${isPulled?'-200px':'0'}`,
               transition: 'linear 0.3s'
             }}
           >
@@ -300,6 +321,7 @@ function MapPage() {
               setAddressSearch={setAddressSearch}
               noLocationMove={noLocationMove}
               SetAlertContent={SetAlertContent}
+              analysisOn={analysisOn}
             />
           </Box>
         </Paper>

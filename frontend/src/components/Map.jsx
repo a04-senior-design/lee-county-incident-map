@@ -21,6 +21,7 @@ import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemText from '@mui/material/ListItemText'
+import Analysis from './Analysis/Analysis'
 let iconCache = {}
 //create a custom hook to move the map when user click on the item
 function MoveMap({ selectedLocation, markerRef = null }) {
@@ -83,7 +84,8 @@ function Map({
   addressSearch,
   setAddressSearch,
   noLocationMove,
-  SetAlertContent
+  SetAlertContent,
+  analysisOn
 }) {
   //render++
   //console.log('Map render: ', render)
@@ -400,24 +402,26 @@ function Map({
             stroke: false
           }}
         />
-
-        <MarkerClusterGroup disableClusteringAtZoom={16}>
-          {finalList.map((incident, index) => (
-            <CircleMarker
-              key={index}
-              center={[incident.lat, incident.lon]}
-              position={[incident.lat, incident.lon]}
-              ref={idPopup === incident.source_incident_id ? markerRef : null}
-              radius={8}
-              pathOptions={{
-                color: 'black', // Border color based on nature
-                fillColor: 'red', // Fill color
-                fillOpacity: 0.8,
-                weight: 2
-              }}
-            ></CircleMarker>
-          ))}
-        </MarkerClusterGroup>
+        <Analysis active = {analysisOn} filteredListWithLocation={finalList} />
+        {!analysisOn && (
+          <MarkerClusterGroup disableClusteringAtZoom={16}>
+            {finalList.map((incident, index) => (
+              <CircleMarker
+                key={index}
+                center={[incident.lat, incident.lon]}
+                position={[incident.lat, incident.lon]}
+                ref={idPopup === incident.source_incident_id ? markerRef : null}
+                radius={8}
+                pathOptions={{
+                  color: 'black', // Border color based on nature
+                  fillColor: 'red', // Fill color
+                  fillOpacity: 0.8,
+                  weight: 2
+                }}
+              ></CircleMarker>
+            ))}
+          </MarkerClusterGroup>
+        )}
       </MapContainer>
     </div>
   )

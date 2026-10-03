@@ -13,6 +13,7 @@ function DatePicker({dateRange, setDateRange}: DatePickerProps) {
   }
   return (
     <DatePickerInput
+      popoverProps={{ zIndex: 2000 }}
       clearable
       type='range'
       value={dateRange}
