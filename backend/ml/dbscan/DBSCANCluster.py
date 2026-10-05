@@ -62,6 +62,20 @@ def load_csv_incidents_with_time() -> list:
     return df[["lat", "lon", "occurred_at"]].rename(columns={"lon": "lng"}).to_dict(orient="records")
 
 
+def _dedupe_points(points: np.ndarray, tolerance: float) -> np.ndarray:
+    """Collapse points within `tolerance` of each other onto a grid, keeping one
+    original (non-snapped) representative per cell. Buffering thousands of
+    near-duplicate incident coordinates is the dominant cost in to_geojson(),
+    and circles from points this close together overlap almost completely, so
+    dropping the duplicates barely changes the unioned outline but cuts the
+    buffer/union workload dramatically."""
+    if tolerance <= 0 or len(points) <= 1:
+        return points
+    grid = np.round(points / tolerance).astype(np.int64)
+    _, unique_idx = np.unique(grid, axis=0, return_index=True)
+    return points[unique_idx]
+
+
 def _project_mappable(incidents: list):
     """Filter out incidents missing lat/lng and project the rest NAD83
     geographic (EPSG:4269) -> NAD83 StatePlane Florida West feet (EPSG:2882).
@@ -167,7 +181,12 @@ class DBSCANCluster:
             color = cluster_color if cluster_color is not None else CLUSTER_COLORS[int(label) % len(CLUSTER_COLORS)]
 
             cluster_pts = self.points[mask]
-            union = unary_union([Point(p).buffer(eps) for p in cluster_pts])
+            # dedupe + coarser circle resolution sharply cuts buffer/union cost on
+            # dense clusters; simplify() then thins the outline itself (an
+            # outline is all the frontend needs to draw/shade a cluster)
+            buffer_pts = _dedupe_points(cluster_pts, tolerance=eps / 100)
+            union = unary_union([Point(p).buffer(eps, quad_segs=4) for p in buffer_pts])
+            union = union.simplify(eps * 0.03, preserve_topology=True)
             wgs84_geom = shp_transform(to_wgs84.transform, union)
 
             polygon_features.append({
