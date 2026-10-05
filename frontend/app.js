@@ -24,6 +24,7 @@
   let allIncidents = [];
   let markerLayer = null;
   let activeNatures = null; // null = all types shown
+  let dataSpanDays = null;  // age (days) of the oldest incident in the feed
 
   // ── Map setup ──────────────────────────────────────────────────────────────
 
@@ -96,11 +97,43 @@
       `${mappable.length.toLocaleString()} incident${mappable.length !== 1 ? "s" : ""}`;
   }
 
+  function normalizeDate(raw) {
+    return raw.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+  }
+
+  function computeDataSpanDays(incidents) {
+    let oldest = Infinity;
+    for (const inc of incidents) {
+      if (!inc.occuredDate) continue;
+      const t = new Date(normalizeDate(inc.occuredDate)).getTime();
+      if (!Number.isNaN(t) && t < oldest) oldest = t;
+    }
+    if (oldest === Infinity) return null;
+    return Math.ceil((Date.now() - oldest) / (24 * 60 * 60 * 1000));
+  }
+
+  function updateDateLabel(days) {
+    const slider = document.getElementById("date-filter");
+    const label  = document.getElementById("date-filter-val");
+    const maxed  = dataSpanDays !== null && days >= dataSpanDays;
+
+    label.textContent = maxed
+      ? `all available data (~${dataSpanDays} days)`
+      : `${days} day${days !== 1 ? "s" : ""}`;
+    label.classList.toggle("date-filter-maxed", maxed);
+    slider.classList.toggle("date-filter-maxed", maxed);
+
+    const pct   = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
+    const color = maxed ? "#d9a441" : "#4f83cc";
+    slider.style.background = `linear-gradient(to right, ${color} ${pct}%, #3a3a55 ${pct}%)`;
+  }
+
   function applyFilter() {
     const days = parseInt(
       document.getElementById("date-filter").value,
       10
     );
+    updateDateLabel(days);
     let filtered = filterByDays(allIncidents, days);
     if (activeNatures !== null) {
       filtered = filtered.filter(
@@ -213,6 +246,7 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       allIncidents = await res.json();
+      dataSpanDays = computeDataSpanDays(allIncidents);
       msg.textContent = `Geocoding complete. ${allIncidents.length} incidents loaded.`;
 
       buildNatureFilter(allIncidents);
@@ -226,7 +260,14 @@
 
   // ── Event listeners ────────────────────────────────────────────────────────
 
-  document.getElementById("date-filter").addEventListener("change", applyFilter);
+  let filterDebounce = null;
+  document.getElementById("date-filter").addEventListener("input", () => {
+    updateDateLabel(
+      parseInt(document.getElementById("date-filter").value, 10)
+    );
+    clearTimeout(filterDebounce);
+    filterDebounce = setTimeout(applyFilter, 150);
+  });
 
   document.getElementById("nature-filter-btn").addEventListener("click", (e) => {
     e.stopPropagation();
@@ -248,6 +289,7 @@
     const days = parseInt(document.getElementById("date-filter").value, 10);
     const b    = map.getBounds();
 
+    btn.classList.add("loading");
     btn.textContent = "Generating…";
     btn.disabled    = true;
 
@@ -278,6 +320,7 @@
     } catch (err) {
       alert(`Report generation failed: ${err.message}`);
     } finally {
+      btn.classList.remove("loading");
       btn.textContent = "⬇ Generate Report";
       btn.disabled    = false;
     }
@@ -285,5 +328,6 @@
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 
+  updateDateLabel(parseInt(document.getElementById("date-filter").value, 10));
   loadIncidents();
 })();

@@ -19,13 +19,11 @@
       <span id="subtitle">Lee County Sheriff's Office — last 1,000 incidents (48hr delay)</span>
     </div>
     <div id="controls">
-      <label for="date-filter">Show incidents from:</label>
-      <select id="date-filter">
-        <option value="3">3 Days Ago</option>
-        <option value="7">Last 7 days</option>
-        <option value="30">Last 30 days</option>
-        <!-- <option value="0">All available</option> -->
-      </select>
+      <div class="control-group date-range-group">
+        <label for="date-filter">Show last</label>
+        <input type="range" id="date-filter" min="1" max="30" value="7" step="1" />
+        <span id="date-filter-val">7 days</span>
+      </div>
       <span id="count-badge">— incidents</span>
       <div id="nature-filter-wrap">
         <button id="nature-filter-btn">All types ▾</button>

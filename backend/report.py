@@ -118,6 +118,99 @@ def _bar_chart(nature_counts):
     return buf
 
 
+def _city_chart(city_counts):
+    """Horizontal bar chart — incident counts by city (top 10)."""
+    items = sorted(city_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    labels = [k.title() for k, _ in items]
+    vals = [v for _, v in items]
+
+    fig, ax = plt.subplots(figsize=(7, max(2.5, len(labels) * 0.38)))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    bars = ax.barh(labels[::-1], vals[::-1], color=_BLUE, edgecolor="none", height=0.6)
+    ax.set_xlabel("Incident Count", fontsize=9)
+    ax.set_title("Incidents by City", fontsize=11, fontweight="bold", pad=10)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=8)
+
+    for bar, val in zip(bars, vals[::-1]):
+        ax.text(
+            bar.get_width() + 0.3,
+            bar.get_y() + bar.get_height() / 2,
+            str(val), va="center", ha="left", fontsize=8, color="#333",
+        )
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def _hour_chart(incidents):
+    """Bar chart — incident counts by hour of day (0-23)."""
+    bucket = Counter()
+    for inc in incidents:
+        d = _parse_date(inc)
+        if d:
+            bucket[d.hour] += 1
+
+    hours = list(range(24))
+    vals = [bucket.get(h, 0) for h in hours]
+
+    fig, ax = plt.subplots(figsize=(3.15, 2.5))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    ax.bar(hours, vals, color=_BLUE, edgecolor="none", width=0.7)
+    ax.set_title("Incidents by Hour of Day", fontsize=10, fontweight="bold", pad=8)
+    ax.set_xlabel("Hour", fontsize=8)
+    ax.set_xticks(range(0, 24, 3))
+    ax.set_xticklabels([f"{h:02d}" for h in range(0, 24, 3)])
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=7)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def _weekday_chart(incidents):
+    """Bar chart — incident counts by day of week."""
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    bucket = Counter()
+    for inc in incidents:
+        d = _parse_date(inc)
+        if d:
+            bucket[d.weekday()] += 1
+
+    vals = [bucket.get(i, 0) for i in range(7)]
+
+    fig, ax = plt.subplots(figsize=(3.15, 2.5))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    ax.bar(names, vals, color=_BLUE, edgecolor="none", width=0.6)
+    ax.set_title("Incidents by Day of Week", fontsize=10, fontweight="bold", pad=8)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=7)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
 def _line_chart(incidents, days):
     """Line chart — daily incident counts over the selected period."""
     end = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -190,6 +283,10 @@ def generate_pdf(incidents, bounds, days):
     nature_counts = Counter(
         (inc.get("nature") or "Unknown").strip() for inc in incidents
     )
+    city_counts = Counter()
+    for inc in incidents:
+        city = (inc.get("city") or "").strip()
+        city_counts[city if city else "Unknown"] += 1
     most_common  = nature_counts.most_common(1)[0][0].title() if nature_counts else "N/A"
     days_label   = f"Last {days} day{'s' if days != 1 else ''}"
 
@@ -246,9 +343,32 @@ def generate_pdf(incidents, bounds, days):
     story.append(Image(_bar_chart(nature_counts), width=6.5*inch, height=3.4*inch))
     story.append(Spacer(1, 0.05 * inch))
 
+    # City chart
+    if city_counts:
+        story.append(Paragraph("Incidents by City", h2_s))
+        story.append(Image(_city_chart(city_counts), width=6.5*inch, height=3.0*inch))
+        story.append(Spacer(1, 0.05 * inch))
+
     # Line chart
     story.append(Paragraph("Daily Incident Trend", h2_s))
     story.append(Image(_line_chart(incidents, days), width=6.5*inch, height=2.5*inch))
+    story.append(Spacer(1, 0.1 * inch))
+
+    # Hour-of-day / day-of-week charts, side by side
+    story.append(Paragraph("Incident Timing", h2_s))
+    timing_tbl = Table(
+        [[
+            Image(_hour_chart(incidents), width=3.15*inch, height=2.5*inch),
+            Image(_weekday_chart(incidents), width=3.15*inch, height=2.5*inch),
+        ]],
+        colWidths=[3.25*inch, 3.25*inch],
+    )
+    timing_tbl.setStyle(TableStyle([
+        ("VALIGN",       (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(timing_tbl)
     story.append(Spacer(1, 0.1 * inch))
 
     # Breakdown table
