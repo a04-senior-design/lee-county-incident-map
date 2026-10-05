@@ -32,12 +32,12 @@ import json
 import os
 import time
 import csv
-import pandas as pd
 import numpy as np
 from pandas.tseries.frequencies import to_offset
 import tempfile
 
-from ml.dbscan.DBSCANCluster import cluster_levels, load_csv_incidents_with_time, run_clusters, compute_density_levels, run_clusters_from_points, compute_density_levels_from_points
+from ml.time_windows import build_time_windows
+from ml.dbscan.DBSCANCluster import cluster_levels, run_clusters, compute_density_levels, run_clusters_from_points, compute_density_levels_from_points
 
 DEFAULT_N_WINDOWS = 1
 
@@ -58,7 +58,7 @@ def build_snapshots(
 ) -> list:
     """Slide a window of `window_length` across [start_date, end_date] in
     steps of `time_step` and run DBSCAN — at every level in `level_configs` —
-    on each window's own incidents only.
+    on each window's own incidents only.  
 
     `time_step` may be shorter than `window_length` (overlapping windows),
     equal to it (sequential, non-overlapping), or longer than it (gaps
@@ -67,12 +67,13 @@ def build_snapshots(
     instance (e.g. pandas.DateOffset(years=1) for calendar-based steps like
     "every February").
 
-    start_date/end_date default to the CSV's full occurred_at range;
-    window_length/time_step default to that range split into
-    DEFAULT_N_WINDOWS equal, non-overlapping windows (the old fixed
-    5-snapshot behavior) — leaving both blank also means "just one window",
-    i.e. a single DBSCAN snapshot for [start_date, end_date] rather than an
-    animation.
+    Windows come from ml.time_windows.build_time_windows(), which applies
+    the defaults: start_date/end_date default to the CSV's earliest/latest
+    occurred_at; window_length defaults to the whole [start_date, end_date]
+    range (a single window, i.e. one DBSCAN snapshot rather than an
+    animation); time_step defaults to window_length (non-overlapping
+    windows). Leaving window_length blank also writes that single window's
+    per-incident density levels to userID_dbscan.csv.
 
     `level_configs` is a {level_name: {epsilon, min_pts, color}} dict
     overriding which levels run and their parameters (e.g. from user-facing
@@ -84,44 +85,21 @@ def build_snapshots(
     dicts in time order.
     """
     level_configs = level_configs if level_configs is not None else cluster_levels
-    incidents = load_csv_incidents_with_time()
-    times = pd.to_datetime([inc["occurred_at"] for inc in incidents])
+    only_one_frame = window_length is None
+    windows = build_time_windows(start_date, end_date, window_length, time_step)
     
-    only_one_frame = False
-
-    start_date = pd.Timestamp(start_date) if start_date is not None else times.min()
-    end_date = pd.Timestamp(end_date) if end_date is not None else times.max()
-    
-    # user-supplied dates are typically tz-naive ("2026-06-30"); occurred_at is tz-aware
-    if start_date.tzinfo is None and times.tz is not None:
-        start_date = start_date.tz_localize(times.tz)
-    if end_date.tzinfo is None and times.tz is not None:
-        end_date = end_date.tz_localize(times.tz)
-    if window_length is None:
-        window_length = (end_date - start_date) # set window
-        only_one_frame = True
-    if time_step is None: 
-        time_step = window_length # creates one snapshot of clustering
-
-    if start_date + window_length <= start_date:
-        raise ValueError("window_length must be positive")
-    if start_date + time_step <= start_date:
-        raise ValueError("time_step must be positive")
-
     start_time = time.perf_counter() # start timer
     
     snapshots = []
     seen_ids = set()
-    density_incidents = [] # union of incidents in a window
-    window_start = start_date
+    density_incidents = [] # incidents for the userID_dbscan.csv write; filled only when only_one_frame
+
+    for window in windows:
+        window_start = window["window_start"]
+        window_end = window["window_end"]
+        window_incidents = window["incidents"]
     
-    while window_start < end_date:
-        window_end = min(window_start + window_length, end_date)
-        window_incidents = [
-            incident for incident in incidents
-            if window_start <= incident["occurred_at"] <= window_end
-        ]
-        
+
         if only_one_frame:
             for incident in window_incidents:
                 if id(incident) not in seen_ids:
@@ -144,7 +122,6 @@ def build_snapshots(
             "n_incidents": len(window_incidents),
             "levels": levels,
         })
-        window_start += time_step
     
     end_time = time.perf_counter()
     print(f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds")
