@@ -1,5 +1,6 @@
 import os
 import base64
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -34,10 +35,14 @@ CSV_PATH = os.path.join(
     "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv"
 )
 
+@lru_cache(maxsize=1)
 def load_points() -> np.ndarray:
     """
     Load N_POINTS incidents from late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv and return a (N, 2)
     array of projected x/y coordinates suitable for euclidean distance.
+
+    Cached since the CSV is static for the life of the process — re-reading
+    and re-projecting it on every request was pure overhead.
     """
 
     incidents_df = pd.read_csv(CSV_PATH).dropna(subset=["lat", "lon"])
@@ -93,14 +98,12 @@ def clusters():
         key == "levels" or key.endswith("_eps")
         for key in request.args
     )
-    
-    data_points, _, _ = load_points()
-    # easting = data_points_with_noise[:, 0]
-    # northing = data_points_with_noise[:, 1]
 
     # no level params -> serve the precomputed snapshots, otherwise recompute on demand
     if not any([start_date, end_date, has_level_overrides]):
         return jsonify({"frames": dbscan_animation.load_snapshots()})
+
+    data_points, _, _ = load_points()
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
