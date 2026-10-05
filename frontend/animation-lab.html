@@ -639,6 +639,20 @@
   async function loadMode(nextMode) {
     pause();
     clearLayer();
+    mode = nextMode;
+    dbscanControls.classList.toggle("visible", mode === "dbscan");
+
+    // DBSCAN starts blank; snapshots are only computed once the user clicks Apply
+    if (nextMode === "dbscan" && !cache.dbscan) {
+      frames = [];
+      scrub.max = 0;
+      scrub.value = 0;
+      frameLabel.textContent = "Click Apply to compute clusters";
+      statFrame.textContent = "\u2014";
+      setStatus(null);
+      return;
+    }
+
     setStatus(
       "loading",
       nextMode === "dbscan" ? "Computing DBSCAN snapshots\u2026" : "Loading KDE frames\u2026"
@@ -650,8 +664,6 @@
       cache[nextMode] = await res.json();
     }
 
-    mode = nextMode;
-    dbscanControls.classList.toggle("visible", mode === "dbscan");
     frames = cache[mode].frames;
     scrub.max = Math.max(frames.length - 1, 0);
     setStatus("ready");
