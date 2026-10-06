@@ -110,7 +110,7 @@ class KDEHeatMap:
 #        print(f'density_surface.shape = {density_surface.shape}')
         return density_surface
 
-    def generate_heatmap_image(self):
+    def generate_heatmap_image(self, filename="density_overlay.png"):
         # reshape the density values to a rectangular grid
         density_grid = self._density_surface.reshape(self.x_coords.shape[0], self.y_coords.shape[0]).T
 
@@ -174,7 +174,7 @@ class KDEHeatMap:
         self.legend_cmap = cmap
 
         # write the colorized array out to a PNG file
-        plt.imsave(os.path.join(self.output_dir, 'density_overlay.png'), rgba)
+        plt.imsave(os.path.join(self.output_dir, filename), rgba)
 
         # being returned to define the bounds
         return bounds
@@ -183,12 +183,17 @@ class KDEHeatMap:
         """
         Build JSON-serializable legend data mirroring the overlay's color
         mapping, for rendering as an HTML/CSS legend on the frontend.
+
         Raw KDE density values are far too small for legible tick labels, so
-        tick VALUES are rescaled by scale_factor purely for display. If
-        scale_factor is not given, it's computed automatically so the max
-        tick value lands near 10**target_magnitude (e.g. target_magnitude=2
-        -> tick values land in the tens-to-hundreds range).
+        tick values are multiplied by a power-of-ten scale_factor purely for
+        display.  scale_factor is computed from the legend's vmin
+        (10 ** floor(-log10(vmin))), which puts the scaled vmin between 1
+        and 10; if vmin is 0, scale_factor is 1. 
+        
         The color mapping itself is untouched.
+
+        Must be called after generate_heatmap_image(), which sets the
+        legend's vmin, vmax, norm and colormap.
         """
         if self.legend_vmin > 0:
             exponent = np.floor(-np.log10(self.legend_vmin))
