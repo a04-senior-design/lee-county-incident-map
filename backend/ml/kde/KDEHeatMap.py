@@ -5,7 +5,7 @@ x-y coordinate data points and a bandwidth corresponding to each cluster level.
 The class generates a PNG image of the resulting KDE heat map.
 """
 
-import time
+#import time
 import os
 import numpy as np
 import matplotlib
@@ -14,11 +14,9 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import PowerNorm
 from KDEpy import FFTKDE
-from scipy.ndimage import gaussian_filter
-import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
-from rasterio.transform import from_origin
-import branca.colormap as bcm
+from rasterio.coords import BoundingBox
+from rasterio.transform import from_origin, array_bounds
 from matplotlib.ticker import MaxNLocator
 
 class KDEHeatMap:
@@ -112,7 +110,7 @@ class KDEHeatMap:
 #        print(f'density_surface.shape = {density_surface.shape}')
         return density_surface
 
-    def generate_heatmap_image(self):
+    def generate_heatmap_image(self, filename="density_overlay.png"):
         # reshape the density values to a rectangular grid
         density_grid = self._density_surface.reshape(self.x_coords.shape[0], self.y_coords.shape[0]).T
 
@@ -133,85 +131,41 @@ class KDEHeatMap:
 
         heat_cmap = LinearSegmentedColormap.from_list('heat_fade', colors)
 
-        # set the figure size to 8-inches x 8-inches
-        fig, ax = plt.subplots(figsize=(8, 8))
         cmap = heat_cmap.copy()
         cmap.set_bad(alpha=0)
-
         vmin = threshold
         vmax = density_grid.max()
         norm_obj = PowerNorm(gamma=0.5, vmin=vmin, vmax=vmax)
 
-        # create the image and output as a png file
-        im = ax.imshow(
-            density_grid_masked,
-            origin='lower',
-            extent=[self.x_min_lattice, self.x_max_lattice, self.y_min_lattice, self.y_max_lattice],
-            cmap=cmap,
-            aspect='equal',
-            interpolation='bilinear',
-            norm=norm_obj
-        )
-
-        # ax.axis('off')
-        fig.colorbar(im, ax=ax, label='Density')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_title('KDE Density Surface')
-
-        plt.savefig(os.path.join(self.output_dir, 'density_surface.png'), dpi=300, bbox_inches='tight', transparent=True)
-        plt.close()
-
         # transform from pixel coordinates to real-world spatial coordinates
         transform_src = from_origin(self.x_min_lattice, self.y_max_lattice, self.increment_lattice, self.increment_lattice)
 
-        src_meta = {
-            "driver": "GTiff",
-            "height": density_grid_masked.shape[0],
-            "width": density_grid_masked.shape[1],
-            "count": 1,
-            "dtype": "float32",
-            "crs": "EPSG:2882",
-            "transform": transform_src
-        }
+        # masked density surface values as a north-up array
+        src_array = np.flipud(density_grid_masked.filled(0)).astype("float32")
+        src_height, src_width = src_array.shape
+        src_bounds = array_bounds(src_height, src_width, transform_src) # west, south, east, north
 
-        # create tif file with the masked density surface values and coordinates
-        with rasterio.open(os.path.join(self.output_dir, 'density_src.tif'), "w", **src_meta) as dst:
-            dst.write(np.flipud(density_grid_masked.filled(0)).astype("float32"), 1)
+        # re-project the density surface into latitude/longitude in memory
+        dst_transform, width, height = calculate_default_transform("EPSG:2882", "EPSG:4326", src_width, src_height, *src_bounds)
+        warped = np.zeros((height, width), dtype="float32")
 
-        # re-project the tif file into latitude/longitude coordinate system
-        with rasterio.open(os.path.join(self.output_dir, 'density_src.tif')) as src:
-            dst_transform, width, height = calculate_default_transform(
-                src.crs, "EPSG:4326", src.width, src.height, *src.bounds
-            )
-            dst_meta = src.meta.copy()
-            dst_meta.update({
-                "crs": "EPSG:4326",
-                "transform": dst_transform,
-                "width": width,
-                "height": height,
-            })
+        reproject(
+            source=src_array,
+            destination=warped,
+            src_transform=transform_src,
+            src_crs="EPSG:2882",
+            dst_transform=dst_transform,
+            dst_crs="EPSG:4326",
+            resampling=Resampling.bilinear,
+        )
 
-            with rasterio.open(os.path.join(self.output_dir, 'density_wgs84.tif'), "w", **dst_meta) as dst:
-                reproject(
-                    source=rasterio.band(src, 1),
-                    destination=rasterio.band(dst, 1),
-                    src_transform=src.transform,
-                    src_crs=src.crs,
-                    dst_transform=dst_transform,
-                    dst_crs="EPSG:4326",
-                    resampling=Resampling.bilinear,
-                )
-
-        # retrieve the pixel values and min/max boundary coordinates from the tif file
-        with rasterio.open(os.path.join(self.output_dir, 'density_wgs84.tif')) as src:
-            warped = src.read(1)
-            bounds = src.bounds  # left, bottom, right, top in lat/lon
+        # min/max boundary coordinates in latitude/longitude
+        bounds = BoundingBox(*array_bounds(height, width, dst_transform))
 
         # normalization object that maps data values from 0 to 1 range
         normalized = norm_obj(warped)
-        # apply color-coding from png file to the latitude/longitude re-projection
-        rgba = cmap(normalized)
+        # apply the colormap to the reprojected density values
+        rgba = cmap(normalized, bytes=True)
 
         # stash for the legend
         self.legend_vmin = vmin
@@ -220,21 +174,26 @@ class KDEHeatMap:
         self.legend_cmap = cmap
 
         # write the colorized array out to a PNG file
-        plt.imsave(os.path.join(self.output_dir, 'density_overlay.png'), rgba)
+        plt.imsave(os.path.join(self.output_dir, filename), rgba)
 
-        # being returned to define the bounds for Folium
+        # being returned to define the bounds
         return bounds
 
     def get_legend_data(self, n_ticks=5, caption=None):
         """
         Build JSON-serializable legend data mirroring the overlay's color
         mapping, for rendering as an HTML/CSS legend on the frontend.
+
         Raw KDE density values are far too small for legible tick labels, so
-        tick VALUES are rescaled by scale_factor purely for display. If
-        scale_factor is not given, it's computed automatically so the max
-        tick value lands near 10**target_magnitude (e.g. target_magnitude=2
-        -> tick values land in the tens-to-hundreds range).
+        tick values are multiplied by a power-of-ten scale_factor purely for
+        display.  scale_factor is computed from the legend's vmin
+        (10 ** floor(-log10(vmin))), which puts the scaled vmin between 1
+        and 10; if vmin is 0, scale_factor is 1. 
+        
         The color mapping itself is untouched.
+
+        Must be called after generate_heatmap_image(), which sets the
+        legend's vmin, vmax, norm and colormap.
         """
         if self.legend_vmin > 0:
             exponent = np.floor(-np.log10(self.legend_vmin))
