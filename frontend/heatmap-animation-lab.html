@@ -60,6 +60,33 @@
       min-width: 160px;
     }
 
+    /* ── Speed control ────────────────────────────────────────────────────── */
+    #speed-control {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #speed-control span {
+      font-size: 0.72rem;
+      color: #888;
+    }
+    .speed-btn {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn:hover { background: rgba(255,255,255,0.14); }
+    .speed-btn.active {
+      background: #E9C46A;
+      border-color: #E9C46A;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
     /* ── Stats ────────────────────────────────────────────────────────────── */
     #stats {
       display: flex;
@@ -108,9 +135,17 @@
   </div>
   <div id="playback">
     <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
+    <button id="btn-play" title="Play/pause">&#9654;</button>
     <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
     <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
     <span id="frame-label">&mdash;</span>
+  </div>
+  <div id="speed-control">
+    <span>Speed</span>
+    <button class="speed-btn" data-speed="0.5">0.5x</button>
+    <button class="speed-btn active" data-speed="1">1x</button>
+    <button class="speed-btn" data-speed="2">2x</button>
+    <button class="speed-btn" data-speed="4">4x</button>
   </div>
   <div id="stats">
     <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
@@ -128,6 +163,7 @@
 (() => {
   const LEE_COUNTY_CENTER = [26.56, -81.87];
   const DEFAULT_ZOOM = 11;
+  const BASE_INTERVAL_MS = 2000; // time per frame at 1x speed
 
   const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -150,10 +186,14 @@
   // playback state
   let kdeHeatmapFrames = []; // frames from the last Apply
   let frameIndex = 0; // frame currently shown
+  let playing = false; // true while the animation is running
+  let timer = null; // the interval that advances frames
+  let speed = 1; // 0.5, 1, 2 or 4
 
   const scrub = document.getElementById("scrub");
   const frameLabel = document.getElementById("frame-label");
   const statFrame = document.getElementById("stat-frame");
+  const playBtn = document.getElementById('btn-play');
 
   // draw frame i: its heat map (if any), label and frame counter
   function renderKDEHeatmapFrame(i) {
@@ -181,21 +221,80 @@
     statFrame.textContent = `${i + 1} / ${kdeHeatmapFrames.length}`;
   }
 
+  // stop the animation and show the play symbol
+  function pause() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    playing = false;
+    playBtn.innerHTML = "&#9654;";
+  }
+
+  // advance one frame every BASE_INTERVAL_MS / speed, looping at the end
+  function play() {
+    if (timer || kdeHeatmapFrames.length < 2) return;
+    playing = true;
+    playBtn.innerHTML = "&#10074;&#10074;"; // pause symbol
+    timer = setInterval(() => {
+      const count = kdeHeatmapFrames.length;
+      renderKDEHeatmapFrame((frameIndex + 1) % count);
+    }, BASE_INTERVAL_MS / speed);
+  }
+
+  // change speed; if playing, restart the timer at the new interval
+  function setSpeed(nextSpeed) {
+    speed = nextSpeed;
+    const buttons = document.querySelectorAll(".speed-btn");
+    for (const btn of buttons) {
+      const btnSpeed = parseFloat(btn.dataset.speed);
+      if (btnSpeed === speed) {
+        btn.classList.add("active");
+      }
+      else {
+        btn.classList.remove("active");
+      }
+    }
+    if (playing) {
+      pause();
+      play();
+    }
+  }
+
   // move forward or back by delta frames, wrapping around at either end
   function step(delta) {
     if (kdeHeatmapFrames.length === 0) return;
+    pause();
     const count = kdeHeatmapFrames.length;
     renderKDEHeatmapFrame((frameIndex + delta + count) % count);
   }
 
   document.getElementById("btn-rewind").addEventListener("click", () => step(-1));
   document.getElementById("btn-forward").addEventListener("click", () => step(1));
+  
   scrub.addEventListener("input", () => {
     if (kdeHeatmapFrames.length === 0) return;
+    pause();
     renderKDEHeatmapFrame(parseInt(scrub.value, 10));
   });
 
+  playBtn.addEventListener("click", () => {
+    if (playing) {
+      pause();
+    }
+    else {
+      play();
+    }
+  });
+
+  document.querySelectorAll(".speed-btn").forEach(btn => {
+    btn.addEventListener("click", () => setSpeed(parseFloat(btn.dataset.speed)));
+  });
+
   async function applyKDEHeatmap() {
+    // stop any running animation before clearing the frames
+    pause();
+
     // clear previous kde heatmap frames (note that frames holds the heatmap snapshots)
     kdeHeatmapFrames = [];
     frameLabel.textContent = "\u2014";
