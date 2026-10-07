@@ -16,6 +16,7 @@ from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: 
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
 from ml.generate_dbscan_snapshots import build_snapshots, build_snapshots_from_points  # noqa: E402
+from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, KDE_SNAPSHOT_DIR  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -80,10 +81,46 @@ def _parse_dbscan_level_overrides(args) -> dict:
     return level_configs
 
 
+def _png_to_base64(path):
+    with open(path, "rb") as f:
+        image_b64 = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:image/png;base64,{image_b64}"
+
+
+def _parse_time_window_args(args):
+    """Read the time-windowing query params shared by the animation routes.
+
+    Returns (start_date, end_date, window_length, time_step).
+    start_date and end_date are returned as strings, or None if not sent.
+    window_length and time_step are converted with to_offset(), or None
+    if not sent.
+
+    Raises ValueError if window_length or time_step isn't a valid offset
+    (e.g. "abc"), so call it inside the route's try/except ValueError.
+    """
+    start_date = args.get("start_date") or None 
+    end_date = args.get("end_date") or None 
+
+    window_length = args.get("window_length")
+    if window_length:
+        window_length = to_offset(window_length)
+    else:
+        window_length = None
+
+    time_step = args.get("time_step")
+    if time_step:
+        time_step = to_offset(time_step)
+    else:
+        time_step = None 
+
+    return start_date, end_date, window_length, time_step
+
+
 @app.route("/cluster-lab")
 def cluster_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
     return send_from_directory(frontend_dir, "cluster-lab.html")
+
 
 @app.route("/api/clusters")
 def clusters():
@@ -129,6 +166,12 @@ def clusters():
 def animation_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
     return send_from_directory(frontend_dir, "animation-lab.html")
+
+
+@app.route("/heatmap-animation-lab")
+def heatmap_animation_lab():
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+    return send_from_directory(frontend_dir, "heatmap-animation-lab.html")
 
 
 @app.route("/animation-assets/kde/<path:filename>")
@@ -284,8 +327,9 @@ def kde_heatmap():
     # generate the heat map overlay PNG image file
     bounds = kde_obj.generate_heatmap_image()
 
-    with open(os.path.join(OUTPUT_DIR, "density_overlay.png"), "rb") as f:
-        image_b64 = base64.b64encode(f.read()).decode("utf-8")
+    # file path for image being sent to frontend
+    img_path = os.path.join(OUTPUT_DIR, "density_overlay.png")
+    image_data = _png_to_base64(path=img_path)
 
     bounds_dict = {
         "west": bounds.left,
@@ -297,7 +341,7 @@ def kde_heatmap():
     legend_data = kde_obj.get_legend_data()
 
     result = {
-        "image": f"data:image/png;base64,{image_b64}", 
+        "image": image_data, 
         "bounds": bounds_dict, 
         "legend": legend_data,
         "bandwidths": bandwidths,
@@ -311,5 +355,38 @@ def kde_heatmap():
     return jsonify(result)
 
 
+@app.route("/api/animation/kde-heatmap")
+def kde_heatmap_animation():
+    # read start_date, end_date, window_length, and time_step
+    try:
+        start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
+        frames = build_kde_heatmap_snapshots(
+            start_date=start_date,
+            end_date=end_date,
+            window_length=window_length,
+            time_step=time_step,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    for frame in frames:
+        if frame["image"] is not None:
+            img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
+            frame["image"] = _png_to_base64(path=img_path)
+
+    return jsonify({"frames": frames})
+  
+
+
+
+
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
+
+
+
+
+
+
