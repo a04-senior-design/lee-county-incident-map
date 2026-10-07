@@ -6,7 +6,7 @@ EASTERN = ZoneInfo("America/New_York")
 
 SOURCES = ("lee_county", "lee_county_traffic")
 DEFAULT_LIMIT = 100
-MAX_LIMIT = 500
+MAX_LIMIT = 5000
 MAX_DAYS = 3660
 
 
