@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heatmap Animation Lab — Lee County</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    #top-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.2rem;
+      background: rgba(15, 15, 30, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+
+    #branding { line-height: 1.3; }
+    #branding strong { font-size: 1rem; color: #fff; }
+    #branding span   { display: block; font-size: 0.72rem; color: #888; }
+
+    /* ── KDE heat map apply button ────────────────────────────────────────── */
+    #kde-heatmap-apply {
+      border: 1px solid #E9C46A;
+      background: #E9C46A;
+      color: #1a1a2e;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #kde-heatmap-apply:hover { background: #d4b05a; }
+    #kde-heatmap-apply:disabled { opacity: 0.6; cursor: wait; }
+    #kde-heatmap-error {
+      font-size: 0.72rem;
+      color: #E63946;
+    }
+
+    /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map-container { position: relative; flex: 1; display: flex; }
+    #map { flex: 1; }
+  </style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div id="branding">
+    <strong>Heatmap Animation Lab</strong>
+    <span>KDE heat map over time — dev prototype</span>
+  </div>
+  <button id="kde-heatmap-apply">Apply</button>
+  <span id="kde-heatmap-error"></span>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const DEFAULT_ZOOM = 11;
+
+  const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // hard-coded test settings; replaced by input fields in a later step
+  const KDE_HEATMAP_TEST_PARAMS = {
+    start_date: "2026-07-06",
+    end_date: "2026-07-20",
+    window_length: "5D",
+    time_step: "5D",
+  };
+
+  let currentKDEHeatmapOverlay = null; // the kde heat map image on the map, if any
+
+  const kdeHeatmapApplyBtn = document.getElementById("kde-heatmap-apply");
+  const kdeHeatmapErrorLabel = document.getElementById("kde-heatmap-error");
+
+  async function applyKDEHeatmap() {
+    // disable the button while the snapshots are being built
+    kdeHeatmapApplyBtn.disabled = true;
+    kdeHeatmapApplyBtn.textContent = "Loading\u2026";
+
+    try{
+
+      kdeHeatmapErrorLabel.textContent = "";
+
+      // remove the previous overlay before drawing a new one
+      if (currentKDEHeatmapOverlay) {
+        map.removeLayer(currentKDEHeatmapOverlay);
+        currentKDEHeatmapOverlay = null;
+      }
+
+      const qs = new URLSearchParams(KDE_HEATMAP_TEST_PARAMS).toString();
+      const res = await fetch(`/api/animation/kde-heatmap?${qs}`);
+      const body = await res.json();
+
+      if (!res.ok) {
+        kdeHeatmapErrorLabel.textContent = body.error || "Failed to load kde heat map snapshots";
+        return;
+      }
+
+      const frames = body.frames;
+      console.log(`frames: ${frames.length}`);
+      frames.forEach((frame, i) => {
+        console.log(`frame ${i}: ${frame.label} (${frame.n_incidents} incidents) ${frame.image_filename}`);
+      });
+
+      // first frame only, for now
+      const frame = frames[0];
+      if (frame.image === null) {
+        kdeHeatmapErrorLabel.textContent = "First window has no incidents";
+        return;
+      }
+
+      // Leaflet wants [[south, west], [north, east]]
+      const bounds = [
+        [frame.bounds.south, frame.bounds.west],
+        [frame.bounds.north, frame.bounds.east],
+      ];
+      currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
+    }
+    finally {
+      // runs after every return or error, so the button always comes back
+      kdeHeatmapApplyBtn.disabled = false;
+      kdeHeatmapApplyBtn.textContent = "Apply";
+    }
+  }
+
+  kdeHeatmapApplyBtn.addEventListener("click", applyKDEHeatmap);
+})();
+</script>
+</body>
+</html>
