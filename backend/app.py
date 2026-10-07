@@ -23,9 +23,6 @@ MAX_BANDWIDTH = 10000
 MIN_BANDWIDTH = 500
 DEFAULT_BANDWIDTH = 1500
 DEFAULT_CLUSTER_SET = 0
-
-CURRENT_INCIDENTS = None
-
 # labels for the KDE heat map's cluster set radios; index = cluster_set
 CLUSTER_SET_LABELS = [
     "KDE Heat Map (all points)", 
@@ -37,20 +34,14 @@ CSV_PATH = os.path.join(
     "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv"
 )
 
-# def load_points() -> np.ndarray:
-#     """
-#     Load N_POINTS incidents from late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv and return a (N, 2)
-#     array of projected x/y coordinates suitable for euclidean distance.
-#     """
-
-#     incidents_df = pd.read_csv(CSV_PATH).dropna(subset=["lat", "lon"])
 def load_points() -> np.ndarray:
-    global CURRENT_INCIDENTS
+    """
+    Load N_POINTS incidents from late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv and return a (N, 2)
+    array of projected x/y coordinates suitable for euclidean distance.
+    """
 
-    if CURRENT_INCIDENTS is None:
-        raise RuntimeError("No frontend incident data has been received yet.")
-
-    incidents_df = CURRENT_INCIDENTS.dropna(subset=["lat", "lon"])
+    incidents_df = pd.read_csv(CSV_PATH).dropna(subset=["lat", "lon"])
+    
     latitude = incidents_df["lat"].to_numpy()
     longitude = incidents_df["lon"].to_numpy()
 
@@ -87,7 +78,6 @@ def _parse_dbscan_level_overrides(args) -> dict:
         eps = float(args.get(f"{name}_eps", defaults["epsilon"]))
         level_configs[name] = {"epsilon": eps, "min_pts": defaults["min_pts"], "color": defaults["color"]}
     return level_configs
-
 @app.route("/api/analysis", methods=["POST"])
 def analysis():
     global CURRENT_INCIDENTS
@@ -122,9 +112,6 @@ def analysis():
             "success": False,
             "error": str(e)
         }), 500
-
-
-
 
 
 @app.route("/cluster-lab")
@@ -294,12 +281,10 @@ def kde_heatmap():
     y_min = np.min(northing) - padding
     y_max = np.max(northing) + padding
     increment = 300
-    print(f'increment = {increment}')
 
     # one bandwidth per non-noise cluster level, ordered by ascending level (0, 1, 2) - least dense to most dense
     unique_cluster_levels = np.unique(dbscan_cluster_levels)
     num_clusters = np.count_nonzero(unique_cluster_levels != -1)
-    print(f'num_clusters: {num_clusters}')
 
     # guard: DBSCAN classified every point as noise, so there is nothing for the KDE to fit
     if num_clusters == 0:
@@ -326,7 +311,6 @@ def kde_heatmap():
     else:
         # initial page load: no values sent, so use the shared default for every level
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
-    print(f'bandwidths: {bandwidths}')
     
 
     # instantiate a KDEHeatMap object
@@ -363,3 +347,4 @@ def kde_heatmap():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
+

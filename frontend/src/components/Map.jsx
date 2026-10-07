@@ -76,6 +76,27 @@ const LEECOUNTY_BOUNDARY = [
 const leeCountyPoints = LEECOUNTY_BOUNDARY[0]
 const LEECOUNTY_BOUNDS = L.latLngBounds(leeCountyPoints)
 //let render = 0
+function AutoResize() {
+  const map = useMap()
+
+  useEffect(() => {
+    const container = map.getContainer()
+    let frame = null
+
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => map.invalidateSize())
+    })
+
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
+  }, [map])
+
+  return null
+}
 function Map({
   finalList,
   countyCenter,
@@ -355,6 +376,7 @@ function Map({
         </Box>
       )}
       <MapContainer
+        preferCanvas
         center={countyCenter}
         zoom={9.5}
         minZoom={9.5}
@@ -402,9 +424,10 @@ function Map({
             stroke: false
           }}
         />
-        <Analysis active = {analysisOn} filteredListWithLocation={finalList} />
+        <AutoResize />
+        <Analysis active={analysisOn} filteredListWithLocation={finalList} />
         {!analysisOn && (
-          <MarkerClusterGroup disableClusteringAtZoom={16}>
+          <MarkerClusterGroup chunkedLoading disableClusteringAtZoom={16}>
             {finalList.map((incident, index) => (
               <CircleMarker
                 key={index}

@@ -1,22 +1,44 @@
 import dayjs from 'dayjs'
 import { DatePickerInput } from '@mantine/dates'
-
+import { useEffect, useState } from 'react'
 type DateRange = [string | null, string | null]
 type DatePickerProps = {
   dateRange: DateRange
   setDateRange: (value: DateRange) => void
 }
-function DatePicker({dateRange, setDateRange}: DatePickerProps) {
+function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
   const today = dayjs()
+   const [draft, setDraft] = useState<DateRange>(dateRange)
+  // keep the draft in sync when the parent changes it (presets, reset, etc.)
+  useEffect(() => {
+    setDraft(dateRange)
+  }, [dateRange])
+
   const handleChange = (value: DateRange) => {
-    setDateRange(value)
+    setDraft(value)
+    const [start, end] = value
+    // commit only a complete range, or a cleared one
+    if ((start && end) || (!start && !end)) {
+      setDateRange(value)
+    }
   }
   return (
     <DatePickerInput
       popoverProps={{ zIndex: 2000 }}
+      styles={{
+        presetsList: {
+          color: '#000'
+        },
+        calendarHeader: {
+          color: '#000'
+        },
+        day: {
+          color: '#000'
+        }
+      }}
       clearable
       type='range'
-      value={dateRange}
+      value={draft}
       onChange={handleChange}
       presets={[
         {

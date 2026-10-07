@@ -219,3 +219,8 @@ __marimo__/
 
 .DS_store
 .vercel
+
+
+# tif 
+backend/density_wgs84.tif
+backend/density_src.tif

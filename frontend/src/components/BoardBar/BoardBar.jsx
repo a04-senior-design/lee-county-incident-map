@@ -3,10 +3,10 @@ import Box from '@mui/material/Box'
 import IntList from '../IntList/IntList'
 import Button from '@mui/material/Button'
 import TravelExploreIcon from '@mui/icons-material/TravelExplore'
-import WorkspacesIcon from '@mui/icons-material/Workspaces'
+import TextSnippetIcon from '@mui/icons-material/TextSnippet'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import { useState } from 'react'
-
+import AnimationIcon from '@mui/icons-material/Animation'
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -21,13 +21,18 @@ function BoardBar({
   analysisOn,
   setAnalysisOn
 }) {
-  const [activeBtn, setActiveBtn] = useState({
-    search: false,
-    dbscan: false,
-    heatMap: false,
-    animation: false
-  })
-
+  // const [activeBtn, setActiveBtn] = useState({
+  //   search: false,
+  //   dbscan: false,
+  //   heatMap: false,
+  //   animation: false
+  // })
+  const [activeBtn, setActiveBtn] = useState(null)
+  const handleActive = (e) => {
+    const value = e.currentTarget.value
+    setActiveBtn(value)
+    console.log('value ', value)
+  }
   return (
     <Box
       sx={[
@@ -68,11 +73,15 @@ function BoardBar({
           analysisOn={analysisOn}
         />
         <Button
-          sx={(theme) =>
-            theme.applyStyles('dark', {
-              color: 'rgba(255, 255, 255, 0.92)'
-            })
-          }
+          variant={addressSearch ? 'contained' : 'text'}
+          color={addressSearch ? 'success' : 'primary'}
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
+            { padding: '8px 16px' }
+          ]}
           startIcon={<TravelExploreIcon />}
           onClick={() => setAddressSearch(!addressSearch)}
           disabled={analysisOn ? true : false}
@@ -80,37 +89,63 @@ function BoardBar({
           Adress Search
         </Button>
         <Button
+          variant={activeBtn === 'analysis' ? 'contained' : 'text'}
+          color={activeBtn === 'analysis' ? 'info' : 'text'}
           sx={[
             (theme) =>
               theme.applyStyles('dark', {
                 color: 'rgba(255, 255, 255, 0.92)'
               }),
-            {
-              '&:focus': {
-                outline: '2px solid red'
-              }
-            }
+            
+             { padding: '8px 20px' }
           ]}
+          value='analysis'
           startIcon={<AssessmentIcon />}
-          onClick={() => {
+          onClick={(e) => {
             setAnalysisOn(!analysisOn)
             setIsPulled(false)
             setAddressSearch(false)
+            handleActive(e)
           }}
         >
-          Analysis Mode
+          {analysisOn? 'Back to View Mode' : 'Analysis Mode'}
         </Button>
         <Button
-          sx={(theme) =>
-            theme.applyStyles('dark', {
-              color: 'rgba(255, 255, 255, 0.92)'
-            })
-          }
-          startIcon={<WorkspacesIcon />}
+         variant={activeBtn === 'animation' ? 'contained' : 'text'}
+         color={activeBtn === 'animation' ? 'info' : 'text'}
+          value='animation'
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
+            { padding: '8px 20px' }
+          ]}
+          startIcon={<AnimationIcon />}
+          onClick={(e) => {
+            handleActive(e)
+          }}
         >
-          Heat map
+          Animation
         </Button>
-        <Button> Animation</Button>
+        <Button
+         variant={activeBtn === 'report' ? 'contained' : 'text'}
+         color={activeBtn === 'report' ? 'info' : 'text'}
+          value='report'
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
+            { padding: '8px 20px' }
+          ]}
+          startIcon={<TextSnippetIcon />}
+          onClick={(e) => {
+            handleActive(e)
+          }}
+        >
+          User Reports
+        </Button>
       </Box>
       <Box>
         <ModeSelect />

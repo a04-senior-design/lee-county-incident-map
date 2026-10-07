@@ -3,6 +3,11 @@ import './Analysis.css'
 import L from 'leaflet'
 import { useMap } from 'react-leaflet'
 
+import Typography from '@mui/material/Typography'
+import Switch from '@mui/material/Switch'
+import Slider from '@mui/material/Slider'
+import Card from '@mui/material/Card'
+import Button from '@mui/material/Button'
 import Radio from '@mui/material/Radio'
 import RadioGroup from '@mui/material/RadioGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
@@ -188,6 +193,7 @@ const Analysis = ({ filteredListWithLocation, active }) => {
   const [status, setStatusState] = useState(null) // 'loading' | 'ready' | 'error'
   const [dbscanError, setDbscanError] = useState('')
 
+  const applyRef = useRef(null)
   const debounceTimerRef = useRef(null)
   const clustersLoadedRef = useRef(false)
   const kdeRequestRef = useRef(0)
@@ -200,7 +206,6 @@ const Analysis = ({ filteredListWithLocation, active }) => {
   useEffect(() => {
     ;[topBarRef.current, secondBarRef.current].forEach((el) => {
       if (!el) return
-      L.DomEvent.disableClickPropagation(el)
       L.DomEvent.disableScrollPropagation(el)
     })
   }, [])
@@ -383,11 +388,17 @@ const Analysis = ({ filteredListWithLocation, active }) => {
     return (
       <>
         {bandwidths.map((bw, i) => (
-          <div className='param-row' key={i}>
-            <label htmlFor={`bandwidth-slider-${i}`}>
-              Level {i} bandwidth: <span>{Math.round(bw)}</span>
-            </label>
-            <input
+          <Box
+            sx={{ display: 'flex', flexDirection: 'column', width: '300px' }}
+            key={i}
+          >
+            <Typography>
+              Level {i} bandwidth: {Math.round(bw)}
+            </Typography>
+
+            <Slider
+              aria-label='Small steps'
+              valueLabelDisplay='auto'
               type='range'
               id={`bandwidth-slider-${i}`}
               className='bandwidth-slider'
@@ -397,13 +408,22 @@ const Analysis = ({ filteredListWithLocation, active }) => {
               value={bw}
               onChange={(e) => handleBandwidthInput(i, e.target.value)}
             />
-          </div>
+          </Box>
         ))}
 
         {bandwidths.length > 1 && (
-          <div className='bandwidth-hint'>
+          <Typography
+            color='primary'
+            sx={[
+              { fontWeight: 600, fontSize: ' 16px' },
+              (theme) =>
+                theme.applyStyles('dark', {
+                  color: '#E9C46A'
+                })
+            ]}
+          >
             Constraint: {bandwidths.map((_, i) => `Level ${i}`).join(' >= ')}
-          </div>
+          </Typography>
         )}
       </>
     )
@@ -564,27 +584,33 @@ const Analysis = ({ filteredListWithLocation, active }) => {
 
   return (
     <>
+      <Box sx={{ display: 'flex' }}></Box>
       <Box
         ref={topBarRef}
-        sx={{
-          position: 'relative',
-          flexShrink: '0',
-          display: active ? 'flex' : 'none',
-          alignItems: 'center',
-          gap: '1.5rem',
-          padding: '0.6rem 1.2rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(15, 15, 30, 0.95)',
-          zIndex: 1000
-        }}
+        sx={[
+          {
+            position: 'relative',
+            flexShrink: '0',
+            display: active ? 'flex' : 'none',
+            alignItems: 'center',
+            gap: '1.5rem',
+            padding: '0.6rem 1.2rem',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.64)',
+            background: 'rgba(15, 15, 30, 0.95)',
+            zIndex: 1000,
+            cursor: 'default'
+          },
+          (theme) =>
+            theme.applyStyles('light', {
+              backgroundColor: 'white',
+              borderBottom: '1px solid rgba(66, 62, 62, 0.64)'
+            })
+        ]}
       >
-        <div id='branding'>
-          <strong>Cluster and Heat Map Lab</strong>
-          <span>Lee County Incidents — dev prototype</span>
-        </div>
-
         <FormControl>
-          <FormLabel id='analysis-radio-label'>Analysis</FormLabel>
+          <FormLabel >
+            Cluster and Heat Map Lab
+          </FormLabel>
           <RadioGroup
             row
             aria-labelledby='analysis-radio-label'
@@ -619,10 +645,31 @@ const Analysis = ({ filteredListWithLocation, active }) => {
           {clusterNote && <div className='analysis-note'>{clusterNote}</div>}
         </FormControl>
       </Box>
-      <div
+
+      <Box
         ref={secondBarRef}
+        onMouseEnter={() => map.dragging.disable()}
+        onMouseLeave={() => map.dragging.enable()}
+        sx={[
+          {
+            background: 'rgba(24, 24, 44, 0.95)',
+            padding: '0.6rem 1.2rem',
+            flexWrap: 'wrap',
+            zIndex: 1000,
+            flexShrink: 0,
+            alignItems: 'center',
+            gap: '1.5rem',
+            borderBottom: ' 1px solid rgba(255, 255, 255, 0.08)',
+            display: active ? 'flex' : 'none',
+            position: 'relative',
+            cursor: 'default'
+          },
+          (theme) =>
+            theme.applyStyles('light', {
+              backgroundColor: 'white'
+            })
+        ]}
         id='secondary-bar'
-        className='control-bar'
         data-mode={mode}
         style={{
           display: active ? undefined : 'none',
@@ -630,92 +677,225 @@ const Analysis = ({ filteredListWithLocation, active }) => {
           zIndex: 1000
         }}
       >
-        <div id='dbscan-controls'>
-          {LEVEL_UI_ORDER.map((level) => (
-            <div
-              key={level}
-              className={`level-block${levelVisible[level] ? '' : ' level-off'}`}
-              id={`level-block-${level}`}
-              data-level={level}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            zIndex: 1000
+          }}
+        >
+          {mode === 'clusters' && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: '1rem',
+                flexWrap: 'wrap',
+                zIndex: 1000
+              }}
             >
-              <div className='level-header'>
-                <label className='toggle-label'>
-                  <input
-                    type='checkbox'
-                    className='level-toggle'
-                    data-level={level}
-                    checked={levelVisible[level]}
-                    onChange={(e) => handleLevelToggle(level, e.target.checked)}
-                  />
-                  <span className='toggle-track'></span>
-                </label>
+              {LEVEL_UI_ORDER.map((level) => (
+                <Card
+                  sx={{
+                    width: '350px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderLeft: () =>
+                      level === 'street'
+                        ? '5px solid #d32f2f'
+                        : level === 'neighborhood'
+                          ? '5px solid #29b6f6'
+                          : '5px solid #66bb6a',
 
-                <span className='level-name'>{LEVEL_LABELS[level]}</span>
-                <span className='level-hint'>{LEVEL_HINTS[level]}</span>
-              </div>
-
-              <div className='level-slider-row'>
-                <span>Sparse</span>
-
-                <input
-                  type='range'
-                  className='level-slider'
-                  id={`slider-${level}`}
+                    gap: 1,
+                    padding: '8px'
+                  }}
+                  elevation={3}
+                  key={level}
+                  className={`level-block${levelVisible[level] ? '' : ' level-off'}`}
+                  id={`level-block-${level}`}
                   data-level={level}
-                  min='0'
-                  max='100'
-                  step='1'
-                  value={levelSliders[level]}
-                  onChange={(e) =>
-                    setLevelSliders((s) => ({
-                      ...s,
-                      [level]: Number(e.target.value)
-                    }))
-                  }
-                />
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      position: 'relative'
+                    }}
+                  >
+                    <Switch
+                      color={
+                        level === 'street'
+                          ? 'error'
+                          : level === 'neighborhood'
+                            ? 'info'
+                            : 'success'
+                      }
+                      checked={levelVisible[level]}
+                      onChange={(e) =>
+                        handleLevelToggle(level, e.target.checked)
+                      }
+                    />
 
-                <span>Dense</span>
-              </div>
+                    <Box>
+                      <Typography
+                        variant='h6'
+                        sx={{ fontWeight: 600 }}
+                        color={
+                          level === 'street'
+                            ? 'error'
+                            : level === 'neighborhood'
+                              ? 'info'
+                              : 'success'
+                        }
+                      >
+                        {LEVEL_LABELS[level]}
+                      </Typography>
+                      <Typography sx={{ fontSize: '14px' }} color='text'>
+                        {LEVEL_HINTS[level]}
+                      </Typography>
+                    </Box>
+                  </Box>
 
-              <div className='level-stats'>
-                <span className='stat-pill'>
-                  Clusters:{' '}
-                  <span id={`stat-clusters-${level}`}>
-                    {levelData[level]?.metadata?.n_clusters ?? '—'}
-                  </span>
-                </span>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography
+                      sx={{ fontSize: '14px', fontWeight: 500 }}
+                      color='text'
+                    >
+                      {' '}
+                      Sparse
+                    </Typography>
+                    <Slider
+                      valueLabelDisplay='auto'
+                      aria-label='Default'
+                      id={`slider-${level}`}
+                      data-level={level}
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={levelSliders[level] ?? 50}
+                      color={
+                        level === 'street'
+                          ? 'error'
+                          : level === 'neighborhood'
+                            ? 'info'
+                            : 'success'
+                      }
+                      onChange={(_, value) => {
+                        setLevelSliders((s) => ({
+                          ...s,
+                          [level]: value
+                        }))
+                        clearTimeout(applyRef.current)
+                        applyRef.current = setTimeout(() => {
+                          console.log('fire')
+                          fetchDbscan()
+                        }, 700)
+                      }}
+                    />
+                    {/* <input
+                      type='range'
+                      className='level-slider'
+                      id={`slider-${level}`}
+                      data-level={level}
+                      min='0'
+                      max='100'
+                      step='1'
+                      value={levelSliders[level]}
+                      onChange={(e) =>
+                        setLevelSliders((s) => ({
+                          ...s,
+                          [level]: Number(e.target.value)
+                        }))
+                      }
+                    /> */}
 
-                <span className='stat-pill'>
-                  Noise:{' '}
-                  <span id={`stat-noise-${level}`}>
-                    {levelData[level]?.metadata?.n_noise ?? '—'}
-                  </span>
-                </span>
-              </div>
-            </div>
-          ))}
+                    <Typography
+                      sx={{ fontSize: '14px', fontWeight: 500 }}
+                      color='text'
+                    >
+                      {' '}
+                      Dense
+                    </Typography>
+                  </Box>
 
-          <button id='dbscan-apply' onClick={() => fetchDbscan()}>
-            Apply
-          </button>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-around'
+                    }}
+                  >
+                    <Box
+                      sx={[
+                        {
+                          backgroundColor: (theme) => theme.palette.grey[800],
+                          padding: '8px 16px',
+                          borderRadius: '4px'
+                        },
+                        (theme) =>
+                          theme.applyStyles('light', {
+                            backgroundColor: 'white'
+                          })
+                      ]}
+                    >
+                      <Typography color='primary' sx={{ fontWeight: 600 }}>
+                        Clusters:{' '}
+                        {levelData[level]?.metadata?.n_clusters ?? '—'}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={[
+                        {
+                          backgroundColor: (theme) => theme.palette.grey[800],
+                          padding: '8px 16px',
+                          borderRadius: '4px'
+                        },
+                        (theme) =>
+                          theme.applyStyles('light', {
+                            backgroundColor: 'white'
+                          })
+                      ]}
+                    >
+                      <Typography color='primary' sx={{ fontWeight: 600 }}>
+                        Noise: {levelData[level]?.metadata?.n_noise ?? '—'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Card>
+              ))}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {/* <Button onClick={() => fetchDbscan()}>Apply</Button> */}
 
-          <button id='dbscan-reset' onClick={handleDbscanReset}>
-            Reset
-          </button>
+                <Button
+                  variant='contained'
+                  onClick={handleDbscanReset}
+                  color='warning'
+                >
+                  <Typography variant='h6'> Reset</Typography>
+                </Button>
 
-          <span id='dbscan-controls-error'>{dbscanError}</span>
+                {/* <span id='dbscan-controls-error'>{dbscanError}</span> */}
 
-          <div id='status-dot' className={status || ''}></div>
+                {/* <div id='status-dot' className={status || ''}></div> */}
 
-          <div className='stat-pill'>
-            Total pts: <span id='stat-total'>{totalPts ?? '—'}</span>
-          </div>
-        </div>
-
+                <Box>
+                  <Typography color='text'>
+                    {' '}
+                    Total points: {totalPts ?? '—'}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Box>
         <div id='bandwidth-controls'>{buildSliders()}</div>
 
         <div id='gistar-controls'></div>
-      </div>
+      </Box>
     </>
   )
 }

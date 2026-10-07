@@ -7,7 +7,6 @@ import MapInfoBar from './MapInfoBar/MapInfoBar'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
-import ToolDial from './ToolDial/ToolDial'
 import AppAlert from './AppAlert/AppAlert'
 import dayjs from 'dayjs'
 import Analysis from './Analysis/Analysis'
@@ -226,7 +225,7 @@ function MapPage() {
             position: 'relative'
           }}
         >
-          <Box
+          {/* <Box
             sx={{
               width: '100%',
               position: 'fixed',
@@ -237,7 +236,7 @@ function MapPage() {
             }}
           >
             <ToolDial />
-          </Box>
+          </Box> */}
           <Box
             sx={{
               width: '300px',
@@ -308,7 +307,7 @@ function MapPage() {
             sx={{
               height: 'calc(100% - 50px)',
               width: isPulled === true ? 'calc(100% + 400px)' : '100%',
-              transform: `translateX(${isPulled?'-200px':'0'}`,
+              transform: `translateX(${isPulled? '-200px' : '0'})`,
               transition: 'linear 0.3s'
             }}
           >
