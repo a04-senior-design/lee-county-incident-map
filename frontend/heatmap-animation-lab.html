@@ -33,6 +33,49 @@
     #branding strong { font-size: 1rem; color: #fff; }
     #branding span   { display: block; font-size: 0.72rem; color: #888; }
 
+    /* ── Playback controls ───────────────────────────────────────────────── */
+    #playback {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 260px;
+    }
+    #playback button {
+      width: 2.1em;
+      height: 2.1em;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #eee;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    #playback button:hover { background: rgba(255,255,255,0.14); }
+    #scrub { flex: 1; max-width: 320px; accent-color: #E9C46A; cursor: pointer; }
+    #frame-label {
+      font-size: 0.78rem;
+      color: #ccc;
+      white-space: nowrap;
+      min-width: 160px;
+    }
+
+    /* ── Stats ────────────────────────────────────────────────────────────── */
+    #stats {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .stat-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+    }
+    .stat-pill span { color: #fff; font-weight: 600; }
+
     /* ── KDE heat map apply button ────────────────────────────────────────── */
     #kde-heatmap-apply {
       border: 1px solid #E9C46A;
@@ -62,6 +105,15 @@
   <div id="branding">
     <strong>Heatmap Animation Lab</strong>
     <span>KDE heat map over time — dev prototype</span>
+  </div>
+  <div id="playback">
+    <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
+    <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
+    <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+    <span id="frame-label">&mdash;</span>
+  </div>
+  <div id="stats">
+    <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
   </div>
   <button id="kde-heatmap-apply">Apply</button>
   <span id="kde-heatmap-error"></span>
@@ -95,8 +147,60 @@
 
   const kdeHeatmapApplyBtn = document.getElementById("kde-heatmap-apply");
   const kdeHeatmapErrorLabel = document.getElementById("kde-heatmap-error");
+  // playback state
+  let kdeHeatmapFrames = []; // frames from the last Apply
+  let frameIndex = 0; // frame currently shown
+
+  const scrub = document.getElementById("scrub");
+  const frameLabel = document.getElementById("frame-label");
+  const statFrame = document.getElementById("stat-frame");
+
+  // draw frame i: its heat map (if any), label and frame counter
+  function renderKDEHeatmapFrame(i) {
+    frameIndex = i;
+    const frame = kdeHeatmapFrames[i];
+
+    // remove the previous frame's overlay
+    if (currentKDEHeatmapOverlay) {
+      map.removeLayer(currentKDEHeatmapOverlay);
+      currentKDEHeatmapOverlay = null;
+    }
+
+    // empty window: no image, just the label
+    if (frame.image !== null) {
+      // Leaflet wants [[south, west], [north, east]]
+      const bounds = [
+        [frame.bounds.south, frame.bounds.west],
+        [frame.bounds.north, frame.bounds.east],
+      ];
+      currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
+    }
+
+    frameLabel.textContent = `${frame.label} (${frame.n_incidents} incidents)`;
+    scrub.value = i;
+    statFrame.textContent = `${i + 1} / ${kdeHeatmapFrames.length}`;
+  }
+
+  // move forward or back by delta frames, wrapping around at either end
+  function step(delta) {
+    if (kdeHeatmapFrames.length === 0) return;
+    const count = kdeHeatmapFrames.length;
+    renderKDEHeatmapFrame((frameIndex + delta + count) % count);
+  }
+
+  document.getElementById("btn-rewind").addEventListener("click", () => step(-1));
+  document.getElementById("btn-forward").addEventListener("click", () => step(1));
+  scrub.addEventListener("input", () => {
+    if (kdeHeatmapFrames.length === 0) return;
+    renderKDEHeatmapFrame(parseInt(scrub.value, 10));
+  });
 
   async function applyKDEHeatmap() {
+    // clear previous kde heatmap frames (note that frames holds the heatmap snapshots)
+    kdeHeatmapFrames = [];
+    frameLabel.textContent = "\u2014";
+    statFrame.textContent = "\u2014";
+
     // disable the button while the snapshots are being built
     kdeHeatmapApplyBtn.disabled = true;
     kdeHeatmapApplyBtn.textContent = "Loading\u2026";
@@ -126,19 +230,10 @@
         console.log(`frame ${i}: ${frame.label} (${frame.n_incidents} incidents) ${frame.image_filename}`);
       });
 
-      // first frame only, for now
-      const frame = frames[0];
-      if (frame.image === null) {
-        kdeHeatmapErrorLabel.textContent = "First window has no incidents";
-        return;
-      }
-
-      // Leaflet wants [[south, west], [north, east]]
-      const bounds = [
-        [frame.bounds.south, frame.bounds.west],
-        [frame.bounds.north, frame.bounds.east],
-      ];
-      currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
+      // keep all frames and show the first one
+      kdeHeatmapFrames = frames;
+      scrub.max = Math.max(frames.length - 1, 0);
+      renderKDEHeatmapFrame(0);
     }
     finally {
       // runs after every return or error, so the button always comes back
