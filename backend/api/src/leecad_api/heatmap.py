@@ -49,8 +49,8 @@ def parse(args):
 
 def _kde(points, bandwidth: int, output_dir: str) -> KDEHeatMap:
     x_min, y_min, x_max, y_max = GRID
-    # three cells per bandwidth is still smooth; finer only costs time
-    increment = bandwidth / 3
+    # two cells per bandwidth is still smooth at county zoom; finer only costs time
+    increment = bandwidth / 2
     return KDEHeatMap(points=points, cluster_levels=np.zeros(len(points), dtype=int),
                       bandwidths=[bandwidth], x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max,
                       increment=increment, output_dir=output_dir)
