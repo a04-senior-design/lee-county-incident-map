@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cluster and Heat Map Lab — Lee County</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Control bars ────────────────────────────────────────────────────── */
+    .control-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.2rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* main bar: branding + analysis radios */
+    #top-bar {
+      background: rgba(15, 15, 30, 0.95);
+    }
+
+     #analysis-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+    .analysis-title {
+      font-weight: 600;
+      color: #fff;
+    }
+    .analysis-option {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .analysis-option.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .analysis-note {
+      font-size: 0.68rem;
+      color: #E9C46A;
+    }
+
+    /* secondary bar: mode-dependent controls, slightly lighter to read as a sub-bar */
+    #secondary-bar {
+      background: rgba(24, 24, 44, 0.95);
+      padding: 0.5rem 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    /* show only the current mode's controls */
+    #secondary-bar:not([data-mode="kde-heatmap"])      #bandwidth-controls,
+    #secondary-bar:not([data-mode="clusters"]) #dbscan-controls,
+    #secondary-bar:not([data-mode="gistar-heatmap"])   #gistar-controls {
+      display: none;
+    }
+
+    /* hide the whole bar while the current mode's controls are empty
+       (before the first KDE response, and in the placeholder modes until they have controls) */
+    #secondary-bar[data-mode="kde-heatmap"]:has(> #bandwidth-controls:empty),
+    #secondary-bar[data-mode="clusters"]:has(> #dbscan-controls:empty),
+    #secondary-bar[data-mode="gistar-heatmap"]:has(> #gistar-controls:empty) {
+      display: none;
+    }
+
+    /* ── Bandwidth Sliders ──────────────────────────────────────────────────── */
+
+    .param-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .param-row label {
+      font-size: 0.75rem;
+      color: #aaa;
+      white-space: nowrap;
+    }
+    .param-row label span {
+      color: #fff;
+      font-weight: 600;
+    }
+    #bandwidth-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      align-items: center;
+    }
+    .bandwidth-slider {
+      width: 200px;
+    }
+    .bandwidth-hint {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #E9C46A;
+      white-space: nowrap;
+    }
+
+    /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map { flex: 1; }
+
+    /* ── Legend ───────────────────────────────────────────────────────────── */
+    .legend {
+      background: rgba(15, 15, 30, 0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.75rem;
+      color: #eee;
+    }
+    .legend-caption {
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .legend-gradient {
+      width: 180px;
+      height: 12px;
+      border-radius: 2px;
+      margin-bottom: 0.3rem;
+    }
+    .legend-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: #aaa;
+    }
+
+    /* ── Cluster Analysis (DBSCAN) controls ─────────────────────────────── */
+    #dbscan-controls {
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .level-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      padding: 0.45rem 0.65rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 4px 4px 0;
+      min-width: 185px;
+      transition: opacity 0.2s;
+    }
+    .level-block.level-off { opacity: 0.4; }
+    .level-block[data-level="district"]     { --accent: #0E6207; }
+    .level-block[data-level="neighborhood"] { --accent: #243092; }
+    .level-block[data-level="street"]       { --accent: #E63946; }
+
+    .level-header { display: flex; align-items: center; gap: 0.5rem; }
+    .level-name   { font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+    .level-hint   { font-size: 0.67rem; color: #555; }
+
+    .toggle-label {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 17px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .toggle-label input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #444;
+      border-radius: 17px;
+      transition: background 0.2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 11px; height: 11px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: transform 0.2s;
+    }
+    .toggle-label input:checked + .toggle-track { background: var(--accent); }
+    .toggle-label input:checked + .toggle-track::after { transform: translateX(13px); }
+
+    .level-slider-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: #666; }
+    .level-slider     { width: 110px; accent-color: var(--accent); cursor: pointer; }
+
+    .level-stats { display: flex; gap: 0.35rem; }
+    .stat-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .stat-pill span { color: #fff; font-weight: 600; }
+    .level-stats .stat-pill { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
+
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+      align-self: center;
+      transition: background 0.2s;
+    }
+    #status-dot.loading  { background: #E9C46A; }
+    #status-dot.ready    { background: #2A9D8F; }
+    #status-dot.error    { background: #E63946; }
+
+    #dbscan-apply {
+      border: 1px solid #457B9D;
+      background: #457B9D;
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #dbscan-apply:hover { background: #3a6a8a; }
+    #dbscan-reset {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.78rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #dbscan-reset:hover { background: rgba(255,255,255,0.14); }
+    #dbscan-controls-error {
+      font-size: 0.72rem;
+      color: #E63946;
+      align-self: center;
+    }
+
+    .cluster-legend {
+      background: rgba(15, 15, 30, 0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      color: #eee;
+      line-height: 1.8;
+    }
+    .legend-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+
+  </style>
+</head>
+<body>
+
+<!-- main control bar: branding + analysis radios -->
+<div id="top-bar" class="control-bar">
+  <div id="branding">
+    <strong>Cluster and Heat Map Lab</strong>
+    <span>Lee County Incidents — dev prototype</span>
+  </div>
+  <div id="analysis-controls"></div>
+</div>
+
+<!-- secondary control bar: its contents depend on the mode chosen in the top bar -->
+<div id="secondary-bar" class="control-bar" data-mode="kde-heatmap">
+  <!-- cluster mode: DBSCAN level toggles/sliders (from cluster-lab; date inputs removed) -->
+  <div id="dbscan-controls">
+    <div class="level-block" id="level-block-street" data-level="street">
+      <div class="level-header">
+        <label class="toggle-label">
+          <input type="checkbox" class="level-toggle" data-level="street" checked />
+          <span class="toggle-track"></span>
+        </label>
+        <span class="level-name">Street</span>
+        <span class="level-hint">micro &middot; 300&ndash;2500 ft</span>
+      </div>
+      <div class="level-slider-row">
+        <span>Sparse</span>
+        <input type="range" class="level-slider" id="slider-street" data-level="street"
+               min="0" max="100" step="1" value="50" />
+        <span>Dense</span>
+      </div>
+      <div class="level-stats">
+        <span class="stat-pill">Clusters: <span id="stat-clusters-street">&mdash;</span></span>
+        <span class="stat-pill">Noise: <span id="stat-noise-street">&mdash;</span></span>
+      </div>
+    </div>
+  
+    <div class="level-block" id="level-block-neighborhood" data-level="neighborhood">
+      <div class="level-header">
+        <label class="toggle-label">
+          <input type="checkbox" class="level-toggle" data-level="neighborhood" checked />
+          <span class="toggle-track"></span>
+        </label>
+        <span class="level-name">Neighborhood</span>
+        <span class="level-hint">meso &middot; 0.5&ndash;2 mi</span>
+      </div>
+      <div class="level-slider-row">
+        <span>Sparse</span>
+        <input type="range" class="level-slider" id="slider-neighborhood" data-level="neighborhood"
+               min="0" max="100" step="1" value="50" />
+        <span>Dense</span>
+      </div>
+      <div class="level-stats">
+        <span class="stat-pill">Clusters: <span id="stat-clusters-neighborhood">&mdash;</span></span>
+        <span class="stat-pill">Noise: <span id="stat-noise-neighborhood">&mdash;</span></span>
+      </div>
+    </div>
+
+     <div class="level-block" id="level-block-district" data-level="district">
+      <div class="level-header">
+        <label class="toggle-label">
+          <input type="checkbox" class="level-toggle" data-level="district" checked />
+          <span class="toggle-track"></span>
+        </label>
+        <span class="level-name">District</span>
+        <span class="level-hint">macro &middot; 2&ndash;6 mi</span>
+      </div>
+      <div class="level-slider-row">
+        <span>Sparse</span>
+        <input type="range" class="level-slider" id="slider-district" data-level="district"
+               min="0" max="100" step="1" value="50" />
+        <span>Dense</span>
+      </div>
+      <div class="level-stats">
+        <span class="stat-pill">Clusters: <span id="stat-clusters-district">&mdash;</span></span>
+        <span class="stat-pill">Noise: <span id="stat-noise-district">&mdash;</span></span>
+      </div>
+    </div>
+  
+    <button id="dbscan-apply">Apply</button>
+    <button id="dbscan-reset">Reset</button>
+    <span id="dbscan-controls-error"></span>
+    <div id="status-dot"></div>
+    <div class="stat-pill">Total pts: <span id="stat-total">&mdash;</span></div>
+  </div>
+  <!-- kde-heatmap mode: bandwidth sliders (built from /api/kde-heatmap) -->
+  <div id="bandwidth-controls"></div>
+  <!-- gistar-heatmap mode: Getis-Ord Gi* controls will go here (empty placeholder for now) -->
+  <div id="gistar-controls"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const DEFAULT_ZOOM = 11;
+
+  // map setup
+  const map = L.map("map", { preferCanvas: true }).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  const controls = document.getElementById("bandwidth-controls");
+  const analysisControls = document.getElementById("analysis-controls");
+  const secondaryBar = document.getElementById("secondary-bar");
+
+  let overlayLayer = null;
+  let legendControl = null;
+  let debounceTimer = null;
+  // one slider and value label per non-noise cluster level; index i -> cluster level i
+  let sliders = [];
+  let valueLabels = [];
+  let radiosBuilt = false;
+  // index of the cluster set currently shown, as confirmed by the backend
+  let currentClusterSet = null;
+  // radio inputs by index (0 = all points, 1 = includes cluster analysis), and the note explaining a disabled option
+  let radios = [];
+  let clusterNote = null;
+  // "kde-heatmap" (the two /api/kde-heatmap cluster sets), "clusters" (Cluster Analysis), or "gistar-heatmap" (Getis-Ord Gi*)
+  let mode = "kde-heatmap";
+  // frontend-only radios by mode ("clusters", "gistar-heatmap"); not in radios[], never sent to /api/kde-heatmap
+  const modeRadios = {};
+
+  // ── Cluster Analysis (DBSCAN) state, from cluster-lab ──
+  const LEVEL_STYLES = {
+    district:     { fillOpacity: 0.07, weight: 1,   opacity: 0.45, pointRadius: 4,  noiseRadius: 2 },
+    neighborhood: { fillOpacity: 0.14, weight: 1.5, opacity: 0.65, pointRadius: 6,  noiseRadius: 3 },
+    street:       { fillOpacity: 0.26, weight: 2,   opacity: 0.85, pointRadius: 8,  noiseRadius: 4 },
+  };
+
+  const LEVEL_LABELS = { district: "District", neighborhood: "Neighborhood", street: "Street" };
+  const LEVEL_DRAW_ORDER = ["district", "neighborhood", "street"];   // district bottom, street top
+
+  const LEVEL_PRESETS = {
+    district:     { epsMax: 30000, epsMin: 10000 },
+    neighborhood: { epsMax: 10000, epsMin: 3000 },
+    street:       { epsMax: 2500,  epsMin: 300 },
+  };
+
+  const levelLayers  = { district: null, neighborhood: null, street: null };
+  const levelData    = { district: null, neighborhood: null, street: null };
+  const levelVisible = { district: true, neighborhood: true, street: true };
+  const levelMeta    = { district: null, neighborhood: null, street: null };
+  // separate from the KDE `legendControl`
+  let clusterLegendControl = null;
+  // DBSCAN is fetched lazily, the first time the Cluster Analysis radio is chosen
+  let clustersLoaded = false;
+  const dbscanError = document.getElementById("dbscan-controls-error");
+
+  // explanation shown when cluster-dependent-KDE is disabled, keyed by the backend's dbscan_status
+  const CLUSTER_STATUS_NOTES = {
+    missing: "Run cluster analysis first.",
+    all_noise: "Last cluster run found only noise. Try larger epsilon values in Cluster Analysis.",
+  };
+
+  // replace the KDE heat map overlay and density legend with the ones in data (image, bounds, legend).
+  // both are stored in overlayLayer/legendControl but only added to the map in kde-heatmap mode;
+  // in other modes, setMode("kde-heatmap") adds them when the user switches back.
+  function renderKDEHeatmap(data) {
+    // remove previous overlay/legend before adding new one
+    if (overlayLayer) map.removeLayer(overlayLayer);
+    if (legendControl) legendControl.remove();
+
+    const b = data.bounds;
+    const imageBounds = [[b.south, b.west], [b.north, b.east]];
+    overlayLayer = L.imageOverlay(data.image, imageBounds, {opacity: 0.8});
+
+    // build and add the density legend
+    const legend = data.legend;
+    const gradientCss = `linear-gradient(to right, ${legend.colors.join(", ")})`;
+    const tickLabels = legend.ticks
+      .map(t => `<span>${Number(t.toPrecision(2))}</span>`)
+      .join("");
+
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `
+        <div class="legend-caption">${legend.caption}</div>
+        <div class="legend-gradient" style="background: ${gradientCss};"></div>
+        <div class="legend-ticks">${tickLabels}</div>
+      `;
+      return div;
+    };
+    
+    // show the new KDE overlay and legend only if the KDE heat map is the active mode.
+    // in another mode they're just saved; setMode puts them on the map when the user switches back.
+    if (mode === "kde-heatmap") {
+      overlayLayer.addTo(map);
+      legendControl.addTo(map);
+    }
+  }
+
+  // build one bandwidth slider per non-noise cluster level from data.bandwidths (Level 0, 1, ...).
+  // called on first load and whenever the cluster set changes, since the slider count can differ.
+  // each slider is kept between its neighbors (Level 0 >= Level 1 >= ...), and moving one schedules a fetch.
+  function buildSliders(data) {
+    controls.innerHTML = "";
+    sliders = [];
+    valueLabels = [];
+
+    data.bandwidths.forEach((bw, i) => {
+      const row = document.createElement("div");
+      row.className = "param-row";
+
+      const label = document.createElement("label");
+      label.htmlFor = `bandwidth-slider-${i}`;
+      label.textContent = `Level ${i} bandwidth: `;
+      const valueSpan = document.createElement("span");
+      valueSpan.textContent = Math.round(bw);
+      label.appendChild(valueSpan);
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.id = `bandwidth-slider-${i}`;
+      slider.className = "bandwidth-slider";
+      slider.min = data.min_bandwidth;
+      slider.max = data.max_bandwidth;
+      slider.step = 1;
+      slider.value = bw;
+
+      slider.addEventListener("input", () => {
+        // block: keep this slider between its neighbors (level i-1 >= level i >= level i+1)
+        let value = Number(slider.value);
+        if (i > 0) value = Math.min(value, Number(sliders[i - 1].value));
+        if (i < sliders.length - 1) value = Math.max(value, Number(sliders[i + 1].value));
+        slider.value = value;
+
+        valueSpan.textContent = slider.value;
+        scheduleFetch();
+      });
+
+      row.append(label, slider);
+      controls.appendChild(row);
+      sliders.push(slider);
+      valueLabels.push(valueSpan);
+    });
+
+    // hint describing the ordering constraint, e.g. "Constraint: Level 0 >= Level 1 >= Level 2"
+    if (data.bandwidths.length > 1) {
+      const hint = document.createElement("div");
+      hint.className = "bandwidth-hint";
+      hint.textContent = "Constraint: " + data.bandwidths.map((_, i) => `Level ${i}`).join(" >= ");
+      controls.appendChild(hint);
+    }
+  }
+
+  // add a frontend-only radio that switches to its own mode (no request yet)
+  function addModeRadio(label, modeName) {
+    const option = document.createElement("label");
+    option.className = "analysis-option";
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "analysis-set";
+    radio.value = modeName;
+
+    radio.addEventListener("change", () => {
+      clearTimeout(debounceTimer);   // drop any pending slider fetch
+      setMode(modeName);
+      // Cluster Analysis is fetched the first time it's chosen, then reused
+      if (modeName === "clusters" && !clustersLoaded) fetchDbscan();
+    });
+
+    option.append(radio, label);
+    analysisControls.appendChild(option);
+    modeRadios[modeName] = radio;
+  }
+
+  // build the analysis radios once, from the first KDE heat map response (/api/kde-heatmap).
+  // order: Cluster Analysis (frontend-only), one radio per backend label in data.cluster_set_labels
+  // (radios[i] matches cluster_set = i), then Getis-Ord Gi* Heat Map (frontend-only).
+  function buildAnalysisRadios(data) {
+    analysisControls.innerHTML = "";
+    radios = [];
+
+    const title = document.createElement("div");
+    title.className = "analysis-title";
+    title.textContent = "Analysis";
+    analysisControls.appendChild(title);
+
+    // frontend-only option listed first; switches to its own mode
+    addModeRadio("Cluster Analysis", "clusters");
+
+    data.cluster_set_labels.forEach((text, i) => {
+      const option = document.createElement("label");
+      option.className = "analysis-option";
+
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "analysis-set";
+      radio.value = i;
+      radio.checked = (i === data.cluster_set);
+
+      radio.addEventListener("change", () => {
+        clearTimeout(debounceTimer);
+        setMode("kde-heatmap");
+        // coming back from another mode to the set already shown: reuse it, no refetch
+        if (i !== currentClusterSet) fetchKDEHeatmap(null, i);
+      });
+
+      option.append(radio, text);
+      analysisControls.appendChild(option);
+      radios.push(radio);
+    });
+
+    clusterNote = document.createElement("div");
+    clusterNote.className = "analysis-note";
+    analysisControls.appendChild(clusterNote);
+
+    // frontend-only option listed last; switches to its own mode
+    addModeRadio("Getis-Ord Gi* Heat Map", "gistar-heatmap");
+
+    radiosBuilt = true;
+  }
+
+  // enable "Includes cluster analysis" only when cluster-lab's results are usable, otherwise show why
+  function updateClusterAvailability(status) {
+    if (!radiosBuilt || !status) return;
+    const clusterRadio = radios[1];
+    const available = (status === "available");
+
+    clusterRadio.disabled = !available;
+    clusterRadio.parentElement.classList.toggle("disabled", !available);
+    clusterNote.textContent = available ? "" : (CLUSTER_STATUS_NOTES[status] || "");
+  }
+
+  // switch modes: swap the second bar's controls and show/hide each mode's map layers
+  function setMode(newMode) {
+    mode = newMode;
+    secondaryBar.dataset.mode = newMode;
+
+    // KDE heat map layer is kept, not destroyed, so coming back needs no refetch
+    const showKDEHeatmap = (newMode === "kde-heatmap");
+    if (overlayLayer)  showKDEHeatmap ? overlayLayer.addTo(map)  : map.removeLayer(overlayLayer);
+    if (legendControl) showKDEHeatmap ? legendControl.addTo(map) : legendControl.remove();
+
+    // cluster layers/legend: shown only in cluster mode (later: same for Gi*)
+    syncClusterLayers();
+
+    map.invalidateSize();   // the second bar's height changed
+  }
+
+
+  // ═══ Cluster Analysis (DBSCAN) — from cluster-lab, minus the date/window inputs ═══
+
+  function setStatus(state) {
+    const dot = document.getElementById("status-dot");
+    dot.className = "";
+    if (state) dot.classList.add(state);
+  }
+
+  // legend built from all loaded, visible levels; only shown in cluster mode
+  function buildClusterLegend() {
+    if (clusterLegendControl) {
+      clusterLegendControl.remove();
+      clusterLegendControl = null;
+    }
+    if (mode !== "clusters") return;
+
+    const sections = LEVEL_DRAW_ORDER
+      .filter(level => levelData[level] !== null && levelVisible[level])
+      .map(level => {
+        const polygons = levelData[level].features
+          .filter(f => f.properties.feature_type === "polygon");
+
+        if (!polygons.length) return "";
+
+        const rows = polygons.map(f =>
+          `<div><span class="legend-swatch" style="background:${f.properties.color}"></span>` +
+          `Cluster ${f.properties.cluster_id} — ${f.properties.point_count} pts</div>`
+        ).join("");
+
+        return `<div style="margin-bottom:0.4rem">` +
+          `<strong style="font-size:0.7rem;color:#aaa;text-transform:uppercase;letter-spacing:0.05em">` +
+          `${LEVEL_LABELS[level]}</strong>${rows}</div>`;
+      }).join("");
+
+    if (!sections.replace(/<[^>]*>/g, "").trim()) return;
+
+    clusterLegendControl = L.control({ position: "bottomright" });
+    clusterLegendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "cluster-legend");
+      div.innerHTML = sections;
+      return div;
+    };
+    clusterLegendControl.addTo(map);
+  }
+
+  // put each level's layer on the map in draw order, but only in cluster mode and only if its toggle is on.
+  // layers are stored either way, so switching modes never needs a refetch.
+  function syncClusterLayers() {
+    LEVEL_DRAW_ORDER.forEach(level => {
+      const layer = levelLayers[level];
+      if (!layer) return;
+      map.removeLayer(layer);
+      if (mode === "clusters" && levelVisible[level]) layer.addTo(map);
+    });
+    buildClusterLegend();
+  }
+
+  function renderLevelLayer(level, geojson) {
+    if (levelLayers[level]) {
+      map.removeLayer(levelLayers[level]);
+    }
+
+    const st = LEVEL_STYLES[level];
+    const polygons = geojson.features.filter(f => f.properties.feature_type === "polygon");
+    const pts = geojson.features.filter(f => f.properties.feature_type === "point");
+
+    const group = L.layerGroup();
+
+    L.geoJSON({ type: "FeatureCollection", features: polygons }, {
+      style: feature => ({
+        fillColor: feature.properties.color,
+        color: feature.properties.color,
+        fillOpacity: st.fillOpacity,
+        weight: st.weight,
+        opacity: st.opacity,
+      }),
+      onEachFeature: (feature, layer) => {
+        layer.bindTooltip(
+          `[${LEVEL_LABELS[level]}] Cluster ${feature.properties.cluster_id} — ${feature.properties.point_count} incidents`,
+          { sticky: true }
+        );
+      },
+    }).addTo(group);
+
+    L.geoJSON({ type: "FeatureCollection", features: pts }, {
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, {
+          radius: feature.properties.cluster_id === -1 ? st.noiseRadius : st.pointRadius,
+          fillColor: feature.properties.color,
+          color: "#fff",
+          weight: 0.5,
+          fillOpacity: feature.properties.cluster_id === -1 ? 0.35 : 0.85,
+        }),
+      onEachFeature: (feature, layer) => {
+        const label = feature.properties.cluster_id === -1
+          ? `[${LEVEL_LABELS[level]}] Noise`
+          : `[${LEVEL_LABELS[level]}] Cluster ${feature.properties.cluster_id}`;
+        layer.bindTooltip(label, { sticky: true });
+      },
+    }).addTo(group);
+
+    levelLayers[level] = group;
+    levelData[level] = geojson;
+
+    syncClusterLayers();
+  }
+
+  function levelToParams(level, sliderVal) {
+    const t = sliderVal / 100;
+    const p = LEVEL_PRESETS[level];
+
+    // log scale
+    const eps = Math.round(
+      Math.exp(
+        Math.log(p.epsMax) +
+        (Math.log(p.epsMin) - Math.log(p.epsMax)) * t
+      )
+    );
+
+    return { eps };
+  }
+
+  function updateLevelStats(level, meta) {
+    document.getElementById(`stat-clusters-${level}`).textContent =
+      meta ? meta.n_clusters : "—";
+
+    document.getElementById(`stat-noise-${level}`).textContent =
+      meta ? meta.n_noise : "—";
+
+    if (meta) {
+      document.getElementById("stat-total").textContent = meta.n_total;
+    }
+  }
+
+  // /api/clusters?levels=...&district_eps=...&neighborhood_eps=...&street_eps=...
+  async function fetchDbscan() {
+    const params = {};
+
+    const enabledLevels = LEVEL_DRAW_ORDER.filter(level => levelVisible[level]);
+
+    if (!enabledLevels.length) {
+      dbscanError.textContent = "Enable at least one cluster level";
+      setStatus("error");
+      return;
+    }
+
+    params.levels = enabledLevels.join(",");
+
+    enabledLevels.forEach(level => {
+      const sliderVal = Number(document.getElementById(`slider-${level}`).value);
+      const { eps } = levelToParams(level, sliderVal);
+      params[`${level}_eps`] = eps;
+    });
+
+    setStatus("loading");
+    dbscanError.textContent = "";
+
+    const qs = new URLSearchParams(params).toString();
+
+    try {
+      const res = await fetch(`/api/clusters${qs ? "?" + qs : ""}`);
+      const body = await res.json();
+
+      if (!res.ok) {
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+
+      // the response still wraps results in frames; render the first snapshot
+      const snapshot = body.frames && body.frames.length ? body.frames[0] : null;
+
+      // clear old layers/data first
+      LEVEL_DRAW_ORDER.forEach(level => {
+        if (levelLayers[level]) {
+          map.removeLayer(levelLayers[level]);
+          levelLayers[level] = null;
+        }
+        levelData[level] = null;
+        levelMeta[level] = null;
+      });
+
+      if (!snapshot) {
+        document.getElementById("stat-total").textContent = "0";
+        syncClusterLayers();
+        setStatus("ready");
+        return;
+      }
+
+      enabledLevels.forEach(level => {
+        const levelPayload = snapshot.levels[level];
+        if (!levelPayload) return;
+
+        levelMeta[level] = levelPayload.metadata;
+        renderLevelLayer(level, levelPayload);
+        updateLevelStats(level, levelPayload.metadata);
+      });
+
+      // disabled levels stay hidden and their stats cleared
+      LEVEL_DRAW_ORDER
+        .filter(level => !levelVisible[level])
+        .forEach(level => updateLevelStats(level, null));
+
+      setStatus("ready");
+      clustersLoaded = true;
+
+      // the backend now holds fresh cluster results: refresh the KDE "Includes cluster analysis"
+      // availability (and the stored KDE overlay) using the current slider values
+      if (radiosBuilt) fetchKDEHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
+    } catch (err) {
+      console.error("DBSCAN fetch failed:", err);
+      setStatus("error");
+      dbscanError.textContent = err.message || "Failed to load DBSCAN data";
+    }
+  }
+
+  document.querySelectorAll(".level-toggle").forEach(checkbox => {
+    checkbox.addEventListener("change", () => {
+      const level = checkbox.dataset.level;
+      levelVisible[level] = checkbox.checked;
+
+      document.getElementById(`level-block-${level}`)
+        .classList.toggle("level-off", !checkbox.checked);
+
+      if (checkbox.checked && levelLayers[level]) {
+        syncClusterLayers();    // data already loaded: just show it
+      } else {
+        syncClusterLayers();    // hide it (if turning off)
+        fetchDbscan();          // turning on without data, or refresh after turning off
+      }
+    });
+  });
+
+  document.getElementById("dbscan-apply").addEventListener("click", fetchDbscan);
+
+  document.getElementById("dbscan-reset").addEventListener("click", () => {
+    document.querySelectorAll(".level-toggle").forEach(checkbox => {
+      checkbox.checked = true;
+      levelVisible[checkbox.dataset.level] = true;
+      document.getElementById(`level-block-${checkbox.dataset.level}`)
+        .classList.remove("level-off");
+    });
+
+    document.querySelectorAll(".level-slider").forEach(slider => {
+      slider.value = 50;
+    });
+
+    dbscanError.textContent = "";
+    fetchDbscan();
+  });
+
+  // one shared debounce: moving any slider sends all current values
+  function scheduleFetch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      fetchKDEHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
+    }, 400);
+  }
+
+  // fetch /api/kde-heatmap and update the page with the result.
+  // bandwidths: one value per slider (Level 0, 1, ...), or null to use the backend's defaults.
+  // clusterSet: 0 = all points, 1 = includes cluster analysis, or null for the backend's default (0).
+  // e.g. fetchKDEHeatmap([3000, 1500], 1) -> /api/kde-heatmap?cluster_set=1&bandwidth=3000&bandwidth=1500
+  function fetchKDEHeatmap(bandwidths, clusterSet) {
+    const params = new URLSearchParams();
+    if (clusterSet !== undefined && clusterSet !== null) params.append("cluster_set", clusterSet);
+    if (bandwidths) bandwidths.forEach(bw => params.append("bandwidth", bw));
+    const query = params.toString();
+    const url = query ? `/api/kde-heatmap?${query}` : "/api/kde-heatmap";
+
+    fetch(url)
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          const err = new Error(data.error || `HTTP ${res.status}`);
+          err.data = data;
+          throw err;
+        }
+        return data;
+      })
+      .then(data => {
+        renderKDEHeatmap(data);
+
+        // radio buttons: built once, from the backend's label list
+        if (!radiosBuilt) buildAnalysisRadios(data);
+        updateClusterAvailability(data.dbscan_status);
+
+        if (data.cluster_set !== currentClusterSet) {
+          // first load or cluster set switched: slider count may differ, so rebuild
+          currentClusterSet = data.cluster_set;
+          buildSliders(data);
+          map.invalidateSize(); // bars above the map changed height
+        }
+        else {
+          // same cluster set: sync sliders to the backend's clamped values
+          data.bandwidths.forEach((bw, i) => {
+            sliders[i].value = bw;
+            valueLabels[i].textContent = Math.round(bw);
+          });
+        }
+      })
+      .catch(err => {
+        console.error("KDEHeatmap fetch failed: ", err);
+        // cluster-related errors carry dbscan_status: disable the option and show why
+        if (err.data) updateClusterAvailability(err.data.dbscan_status);
+        // the request failed, so re-select the option whose KDE heat map is still stored,
+        // unless the user has since switched to another mode
+        if (radiosBuilt && currentClusterSet !== null && mode === "kde-heatmap") {
+          radios[currentClusterSet].checked = true;
+        }
+      });
+  }
+
+  // boot: fetch with no bandwidth params, letting the backend supply its defaults
+  fetchKDEHeatmap();  
+})();
+</script>
+</body>
+</html>
