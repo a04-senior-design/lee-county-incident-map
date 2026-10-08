@@ -152,7 +152,7 @@ paths:
     get:
       summary: Heatmap animation frames
       description: |
-        One frame per day from `from` to `to`, at most 60 days. `from` and `to`
+        One frame per day from `from` to `to`, at most 31 days. `from` and `to`
         are required. Each frame is a heatmap of the mapped incidents in the
         `window` days ending that day, so with the default of 7 every frame
         shows the past week. All frames share one color scale and one map
@@ -170,7 +170,7 @@ paths:
         - name: bandwidth
           in: query
           description: How far each incident's heat spreads, in feet.
-          schema: { type: integer, minimum: 500, maximum: 10000, default: 3000 }
+          schema: { type: integer, minimum: 1500, maximum: 10000, default: 3000 }
       responses:
         "200":
           description: The frames, oldest first.

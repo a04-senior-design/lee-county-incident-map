@@ -12,7 +12,7 @@ from leecad_api import filters as filters_module
 # The in_county box from migration 0005, in Florida West feet. Every mapped incident is
 # inside it, and KDEpy refuses a grid that leaves any point out.
 GRID = transform_bounds("EPSG:4326", "EPSG:2882", -82.35, 26.27, -81.50, 26.90)
-MAX_FRAMES = 60
+MAX_FRAMES = 31
 
 
 def _number(args, name: str, default: int, low: int, high: int) -> int:
@@ -39,7 +39,8 @@ def parse(args):
         raise ValueError(f"at most {MAX_FRAMES} days per request")
 
     window = _number(args, "window", 7, 1, 30)
-    bandwidth = _number(args, "bandwidth", 3000, 500, 10000)
+    # below 1500 ft a county-wide grid gets too fine to render in time
+    bandwidth = _number(args, "bandwidth", 3000, 1500, 10000)
 
     query_args = args.copy()
     query_args["from"] = (first_day - timedelta(days=window - 1)).isoformat()
@@ -48,8 +49,8 @@ def parse(args):
 
 def _kde(points, bandwidth: int, output_dir: str) -> KDEHeatMap:
     x_min, y_min, x_max, y_max = GRID
-    # about five cells across a blob looks smooth; finer only costs time
-    increment = max(300, bandwidth / 5)
+    # three cells per bandwidth is still smooth; finer only costs time
+    increment = bandwidth / 3
     return KDEHeatMap(points=points, cluster_levels=np.zeros(len(points), dtype=int),
                       bandwidths=[bandwidth], x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max,
                       increment=increment, output_dir=output_dir)
