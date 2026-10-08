@@ -110,14 +110,15 @@ class KDEHeatMap:
 #        print(f'density_surface.shape = {density_surface.shape}')
         return density_surface
 
-    def generate_heatmap_image(self, filename="density_overlay.png"):
+    def generate_heatmap_image(self, filename="density_overlay.png", weight=1.0, vmin=None, vmax=None):
+        # weight, vmin and vmax let animation frames share one color scale; the defaults keep the old behavior
         # reshape the density values to a rectangular grid
-        density_grid = self._density_surface.reshape(self.x_coords.shape[0], self.y_coords.shape[0]).T
+        density_grid = self._density_surface.reshape(self.x_coords.shape[0], self.y_coords.shape[0]).T * weight
 
         # set a threshold for removing very low density values
         threshold_percentile = np.percentile(density_grid, 0.01)
         threshold_based_on_max = density_grid.max() * 0.0001
-        threshold = max(threshold_percentile, threshold_based_on_max)
+        threshold = vmin if vmin is not None else max(threshold_percentile, threshold_based_on_max)
         density_grid_masked = np.ma.masked_where(density_grid < threshold, density_grid)
 
         # color map for coloring the heat map
@@ -134,7 +135,7 @@ class KDEHeatMap:
         cmap = heat_cmap.copy()
         cmap.set_bad(alpha=0)
         vmin = threshold
-        vmax = density_grid.max()
+        vmax = vmax if vmax is not None else density_grid.max()
         norm_obj = PowerNorm(gamma=0.5, vmin=vmin, vmax=vmax)
 
         # transform from pixel coordinates to real-world spatial coordinates
