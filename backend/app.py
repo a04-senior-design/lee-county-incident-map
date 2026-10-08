@@ -357,6 +357,17 @@ def kde_heatmap():
 
 @app.route("/api/animation/kde-heatmap")
 def kde_heatmap_animation():
+    # all four windowing params are required
+    required = ["start_date", "end_date", "window_length", "time_step"]
+    missing = []
+    for name in required:
+        if not request.args.get(name):
+            missing.append(name)
+
+    if missing:
+        return jsonify({"error": f"Missing required parameter(s): {', '.join(missing)}"}), 400
+
+
     # read start_date, end_date, window_length, and time_step
     try:
         start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
