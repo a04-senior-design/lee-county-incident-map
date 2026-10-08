@@ -8,7 +8,7 @@ from psycopg import OperationalError
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
 
-from leecad_api import auth, queries
+from leecad_api import auth, heatmap, queries
 from leecad_api import filters as filters_module
 
 API = "/api/v1"
@@ -103,6 +103,18 @@ def create_app(database_url: str | None = None) -> Flask:
             "next_cursor": next_cursor,
             "dataset_revision": revision["revision"],
         })
+
+    @app.get(f"{API}/heatmap/frames")
+    def heatmap_frames():
+        parsed, first_day, last_day, window, bandwidth = heatmap.parse(request.args)
+        sql, params = queries.heatmap_points(parsed)
+
+        with app.pool.connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+            revision = conn.execute("SELECT revision FROM dataset_revision").fetchone()
+
+        result = heatmap.build_frames(rows, first_day, last_day, window, bandwidth)
+        return jsonify({**result, "dataset_revision": revision["revision"]})
 
     return app
 

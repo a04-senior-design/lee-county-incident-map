@@ -1,4 +1,5 @@
 import base64
+from dataclasses import replace
 from datetime import datetime
 
 FROM_AND_JOINS = """
@@ -172,3 +173,17 @@ def incident_list(filters, limit: int, cursor: str | None) -> tuple[str, list]:
     sql = COLUMNS + FROM_AND_JOINS + _where(where) + ORDER + " LIMIT %s"
     params.append(limit + 1)
     return sql, params
+
+
+# 2882 is Florida West in feet, the projection KDE works in.
+HEATMAP_POINTS = """
+    SELECT (i.occurred_at AT TIME ZONE 'America/New_York')::date AS day,
+           ST_X(ST_Transform(i.geom, 2882)) AS x,
+           ST_Y(ST_Transform(i.geom, 2882)) AS y
+    FROM incidents i
+"""
+
+
+def heatmap_points(filters) -> tuple[str, list]:
+    where, params = _conditions(replace(filters, mapped_only=True))
+    return HEATMAP_POINTS + _where(where), params
