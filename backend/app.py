@@ -357,8 +357,8 @@ def kde_heatmap():
 
 @app.route("/api/animation/kde-heatmap")
 def kde_heatmap_animation():
-    # all four windowing params are required
-    required = ["start_date", "end_date", "window_length", "time_step"]
+    # all params are required
+    required = ["start_date", "end_date", "window_length", "time_step", "bandwidth"]
     missing = []
     for name in required:
         if not request.args.get(name):
@@ -367,6 +367,12 @@ def kde_heatmap_animation():
     if missing:
         return jsonify({"error": f"Missing required parameter(s): {', '.join(missing)}"}), 400
 
+    # bandwidth must be a number; clamp it to the shared limits
+    try:
+        requested_bandwidth = float(request.args.get("bandwidth"))
+    except ValueError:
+        return jsonify({"error": "Invalid bandwidth parameter"}), 400
+    bandwidth = max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, requested_bandwidth))
 
     # read start_date, end_date, window_length, and time_step
     try:
@@ -376,6 +382,7 @@ def kde_heatmap_animation():
             end_date=end_date,
             window_length=window_length,
             time_step=time_step,
+            bandwidth=bandwidth,
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -388,7 +395,7 @@ def kde_heatmap_animation():
             img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
             frame["image"] = _png_to_base64(path=img_path)
 
-    return jsonify({"frames": frames})
+    return jsonify({"frames": frames, "bandwidth": bandwidth})
   
 
 

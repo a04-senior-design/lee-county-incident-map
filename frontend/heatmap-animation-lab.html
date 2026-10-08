@@ -132,6 +132,14 @@
       font-size: 0.78rem;
       width: 130px;
     }
+    .field-row input[type="range"] {
+      padding: 0;
+      border: none;
+      background: none;
+      accent-color: #E9C46A;
+      cursor: pointer;
+    }
+    .field-row label span.bw-value { color: #fff; font-weight: 600; }
     #kde-heatmap-apply {
       border: 1px solid #E9C46A;
       background: #E9C46A;
@@ -178,6 +186,7 @@
   </div>
   <div id="stats">
     <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
+    <div class="stat-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
   </div>
 </div>
 
@@ -197,6 +206,10 @@
   <div class="field-row">
     <label for="input-time-step">Time step <span style="color:#555">(e.g. 1D, 5D, 2W)</span></label>
     <input id="input-time-step" type="text" value="5D" placeholder="required" />
+  </div>
+  <div class="field-row">
+    <label for="input-bandwidth">Bandwidth: <span class="bw-value" id="bandwidth-value">1500</span> ft</label>
+    <input id="input-bandwidth" type="range" min="500" max="10000" step="100" value="1500" />
   </div>
 
   <button id="kde-heatmap-apply">Apply</button>
@@ -227,6 +240,7 @@
       end_date: document.getElementById("input-end-date").value,
       window_length: document.getElementById("input-window-length").value.trim(),
       time_step: document.getElementById("input-time-step").value.trim(),
+      bandwidth: document.getElementById("input-bandwidth").value,
     };
 
     const labels = {
@@ -234,6 +248,7 @@
       end_date: "end date",
       window_length: "window size",
       time_step: "time step",
+      bandwidth: "bandwidth",
     };
 
     const missing = [];
@@ -245,6 +260,13 @@
 
     return {params, missing};
   }
+
+  // show the bandwidth value next to its label as the slider moves
+  const bandwidthInput = document.getElementById("input-bandwidth");
+  const bandwidthValue = document.getElementById("bandwidth-value");
+  bandwidthInput.addEventListener("input", () => {
+    bandwidthValue.textContent = bandwidthInput.value;
+  });
 
   let currentKDEHeatmapOverlay = null; // the kde heat map image on the map, if any
 
@@ -260,6 +282,7 @@
   const scrub = document.getElementById("scrub");
   const frameLabel = document.getElementById("frame-label");
   const statFrame = document.getElementById("stat-frame");
+  const statBandwidth = document.getElementById("stat-bandwidth");
   const playBtn = document.getElementById('btn-play');
 
   // draw frame i: its heat map (if any), label and frame counter
@@ -359,7 +382,7 @@
   });
 
   async function applyKDEHeatmap() {
-    // all four fields are required; stop before touching the current animation
+    // all fields are required; stop before touching the current animation
     const {params, missing} = readKDEHeatmapParams();
     if (missing.length > 0) {
       kdeHeatmapErrorLabel.textContent = `Enter a ${missing.join(", ")}.`;
@@ -373,6 +396,7 @@
     kdeHeatmapFrames = [];
     frameLabel.textContent = "\u2014";
     statFrame.textContent = "\u2014";
+    statBandwidth.textContent = "\u2014";
 
     // disable the button while the snapshots are being built
     kdeHeatmapApplyBtn.disabled = true;
@@ -398,6 +422,7 @@
       }
 
       const frames = body.frames;
+      console.log(`bandwidth used: ${body.bandwidth}`);
       console.log(`frames: ${frames.length}`);
       frames.forEach((frame, i) => {
         console.log(`frame ${i}: ${frame.label} (${frame.n_incidents} incidents) ${frame.image_filename}`);
@@ -407,6 +432,8 @@
       kdeHeatmapFrames = frames;
       scrub.max = Math.max(frames.length - 1, 0);
       renderKDEHeatmapFrame(0);
+      // bandwidth the displayed snapshots were built with
+      statBandwidth.textContent = `${body.bandwidth} ft`;
     }
     finally {
       // runs after every return or error, so the button always comes back
