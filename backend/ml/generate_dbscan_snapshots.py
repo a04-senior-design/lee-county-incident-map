@@ -40,6 +40,7 @@ from ml.time_windows import build_time_windows
 from ml.dbscan.DBSCANCluster import cluster_levels, run_clusters, compute_density_levels, run_clusters_from_points, compute_density_levels_from_points
 
 DEFAULT_N_WINDOWS = 1
+MAX_SNAPSHOTS = 30
 
 _OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "dbscan_snapshots.json")
 
@@ -85,6 +86,7 @@ def build_snapshots(
     dicts in time order.
     """
     level_configs = level_configs if level_configs is not None else cluster_levels
+    
     only_one_frame = window_length is None
     windows = build_time_windows(start_date, end_date, window_length, time_step)
     
@@ -122,6 +124,14 @@ def build_snapshots(
             "n_incidents": len(window_incidents),
             "levels": levels,
         })
+        
+        densities = compute_density_levels(window_incidents, list(level_configs.values()))
+        
+        curret_csv_snapshot_name = f"{len(snapshots)}_{csv_path}"
+        with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["easting", "northing", "cluster_density_level"])
+            writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
     
     end_time = time.perf_counter()
     print(f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds")
@@ -131,8 +141,8 @@ def build_snapshots(
         densities = compute_density_levels(density_incidents, list(level_configs.values()))
         with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
-            writer.writerow(["lat", "lng", "cluster_density_level"])
-            writer.writerows((row["lat"], row["lng"], row["density_level"]) for row in densities)
+            writer.writerow(["easting", "northing", "cluster_density_level"])
+            writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
     
     return snapshots
 
@@ -159,9 +169,10 @@ def build_snapshots_from_points(
         level_name: run_clusters_from_points(
             points,
             eps=settings["epsilon"],
-            min_pts=4,
+            min_pts=settings["min_pts"],
             cluster_color=settings["color"],
         )
+        
         for level_name, settings in level_configs.items()
     }
 
