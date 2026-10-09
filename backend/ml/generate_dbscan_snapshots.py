@@ -52,7 +52,7 @@ DBSCAN_ANIMATION_DENSITIES_DIR = os.path.join(os.path.dirname(__file__), "..", "
 # csv_path = os.path.join(temp_dir, "userID_dbscan.csv")
 csv_path = "userID_dbscan.csv"
 
-def build_dbcsn_snapshots(
+def build_dbscan_snapshots(
     start_date=None,
     end_date=None,
     window_length=None,
@@ -159,7 +159,7 @@ def build_dbcsn_snapshots(
     
     return snapshots
 
-def build_dbcsn_snapshots_from_points(
+def build_dbscan_snapshots_from_points(
     points: np.ndarray,
     level_configs=None,
 ) -> list:
