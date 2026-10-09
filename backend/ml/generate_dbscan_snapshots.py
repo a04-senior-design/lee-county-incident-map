@@ -27,6 +27,7 @@ Run from backend/ with the venv activated:
         --window-length 30D --time-step 7D
 """
 
+import shutil
 import argparse
 import json
 import os
@@ -43,6 +44,7 @@ DEFAULT_N_WINDOWS = 1
 MAX_SNAPSHOTS = 30
 
 _OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "dbscan_snapshots.json")
+DBSCAN_ANIMATION_DENSITIES_DIR = os.path.join(os.path.dirname(__file__), "..", "tmp_dbscan_animation_densities")
 
 """Uncomment this to use real tmp folder"""
 # Get system temp directory (/tmp on macOS/Linux)
@@ -85,10 +87,21 @@ def build_snapshots(
     {label, window_start, window_end, n_incidents, levels: {level_name: geojson}}
     dicts in time order.
     """
+    
+    shutil.rmtree(DBSCAN_ANIMATION_DENSITIES_DIR, ignore_errors=True)
+    os.makedirs(DBSCAN_ANIMATION_DENSITIES_DIR, exist_ok=True)
+    
     level_configs = level_configs if level_configs is not None else cluster_levels
     
     only_one_frame = window_length is None
     windows = build_time_windows(start_date, end_date, window_length, time_step)
+    
+    # too many snapshots - stop before doing any heat map work
+    if len(windows) > MAX_SNAPSHOTS:
+        raise ValueError(
+            f"{len(windows)} snapshots requested; the maximum is {MAX_SNAPSHOTS}. "
+            "Use a shorter date range or a longer time step."
+        )
     
     start_time = time.perf_counter() # start timer
     
@@ -101,7 +114,6 @@ def build_snapshots(
         window_end = window["window_end"]
         window_incidents = window["incidents"]
     
-
         if only_one_frame:
             for incident in window_incidents:
                 if id(incident) not in seen_ids:
@@ -127,7 +139,7 @@ def build_snapshots(
         
         densities = compute_density_levels(window_incidents, list(level_configs.values()))
         
-        curret_csv_snapshot_name = f"{len(snapshots)}_{csv_path}"
+        curret_csv_snapshot_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{len(snapshots)}_{csv_path}"
         with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             writer.writerow(["easting", "northing", "cluster_density_level"])
@@ -139,7 +151,8 @@ def build_snapshots(
     # write the cluster density levels
     if only_one_frame:
         densities = compute_density_levels(density_incidents, list(level_configs.values()))
-        with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
+        one_frame_csv_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{csv_path}"
+        with open(one_frame_csv_name, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             writer.writerow(["easting", "northing", "cluster_density_level"])
             writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
@@ -191,8 +204,9 @@ def build_snapshots_from_points(
 
     # Compute density levels for all input points and export CSV
     densities = compute_density_levels_from_points(points, list(level_configs.values()))
-
-    with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
+    curret_csv_snapshot_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{csv_path}"
+    
+    with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(["easting", "northing", "cluster_density_level"])
         writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
