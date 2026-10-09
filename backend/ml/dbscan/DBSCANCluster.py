@@ -317,14 +317,15 @@ def compute_density_levels(incidents: list, levels: list) -> list:
     Returns a list of {"lat", "lng", "density_level"} dicts, one per
     mappable incident (points missing lat/lng are dropped).
     """
-    points, lats, lons = _project_mappable(incidents)
+    points, _, _ = _project_mappable(incidents)
     if points is None or not levels:
         return []
 
     cluster = DBSCANCluster(points, levels=levels)
+    
     return [
-        {"lat": float(lat), "lng": float(lon), "density_level": int(level)}
-        for lat, lon, level in zip(lats, lons, cluster.density_levels)
+        {"easting": float(point[0]), "northing": float(point[1]), "density_level": int(level)}
+        for point, level in zip(points, cluster.density_levels)
     ]
 
 def compute_density_levels_from_points(points : np.ndarray, levels: list) -> list:
