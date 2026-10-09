@@ -16,7 +16,7 @@ from cache import get_incidents  # noqa: E402 — imported after env load
 from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
-from ml.generate_dbscan_snapshots import build_snapshots, build_snapshots_from_points  # noqa: E402
+from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -107,7 +107,7 @@ def clusters():
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        frames = build_snapshots_from_points(
+        frames = build_dbscan_snapshots_from_points(
             points=data_points,
             level_configs=level_configs,
         )
@@ -165,7 +165,7 @@ def animation_dbscan():
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        frames = build_snapshots(
+        frames = build_dbscan_snapshots(
             start_date=start_date,
             end_date=end_date,
             window_length=to_offset(window_length) if window_length else None,
