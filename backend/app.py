@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from cache import get_incidents  # noqa: E402 — imported after env load
-from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
+from ml.dbscan import cluster_levels  # noqa: E402
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
-from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
+from ml.generate_dbscan_snapshots import build_dbscan_snapshots  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
