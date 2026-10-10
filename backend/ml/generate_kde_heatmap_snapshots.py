@@ -1,10 +1,12 @@
 import os
 import shutil
 
+import pandas as pd
 import numpy as np
 from pyproj import Transformer
 from pandas.tseries.frequencies import to_offset
 
+from ml.generate_dbscan_snapshots import DBSCAN_ANIMATION_DENSITIES_DIR
 from ml.time_windows import build_time_windows
 from ml.kde import KDEHeatMap
 
@@ -13,7 +15,7 @@ MAX_SNAPSHOTS = 30
 # folder where the snapshot PNGs are written; app.py serves images from here
 KDE_SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "tmp_kde_heatmap_snapshots")
 
-def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
+def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, bandwidth):
 	"""Build one KDE heat map snapshot per time window, for the heat map
 	animation.
 
@@ -23,8 +25,8 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 	saved to backend/tmp_kde_heatmap_snapshots/. That folder is deleted
 	and recreated on every call.
 
-	All incidents in a window are used as one group with a fixed
-	bandwidth of 1500 ft. Each window's grid is sized to its own points,
+	All incidents in a window are used as one group with a given bandwidth. 
+	Each window's grid is sized to its own points,
 	so the image bounds differ from frame to frame.
 
 	Parameters
@@ -34,6 +36,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 	window_length : width of each window, as a pandas offset
 	                (e.g. to_offset("5D"))
 	time_step     : how far each window moves forward, as a pandas offset
+	bandwidth	  : KDE bandwidth in feet, used for every window
 
 	Returns
 	-------
@@ -109,7 +112,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 			continue
 
 		cluster_levels = np.zeros(len(points), dtype=int)
-		bandwidths = [1500]
+		bandwidths = [bandwidth]
 		padding = 100
 
 		x_min = np.min(points[:,0]) - padding
@@ -168,20 +171,71 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 	return frames
 
 
+def read_dbscan_frames():
+	"""Read the per-frame DBSCAN output CSVs written by the cluster animation.
+
+	Reads {n}_userID_dbscan.csv for n = 1, 2, ... from
+	DBSCAN_ANIMATION_DENSITIES_DIR, stopping at the first missing number.
+	Each file has easting, northing (EPSG:2882 feet) and
+	cluster_density_level (-1 = noise, 0 = least dense, ...).
+
+	Returns
+	-------
+	A list of frames in order, one per file:
+	{"frame_number", "points", "cluster_levels"}, where points is an
+	(N, 2) array of [easting, northing] and cluster_levels is an (N,)
+	array. A header-only file (empty window) gives N = 0.
+	"""
+	frames = []
+	frame_number = 1
+
+	while True:
+		csv_path = os.path.join(DBSCAN_ANIMATION_DENSITIES_DIR, f"{frame_number}_userID_dbscan.csv")
+
+		# no file for this number - all frames have been read
+		if not os.path.exists(csv_path):
+			break
+
+		dbscan_df = pd.read_csv(csv_path)
+		points = dbscan_df[["easting", "northing"]].to_numpy()
+		cluster_levels = dbscan_df["cluster_density_level"].to_numpy()
+
+		frames.append({
+			"frame_number": frame_number,
+			"points": points,
+			"cluster_levels": cluster_levels,
+		})
+
+		frame_number = frame_number + 1
+
+	return frames
+
+
 # test: run from backend/ with
 #   python3 -m ml.generate_kde_heatmap_snapshots
 if __name__ == "__main__":
+	"""
 	frames = build_kde_heatmap_snapshots(
 		start_date="2026-07-06",
 		end_date="2026-07-20",
 		window_length=to_offset("5D"),
 		time_step=to_offset("5D"),
+		bandwidth=1500
 	)
 
 	print(f"len(frames) = {len(frames)}")
 
 	for frame in frames:
 		print(frame["label"], frame["n_incidents"], frame["image"], frame["bounds"])
+	"""
+	# test reading the dbscan frame csv files
+	dbscan_frames = read_dbscan_frames()
+	print(f"len(dbscan_frames) = {len(dbscan_frames)}")
+
+	for frame in dbscan_frames:
+		levels = np.unique(frame["cluster_levels"])
+		non_noise_levels= levels[levels != -1]
+		print(f'frame {frame["frame_number"]}: {len(frame["points"])} points, levels {non_noise_levels.tolist()}')
 
 
 
