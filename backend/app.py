@@ -99,34 +99,32 @@ def clusters():
         for key in request.args
     )
 
-    # no level params -> serve the precomputed snapshots, otherwise recompute on demand
-    if not any([start_date, end_date, has_level_overrides]):
-        return jsonify({"frames": dbscan_animation.load_snapshots()})
-
-    data_points, _, _ = load_points()
+    """Removed this, but kept as reference as to not be confused why this is being 
+    computed differently than the kde heatmap. The points are loaded from build_dbscan_snapshots()
+    that calles the time_windows function. This computes one DBSCAN window instead of having to 
+    write similar code to get a single window frame for DBSCAN. To see how data is being 
+    fetched for DBSCAN and KDE, see module: ml.time_windows"""
+#     # no level params -> serve the precomputed snapshots, otherwise recompute on demand
+#     if not any([start_date, end_date, has_level_overrides]):
+#         return jsonify({"frames": dbscan_animation.load_snapshots()})
+# 
+#     data_points, _, _ = load_points()
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        frames = build_dbscan_snapshots_from_points(
-            points=data_points,
-            level_configs=level_configs,
+        frames = build_dbscan_snapshots(
+            start_date=start_date,
+            end_date=end_date,
+            level_configs=level_configs
         )
+        # frames = build_dbscan_snapshots_from_points(
+        #     points=data_points,
+        #     level_configs=level_configs,
+        # )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
     return jsonify({"frames": frames})
-
-# @app.route("/api/clusters/multi")
-# def clusters_multi():
-#     data = load_csv_incidents()
-#     
-#     all_results = {}
-#     for level, settings in cluster_levels.items():
-#         result = run_clusters(incidents=data, eps=settings["epsilon"], min_pts=settings["min_pts"], cluster_color=settings.get("color"))
-#         all_results[level] = result
-#         
-#     return jsonify(all_results)
-
 
 @app.route("/animation-lab")
 def animation_lab():
