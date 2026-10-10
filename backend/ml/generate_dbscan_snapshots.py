@@ -206,9 +206,9 @@ def build_dbscan_snapshots_from_points(
 
     # Compute density levels for all input points and export CSV
     densities = compute_density_levels_from_points(points, list(level_configs.values()))
-    curret_csv_snapshot_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{csv_path}"
+    csv_name = f"{csv_path}"
     
-    with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
+    with open(csv_name, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(["easting", "northing", "cluster_density_level"])
         writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
