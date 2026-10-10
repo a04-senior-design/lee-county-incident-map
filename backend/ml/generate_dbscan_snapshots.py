@@ -137,21 +137,23 @@ def build_dbscan_snapshots(
             "levels": levels,
         })
         
-        densities = compute_density_levels(window_incidents, list(level_configs.values()))
-        
-        curret_csv_snapshot_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{len(snapshots)}_{csv_path}"
-        with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow(["easting", "northing", "cluster_density_level"])
-            writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
+        # write the cluster density levels for a frame in the animation
+        if not only_one_frame:
+            densities = compute_density_levels(window_incidents, list(level_configs.values()))
+            
+            curret_csv_snapshot_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{len(snapshots)}_{csv_path}"
+            with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerow(["easting", "northing", "cluster_density_level"])
+                writer.writerows((row["easting"], row["northing"], row["density_level"]) for row in densities)
     
     end_time = time.perf_counter()
     print(f"DBSCAN snapshot execution time: {(end_time - start_time):.6f} seconds")
     
-    # write the cluster density levels
+    # write the cluster density levels for a static frame
     if only_one_frame:
         densities = compute_density_levels(density_incidents, list(level_configs.values()))
-        one_frame_csv_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{csv_path}"
+        one_frame_csv_name = f"{csv_path}"
         with open(one_frame_csv_name, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             writer.writerow(["easting", "northing", "cluster_density_level"])
