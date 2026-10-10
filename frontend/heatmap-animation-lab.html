@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heatmap Animation Lab — Lee County</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    #top-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.2rem;
+      background: rgba(15, 15, 30, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+
+    #branding { line-height: 1.3; }
+    #branding strong { font-size: 1rem; color: #fff; }
+    #branding span   { display: block; font-size: 0.72rem; color: #888; }
+
+    /* ── Playback controls ───────────────────────────────────────────────── */
+    #playback {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 260px;
+    }
+    #playback button {
+      width: 2.1em;
+      height: 2.1em;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #eee;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    #playback button:hover { background: rgba(255,255,255,0.14); }
+    #scrub { flex: 1; max-width: 320px; accent-color: #E9C46A; cursor: pointer; }
+    #frame-label {
+      font-size: 0.78rem;
+      color: #ccc;
+      white-space: nowrap;
+      min-width: 160px;
+    }
+
+    /* ── Speed control ────────────────────────────────────────────────────── */
+    #speed-control {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #speed-control span {
+      font-size: 0.72rem;
+      color: #888;
+    }
+    .speed-btn {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn:hover { background: rgba(255,255,255,0.14); }
+    .speed-btn.active {
+      background: #E9C46A;
+      border-color: #E9C46A;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    /* ── Stats ────────────────────────────────────────────────────────────── */
+    #stats {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .stat-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+    }
+    .stat-pill span { color: #fff; font-weight: 600; }
+
+    /* ── KDE heat map windowing controls ──────────────────────────────────── */
+    #kde-heatmap-controls {
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+      padding: 0.5rem 1.2rem;
+      background: rgba(15, 15, 30, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .field-row label {
+      font-size: 0.7rem;
+      color: #aaa;
+    }
+    .field-row input {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #eee;
+      border-radius: 5px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.78rem;
+      width: 130px;
+    }
+    .field-row input[type="range"] {
+      padding: 0;
+      border: none;
+      background: none;
+      accent-color: #E9C46A;
+      cursor: pointer;
+    }
+    .field-row label span.bw-value { color: #fff; font-weight: 600; }
+    #kde-heatmap-apply {
+      border: 1px solid #E9C46A;
+      background: #E9C46A;
+      color: #1a1a2e;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #kde-heatmap-apply:hover { background: #d4b05a; }
+    #kde-heatmap-apply:disabled { opacity: 0.6; cursor: wait; }
+    #kde-heatmap-error {
+      font-size: 0.72rem;
+      color: #E63946;
+      align-self: center;
+    }
+
+    /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map-container { position: relative; flex: 1; display: flex; }
+    #map { flex: 1; }
+  </style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div id="branding">
+    <strong>Heatmap Animation Lab</strong>
+    <span>KDE heat map over time — dev prototype</span>
+  </div>
+  <div id="playback">
+    <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
+    <button id="btn-play" title="Play/pause">&#9654;</button>
+    <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
+    <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+    <span id="frame-label">&mdash;</span>
+  </div>
+  <div id="speed-control">
+    <span>Speed</span>
+    <button class="speed-btn" data-speed="0.5">0.5x</button>
+    <button class="speed-btn active" data-speed="1">1x</button>
+    <button class="speed-btn" data-speed="2">2x</button>
+    <button class="speed-btn" data-speed="4">4x</button>
+  </div>
+  <div id="stats">
+    <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
+    <div class="stat-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
+  </div>
+</div>
+
+<div id="kde-heatmap-controls">
+  <div class="field-row">
+    <label for="input-start-date">Start date</label>
+    <input id="input-start-date" type="date" value="2026-07-06" />
+  </div>
+  <div class="field-row">
+    <label for="input-end-date">End date</label>
+    <input id="input-end-date" type="date" value="2026-07-20" />
+  </div>
+  <div class="field-row">
+    <label for="input-window-length">Window size <span style="color:#555">(e.g. 1D, 5D, 2W)</span></label>
+    <input id="input-window-length" type="text" value="5D" placeholder="required" />
+  </div>
+  <div class="field-row">
+    <label for="input-time-step">Time step <span style="color:#555">(e.g. 1D, 5D, 2W)</span></label>
+    <input id="input-time-step" type="text" value="5D" placeholder="required" />
+  </div>
+  <div class="field-row">
+    <label for="input-bandwidth">Bandwidth: <span class="bw-value" id="bandwidth-value">1500</span> ft</label>
+    <input id="input-bandwidth" type="range" min="500" max="10000" step="100" value="1500" />
+  </div>
+
+  <button id="kde-heatmap-apply">Apply</button>
+  <span id="kde-heatmap-error"></span>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const DEFAULT_ZOOM = 11;
+  const BASE_INTERVAL_MS = 2000; // time per frame at 1x speed
+
+  const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // read the windowing inputs; returns the params, plus the labels of any blank fields
+  function readKDEHeatmapParams() {
+    const params = {
+      start_date: document.getElementById("input-start-date").value,
+      end_date: document.getElementById("input-end-date").value,
+      window_length: document.getElementById("input-window-length").value.trim(),
+      time_step: document.getElementById("input-time-step").value.trim(),
+      bandwidth: document.getElementById("input-bandwidth").value,
+    };
+
+    const labels = {
+      start_date: "start date",
+      end_date: "end date",
+      window_length: "window size",
+      time_step: "time step",
+      bandwidth: "bandwidth",
+    };
+
+    const missing = [];
+    for (const key in params) {
+      if (params[key] === "") {
+        missing.push(labels[key]);
+      }
+    }
+
+    return {params, missing};
+  }
+
+  // show the bandwidth value next to its label as the slider moves
+  const bandwidthInput = document.getElementById("input-bandwidth");
+  const bandwidthValue = document.getElementById("bandwidth-value");
+  bandwidthInput.addEventListener("input", () => {
+    bandwidthValue.textContent = bandwidthInput.value;
+  });
+
+  let currentKDEHeatmapOverlay = null; // the kde heat map image on the map, if any
+
+  const kdeHeatmapApplyBtn = document.getElementById("kde-heatmap-apply");
+  const kdeHeatmapErrorLabel = document.getElementById("kde-heatmap-error");
+  // playback state
+  let kdeHeatmapFrames = []; // frames from the last Apply
+  let frameIndex = 0; // frame currently shown
+  let playing = false; // true while the animation is running
+  let timer = null; // the interval that advances frames
+  let speed = 1; // 0.5, 1, 2 or 4
+
+  const scrub = document.getElementById("scrub");
+  const frameLabel = document.getElementById("frame-label");
+  const statFrame = document.getElementById("stat-frame");
+  const statBandwidth = document.getElementById("stat-bandwidth");
+  const playBtn = document.getElementById('btn-play');
+
+  // draw frame i: its heat map (if any), label and frame counter
+  function renderKDEHeatmapFrame(i) {
+    frameIndex = i;
+    const frame = kdeHeatmapFrames[i];
+
+    // remove the previous frame's overlay
+    if (currentKDEHeatmapOverlay) {
+      map.removeLayer(currentKDEHeatmapOverlay);
+      currentKDEHeatmapOverlay = null;
+    }
+
+    // empty window: no image, just the label
+    if (frame.image !== null) {
+      // Leaflet wants [[south, west], [north, east]]
+      const bounds = [
+        [frame.bounds.south, frame.bounds.west],
+        [frame.bounds.north, frame.bounds.east],
+      ];
+      currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
+    }
+
+    frameLabel.textContent = `${frame.label} (${frame.n_incidents} incidents)`;
+    scrub.value = i;
+    statFrame.textContent = `${i + 1} / ${kdeHeatmapFrames.length}`;
+  }
+
+  // stop the animation and show the play symbol
+  function pause() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    playing = false;
+    playBtn.innerHTML = "&#9654;";
+  }
+
+  // advance one frame every BASE_INTERVAL_MS / speed, looping at the end
+  function play() {
+    if (timer || kdeHeatmapFrames.length < 2) return;
+    playing = true;
+    playBtn.innerHTML = "&#10074;&#10074;"; // pause symbol
+    timer = setInterval(() => {
+      const count = kdeHeatmapFrames.length;
+      renderKDEHeatmapFrame((frameIndex + 1) % count);
+    }, BASE_INTERVAL_MS / speed);
+  }
+
+  // change speed; if playing, restart the timer at the new interval
+  function setSpeed(nextSpeed) {
+    speed = nextSpeed;
+    const buttons = document.querySelectorAll(".speed-btn");
+    for (const btn of buttons) {
+      const btnSpeed = parseFloat(btn.dataset.speed);
+      if (btnSpeed === speed) {
+        btn.classList.add("active");
+      }
+      else {
+        btn.classList.remove("active");
+      }
+    }
+    if (playing) {
+      pause();
+      play();
+    }
+  }
+
+  // move forward or back by delta frames, wrapping around at either end
+  function step(delta) {
+    if (kdeHeatmapFrames.length === 0) return;
+    pause();
+    const count = kdeHeatmapFrames.length;
+    renderKDEHeatmapFrame((frameIndex + delta + count) % count);
+  }
+
+  document.getElementById("btn-rewind").addEventListener("click", () => step(-1));
+  document.getElementById("btn-forward").addEventListener("click", () => step(1));
+  
+  scrub.addEventListener("input", () => {
+    if (kdeHeatmapFrames.length === 0) return;
+    pause();
+    renderKDEHeatmapFrame(parseInt(scrub.value, 10));
+  });
+
+  playBtn.addEventListener("click", () => {
+    if (playing) {
+      pause();
+    }
+    else {
+      play();
+    }
+  });
+
+  document.querySelectorAll(".speed-btn").forEach(btn => {
+    btn.addEventListener("click", () => setSpeed(parseFloat(btn.dataset.speed)));
+  });
+
+  async function applyKDEHeatmap() {
+    // all fields are required; stop before touching the current animation
+    const {params, missing} = readKDEHeatmapParams();
+    if (missing.length > 0) {
+      kdeHeatmapErrorLabel.textContent = `Enter a ${missing.join(", ")}.`;
+      return;
+    }
+
+    // stop any running animation before clearing the frames
+    pause();
+
+    // clear previous kde heatmap frames (note that frames holds the heatmap snapshots)
+    kdeHeatmapFrames = [];
+    frameLabel.textContent = "\u2014";
+    statFrame.textContent = "\u2014";
+    statBandwidth.textContent = "\u2014";
+
+    // disable the button while the snapshots are being built
+    kdeHeatmapApplyBtn.disabled = true;
+    kdeHeatmapApplyBtn.textContent = "Loading\u2026";
+
+    try{
+
+      kdeHeatmapErrorLabel.textContent = "";
+
+      // remove the previous overlay before drawing a new one
+      if (currentKDEHeatmapOverlay) {
+        map.removeLayer(currentKDEHeatmapOverlay);
+        currentKDEHeatmapOverlay = null;
+      }
+
+      const qs = new URLSearchParams(params).toString();
+      const res = await fetch(`/api/animation/kde-heatmap?${qs}`);
+      const body = await res.json();
+
+      if (!res.ok) {
+        kdeHeatmapErrorLabel.textContent = body.error || "Failed to load kde heat map snapshots";
+        return;
+      }
+
+      const frames = body.frames;
+      console.log(`bandwidth used: ${body.bandwidth}`);
+      console.log(`frames: ${frames.length}`);
+      frames.forEach((frame, i) => {
+        console.log(`frame ${i}: ${frame.label} (${frame.n_incidents} incidents) ${frame.image_filename}`);
+      });
+
+      // keep all frames and show the first one
+      kdeHeatmapFrames = frames;
+      scrub.max = Math.max(frames.length - 1, 0);
+      renderKDEHeatmapFrame(0);
+      // bandwidth the displayed snapshots were built with
+      statBandwidth.textContent = `${body.bandwidth} ft`;
+    }
+    finally {
+      // runs after every return or error, so the button always comes back
+      kdeHeatmapApplyBtn.disabled = false;
+      kdeHeatmapApplyBtn.textContent = "Apply";
+    }
+  }
+
+  kdeHeatmapApplyBtn.addEventListener("click", applyKDEHeatmap);
+})();
+</script>
+</body>
+</html>

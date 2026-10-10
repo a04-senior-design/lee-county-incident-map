@@ -13,7 +13,7 @@ MAX_SNAPSHOTS = 30
 # folder where the snapshot PNGs are written; app.py serves images from here
 KDE_SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "tmp_kde_heatmap_snapshots")
 
-def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
+def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, bandwidth):
 	"""Build one KDE heat map snapshot per time window, for the heat map
 	animation.
 
@@ -23,8 +23,8 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 	saved to backend/tmp_kde_heatmap_snapshots/. That folder is deleted
 	and recreated on every call.
 
-	All incidents in a window are used as one group with a fixed
-	bandwidth of 1500 ft. Each window's grid is sized to its own points,
+	All incidents in a window are used as one group with a given bandwidth. 
+	Each window's grid is sized to its own points,
 	so the image bounds differ from frame to frame.
 
 	Parameters
@@ -34,6 +34,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 	window_length : width of each window, as a pandas offset
 	                (e.g. to_offset("5D"))
 	time_step     : how far each window moves forward, as a pandas offset
+	bandwidth	  : KDE bandwidth in feet, used for every window
 
 	Returns
 	-------
@@ -109,7 +110,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step):
 			continue
 
 		cluster_levels = np.zeros(len(points), dtype=int)
-		bandwidths = [1500]
+		bandwidths = [bandwidth]
 		padding = 100
 
 		x_min = np.min(points[:,0]) - padding
@@ -176,6 +177,7 @@ if __name__ == "__main__":
 		end_date="2026-07-20",
 		window_length=to_offset("5D"),
 		time_step=to_offset("5D"),
+		bandwidth=1500
 	)
 
 	print(f"len(frames) = {len(frames)}")
