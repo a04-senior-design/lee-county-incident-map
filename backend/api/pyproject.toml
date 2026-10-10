@@ -9,10 +9,14 @@ dependencies = [
     "flask-cors>=6.0",
     "kdepy==1.1.12",
     "matplotlib==3.11.2",
+    "pandas==3.0.6",
     "psycopg[binary,pool]>=3.3",
     "pyjwt>=2.10",
+    "pyproj==3.8.0",
     "python-dotenv>=1.2",
     "rasterio==1.5.1",
+    "scikit-learn==1.9.1",
+    "shapely==2.1.2",
 ]
 
 [dependency-groups]

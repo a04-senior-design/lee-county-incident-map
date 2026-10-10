@@ -1,25 +1,19 @@
-import os
 import base64
+import os
+import tempfile
 
 import numpy as np
 import pandas as pd
+from flask import Blueprint, current_app, jsonify, request
+from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots
+from ml.kde import KDEHeatMap
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
-from dotenv import load_dotenv
 
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+from leecad_api import queries
 
-from cache import get_incidents  # noqa: E402 — imported after env load
-from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
-from ml.animation import kde as kde_animation  # noqa: E402
-from ml.animation import dbscan as dbscan_animation  # noqa: E402
-from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
-from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, KDE_SNAPSHOT_DIR  # noqa: E402
-from ml.kde import KDEHeatMap  # noqa: E402
+bp = Blueprint("kde", __name__)
 
-OUTPUT_DIR = os.path.dirname(__file__)
 MAX_BANDWIDTH = 10000
 MIN_BANDWIDTH = 500
 DEFAULT_BANDWIDTH = 1500
@@ -30,18 +24,15 @@ CLUSTER_SET_LABELS = [
     "KDE Heat Map (by cluster density level)",
 ]
 
-CSV_PATH = os.path.join(
-    os.path.dirname(__file__), 
-    "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv"
-)
-
 def load_points() -> np.ndarray:
     """
-    Load N_POINTS incidents from late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv and return a (N, 2)
+    Load the mapped incidents from the database and return a (N, 2)
     array of projected x/y coordinates suitable for euclidean distance.
     """
 
-    incidents_df = pd.read_csv(CSV_PATH).dropna(subset=["lat", "lon"])
+    with current_app.pool.connection() as conn:
+        rows = conn.execute(queries.MAPPED_POINTS).fetchall()
+    incidents_df = pd.DataFrame(rows, columns=["lat", "lon"]).dropna(subset=["lat", "lon"])
     
     latitude = incidents_df["lat"].to_numpy()
     longitude = incidents_df["lon"].to_numpy()
@@ -88,7 +79,7 @@ def _parse_time_window_args(args):
 
     return start_date, end_date, window_length, time_step
 
-@app.route("/api/kde-heatmap")
+@bp.get("/api/v1/kde-heatmap")
 def kde_heatmap():
 
     try:
@@ -175,14 +166,16 @@ def kde_heatmap():
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
     
 
-    # instantiate a KDEHeatMap object
-    kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=OUTPUT_DIR)
-    # generate the heat map overlay PNG image file
-    bounds = kde_obj.generate_heatmap_image()
+    # each request gets its own folder, so two users don't overwrite each other's image
+    with tempfile.TemporaryDirectory() as output_dir:
+        # instantiate a KDEHeatMap object
+        kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
+        # generate the heat map overlay PNG image file
+        bounds = kde_obj.generate_heatmap_image()
 
-    # file path for image being sent to frontend
-    img_path = os.path.join(OUTPUT_DIR, "density_overlay.png")
-    image_data = _png_to_base64(path=img_path)
+        # file path for image being sent to frontend
+        img_path = os.path.join(output_dir, "density_overlay.png")
+        image_data = _png_to_base64(path=img_path)
 
     bounds_dict = {
         "west": bounds.left,
@@ -208,7 +201,7 @@ def kde_heatmap():
     return jsonify(result)
 
 
-@app.route("/api/animation/kde-heatmap")
+@bp.get("/api/v1/animation/kde-heatmap")
 def kde_heatmap_animation():
     # all params are required
     required = ["start_date", "end_date", "window_length", "time_step", "bandwidth"]
@@ -228,24 +221,31 @@ def kde_heatmap_animation():
     bandwidth = max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, requested_bandwidth))
 
     # read start_date, end_date, window_length, and time_step
-    try:
-        start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
-        frames = build_kde_heatmap_snapshots(
-            start_date=start_date,
-            end_date=end_date,
-            window_length=window_length,
-            time_step=time_step,
-            bandwidth=bandwidth,
-        )
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+    # each request gets its own folder, so two users don't overwrite each other's frames
+    with tempfile.TemporaryDirectory() as output_dir:
+        try:
+            start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
+            with current_app.pool.connection() as conn:
+                incidents = conn.execute(queries.MAPPED_INCIDENTS_BETWEEN,
+                                         (pd.Timestamp(start_date), pd.Timestamp(end_date))).fetchall()
+            frames = build_kde_heatmap_snapshots(
+                start_date=start_date,
+                end_date=end_date,
+                window_length=window_length,
+                time_step=time_step,
+                bandwidth=bandwidth,
+                incidents=incidents,
+                output_dir=output_dir,
+            )
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
-    for frame in frames:
-        # keep the filename before the image is replaced with its base64 data
-        frame["image_filename"] = frame["image"]
-        
-        if frame["image"] is not None:
-            img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
-            frame["image"] = _png_to_base64(path=img_path)
+        for frame in frames:
+            # keep the filename before the image is replaced with its base64 data
+            frame["image_filename"] = frame["image"]
+
+            if frame["image"] is not None:
+                img_path = os.path.join(output_dir, frame["image"])
+                frame["image"] = _png_to_base64(path=img_path)
 
     return jsonify({"frames": frames, "bandwidth": bandwidth})

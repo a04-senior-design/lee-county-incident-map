@@ -172,3 +172,16 @@ def incident_list(filters, limit: int, cursor: str | None) -> tuple[str, list]:
     sql = COLUMNS + FROM_AND_JOINS + _where(where) + ORDER + " LIMIT %s"
     params.append(limit + 1)
     return sql, params
+
+
+# Mapped only: one stray geocode outside the county would stretch the KDE grid to cover it.
+MAPPED_POINTS = """
+    SELECT lat, lon FROM incidents
+    WHERE location_quality = 'in_county' AND geocode_trusted
+"""
+
+MAPPED_INCIDENTS_BETWEEN = """
+    SELECT lat, lon AS lng, occurred_at FROM incidents
+    WHERE location_quality = 'in_county' AND geocode_trusted
+      AND occurred_at >= %s AND occurred_at <= %s
+"""

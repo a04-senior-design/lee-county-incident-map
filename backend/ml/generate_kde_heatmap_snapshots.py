@@ -15,7 +15,7 @@ MAX_SNAPSHOTS = 30
 # folder where the snapshot PNGs are written; app.py serves images from here
 KDE_SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "tmp_kde_heatmap_snapshots")
 
-def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, bandwidth):
+def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, bandwidth, incidents=None, output_dir=KDE_SNAPSHOT_DIR):
 	"""Build one KDE heat map snapshot per time window, for the heat map
 	animation.
 
@@ -37,6 +37,8 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 	                (e.g. to_offset("5D"))
 	time_step     : how far each window moves forward, as a pandas offset
 	bandwidth	  : KDE bandwidth in feet, used for every window
+	incidents     : passed to build_time_windows(); the CSV when None
+	output_dir    : where the PNGs are written; deleted and recreated first
 
 	Returns
 	-------
@@ -52,14 +54,14 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 	time_step.
 	"""
 
-	shutil.rmtree(KDE_SNAPSHOT_DIR, ignore_errors=True)
-	os.makedirs(KDE_SNAPSHOT_DIR, exist_ok=True)
+	shutil.rmtree(output_dir, ignore_errors=True)
+	os.makedirs(output_dir, exist_ok=True)
 
 	# NAD 1983 StatePlane Florida West FIPS 0902 Feet
 	transformer = Transformer.from_crs("EPSG:4326", "EPSG:2882", always_xy=True)
 
 	# windows contains list of objects having the format {"window_start", "window_end", "incidents"}
-	windows = build_time_windows(start_date=start_date, end_date=end_date, window_length=window_length, time_step=time_step)
+	windows = build_time_windows(start_date=start_date, end_date=end_date, window_length=window_length, time_step=time_step, incidents=incidents)
 
 	# too many snapshots - stop before doing any heat map work
 	if len(windows) > MAX_SNAPSHOTS:
@@ -120,9 +122,13 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 		x_max = np.max(points[:,0]) + padding
 		y_max = np.max(points[:,1]) + padding
 
-		kde_obj = KDEHeatMap(points=points, cluster_levels=cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=300, output_dir=KDE_SNAPSHOT_DIR)
+		kde_obj = KDEHeatMap(points=points, cluster_levels=cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=300, output_dir=output_dir)
 		kde_model_per_window.append(kde_obj)
 
+
+	# one color scale for every frame, so a color means the same density in each
+	vmax = max(kde_obj.density_surface.max() for kde_obj in kde_model_per_window if kde_obj is not None)
+	vmin = vmax * 0.0001
 
 	# generate the heat map png images for each window
 	bounds_per_window = []
@@ -135,7 +141,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 			continue
 
 		snapshot_filename = f"density_overlay_{i + 1}.png"
-		bounds = kde_obj.generate_heatmap_image(snapshot_filename)
+		bounds = kde_obj.generate_heatmap_image(snapshot_filename, vmin=vmin, vmax=vmax)
 		bounds_per_window.append(bounds)
 
 	# create a return object; one frame per window in time order

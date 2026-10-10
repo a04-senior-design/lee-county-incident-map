@@ -8,7 +8,7 @@ import pandas as pd
 from ml.dbscan.DBSCANCluster import load_csv_incidents_with_time
 
 
-def build_time_windows(start_date=None, end_date=None, window_length=None, time_step=None):
+def build_time_windows(start_date=None, end_date=None, window_length=None, time_step=None, incidents=None):
 
 	"""Slide a window of `window_length` across [start_date, end_date] in
     steps of `time_step` and return the data in each window.
@@ -19,6 +19,7 @@ def build_time_windows(start_date=None, end_date=None, window_length=None, time_
     end_date      : date string
     window_length : width of each window
     time_step     : how far each window moves forward
+    incidents     : {"lat", "lng", "occurred_at"} dicts to window; read from the CSV when None
 
     Returns
     -------
@@ -35,7 +36,8 @@ def build_time_windows(start_date=None, end_date=None, window_length=None, time_
     an empty list is returned (no error is raised).
     """
 
-	incidents = load_csv_incidents_with_time()
+	if incidents is None:
+		incidents = load_csv_incidents_with_time()
 	times = pd.to_datetime([inc["occurred_at"] for inc in incidents])
 
 	start_date = pd.Timestamp(start_date) if start_date is not None else times.min()
