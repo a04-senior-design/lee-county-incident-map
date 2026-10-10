@@ -178,7 +178,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    snapshots = build_dbcsn_snapshots(
+    snapshots = build_dbscan_snapshots(
         start_date=args.start_date,
         end_date=args.end_date,
         window_length=to_offset(args.window_length) if args.window_length else None,
