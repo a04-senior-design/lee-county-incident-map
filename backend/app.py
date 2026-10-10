@@ -1,5 +1,6 @@
 import os
 import base64
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -12,10 +13,10 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from cache import get_incidents  # noqa: E402 — imported after env load
-from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
+from ml.dbscan import cluster_levels  # noqa: E402
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
-from ml.generate_dbscan_snapshots import build_snapshots, build_snapshots_from_points  # noqa: E402
+from ml.generate_dbscan_snapshots import build_dbscan_snapshots  # noqa: E402
 from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, KDE_SNAPSHOT_DIR  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
@@ -35,10 +36,14 @@ CSV_PATH = os.path.join(
     "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv"
 )
 
+@lru_cache(maxsize=1)
 def load_points() -> np.ndarray:
     """
     Load N_POINTS incidents from late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv and return a (N, 2)
     array of projected x/y coordinates suitable for euclidean distance.
+
+    Cached since the CSV is static for the life of the process — re-reading
+    and re-projecting it on every request was pure overhead.
     """
 
     incidents_df = pd.read_csv(CSV_PATH).dropna(subset=["lat", "lon"])
@@ -130,37 +135,33 @@ def clusters():
         key == "levels" or key.endswith("_eps")
         for key in request.args
     )
-    
-    data_points, _, _ = load_points()
-    # easting = data_points_with_noise[:, 0]
-    # northing = data_points_with_noise[:, 1]
 
-    # no level params -> serve the precomputed snapshots, otherwise recompute on demand
-    if not any([start_date, end_date, has_level_overrides]):
-        return jsonify({"frames": dbscan_animation.load_snapshots()})
+    """Removed this, but kept as reference as to not be confused why this is being 
+    computed differently than the kde heatmap. The points are loaded from build_dbscan_snapshots()
+    that calles the time_windows function. This computes one DBSCAN window instead of having to 
+    write similar code to get a single window frame for DBSCAN. To see how data is being 
+    fetched for DBSCAN and KDE, see module: ml.time_windows"""
+#     # no level params -> serve the precomputed snapshots, otherwise recompute on demand
+#     if not any([start_date, end_date, has_level_overrides]):
+#         return jsonify({"frames": dbscan_animation.load_snapshots()})
+# 
+#     data_points, _, _ = load_points()
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        frames = build_snapshots_from_points(
-            points=data_points,
-            level_configs=level_configs,
+        frames = build_dbscan_snapshots(
+            start_date=start_date,
+            end_date=end_date,
+            level_configs=level_configs
         )
+        # frames = build_dbscan_snapshots_from_points(
+        #     points=data_points,
+        #     level_configs=level_configs,
+        # )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
     return jsonify({"frames": frames})
-
-# @app.route("/api/clusters/multi")
-# def clusters_multi():
-#     data = load_csv_incidents()
-#     
-#     all_results = {}
-#     for level, settings in cluster_levels.items():
-#         result = run_clusters(incidents=data, eps=settings["epsilon"], min_pts=settings["min_pts"], cluster_color=settings.get("color"))
-#         all_results[level] = result
-#         
-#     return jsonify(all_results)
-
 
 @app.route("/animation-lab")
 def animation_lab():
@@ -205,7 +206,7 @@ def animation_dbscan():
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        frames = build_snapshots(
+        frames = build_dbscan_snapshots(
             start_date=start_date,
             end_date=end_date,
             window_length=to_offset(window_length) if window_length else None,

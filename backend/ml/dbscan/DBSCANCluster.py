@@ -62,6 +62,20 @@ def load_csv_incidents_with_time() -> list:
     return df[["lat", "lon", "occurred_at"]].rename(columns={"lon": "lng"}).to_dict(orient="records")
 
 
+def _dedupe_points(points: np.ndarray, tolerance: float) -> np.ndarray:
+    """Collapse points within `tolerance` of each other onto a grid, keeping one
+    original (non-snapped) representative per cell. Buffering thousands of
+    near-duplicate incident coordinates is the dominant cost in to_geojson(),
+    and circles from points this close together overlap almost completely, so
+    dropping the duplicates barely changes the unioned outline but cuts the
+    buffer/union workload dramatically."""
+    if tolerance <= 0 or len(points) <= 1:
+        return points
+    grid = np.round(points / tolerance).astype(np.int64)
+    _, unique_idx = np.unique(grid, axis=0, return_index=True)
+    return points[unique_idx]
+
+
 def _project_mappable(incidents: list):
     """Filter out incidents missing lat/lng and project the rest NAD83
     geographic (EPSG:4269) -> NAD83 StatePlane Florida West feet (EPSG:2882).
@@ -167,7 +181,12 @@ class DBSCANCluster:
             color = cluster_color if cluster_color is not None else CLUSTER_COLORS[int(label) % len(CLUSTER_COLORS)]
 
             cluster_pts = self.points[mask]
-            union = unary_union([Point(p).buffer(eps) for p in cluster_pts])
+            # dedupe + coarser circle resolution sharply cuts buffer/union cost on
+            # dense clusters; simplify() then thins the outline itself (an
+            # outline is all the frontend needs to draw/shade a cluster)
+            buffer_pts = _dedupe_points(cluster_pts, tolerance=eps / 100)
+            union = unary_union([Point(p).buffer(eps, quad_segs=4) for p in buffer_pts])
+            union = union.simplify(eps * 0.03, preserve_topology=True)
             wgs84_geom = shp_transform(to_wgs84.transform, union)
 
             polygon_features.append({
@@ -247,38 +266,6 @@ def run_clusters(incidents: list, eps: float, min_pts: int, cluster_color: str =
     cluster = DBSCANCluster(points, levels=[{"epsilon": eps, "min_pts": min_pts}])
     return cluster.to_geojson(lats, lons, cluster_color=cluster_color)
 
-def run_clusters_from_points(points: np.ndarray, eps: float, min_pts: int, cluster_color: str = None) -> dict:
-    """Run DBSCAN directly on pre-projected coordinate points (EPSG:2882) and
-
-    return a GeoJSON FeatureCollection with WGS84 polygon geometries.
-
-    Parameters
-    ----------
-    points        : np.ndarray of shape (N, 2) containing [easting, northing] in feet
-    eps           : neighborhood radius in US survey feet
-    min_pts       : DBSCAN min_samples
-    cluster_color : hex/color string for GeoJSON feature properties
-
-    Returns
-    -------
-    GeoJSON FeatureCollection dict with top-level 'metadata'.
-    """
-    if points is None or len(points) == 0:
-        return {
-            "type": "FeatureCollection",
-            "features": [],
-            "metadata": {"n_clusters": 0, "n_noise": 0, "n_total": 0},
-        }
-
-    # Inverse transform easting/northing points back to WGS84 lon/lat
-    lons, lats = inv_transformer.transform(points[:, 0], points[:, 1])
-
-    # Run clustering directly on pre-projected points
-    cluster = DBSCANCluster(points, levels=[{"epsilon": eps, "min_pts": min_pts}])
-
-    return cluster.to_geojson(lats, lons, cluster_color=cluster_color)
-
-
 def compute_density_levels(incidents: list, levels: list) -> list:
     """
     Run DBSCAN once per entry in `levels` (each a dict with 'epsilon' and
@@ -298,27 +285,16 @@ def compute_density_levels(incidents: list, levels: list) -> list:
     Returns a list of {"lat", "lng", "density_level"} dicts, one per
     mappable incident (points missing lat/lng are dropped).
     """
-    points, lats, lons = _project_mappable(incidents)
+    points, _, _ = _project_mappable(incidents)
     if points is None or not levels:
         return []
 
-    cluster = DBSCANCluster(points, levels=levels)
-    return [
-        {"lat": float(lat), "lng": float(lon), "density_level": int(level)}
-        for lat, lon, level in zip(lats, lons, cluster.density_levels)
-    ]
-
-def compute_density_levels_from_points(points : np.ndarray, levels: list) -> list:
-    if points is None or not levels:
-        return []
-    
     cluster = DBSCANCluster(points, levels=levels)
     
     return [
         {"easting": float(point[0]), "northing": float(point[1]), "density_level": int(level)}
         for point, level in zip(points, cluster.density_levels)
     ]
-
 
 def run_density_clusters(incidents: list, levels: list) -> dict:
     """

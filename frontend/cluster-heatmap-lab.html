@@ -372,7 +372,7 @@
   const DEFAULT_ZOOM = 11;
 
   // map setup
-  const map = L.map("map").setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+  const map = L.map("map", { preferCanvas: true }).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -471,7 +471,8 @@
   }
 
   // build one bandwidth slider per non-noise cluster level from data.bandwidths (Level 0, 1, ...).
-  // called on first load and whenever the cluster set changes, since the slider count can differ.
+  // called on first load, whenever the cluster set changes, or whenever a DBSCAN re-run changes
+  // its number of non-noise levels, since the slider count can differ in any of those cases.
   // each slider is kept between its neighbors (Level 0 >= Level 1 >= ...), and moving one schedules a fetch.
   function buildSliders(data) {
     controls.innerHTML = "";
@@ -826,8 +827,15 @@
       clustersLoaded = true;
 
       // the backend now holds fresh cluster results: refresh the KDE "Includes cluster analysis"
-      // availability (and the stored KDE overlay) using the current slider values
-      if (radiosBuilt) fetchKDEHeatmap(sliders.map(s => Number(s.value)), currentClusterSet);
+      // availability (and the stored KDE overlay). For cluster_set 1, re-running DBSCAN can
+      // change the number of non-noise levels, so the old slider values may no longer match
+      // what the backend now expects (it rejects a mismatched bandwidth count) -- let it pick
+      // fresh defaults instead. cluster_set 0 ("all points") always has exactly one level, so
+      // its slider value is always still valid to resend.
+      if (radiosBuilt) {
+        const refreshBandwidths = (currentClusterSet === 1) ? null : sliders.map(s => Number(s.value));
+        fetchKDEHeatmap(refreshBandwidths, currentClusterSet);
+      }
     } catch (err) {
       console.error("DBSCAN fetch failed:", err);
       setStatus("error");
@@ -906,14 +914,18 @@
         if (!radiosBuilt) buildAnalysisRadios(data);
         updateClusterAvailability(data.dbscan_status);
 
-        if (data.cluster_set !== currentClusterSet) {
-          // first load or cluster set switched: slider count may differ, so rebuild
-          currentClusterSet = data.cluster_set;
+        const clusterSetChanged = (data.cluster_set !== currentClusterSet);
+        currentClusterSet = data.cluster_set;
+
+        // rebuild whenever the cluster set changed, or (while staying on the same cluster
+        // set) a fresh DBSCAN run changed how many non-noise levels it produced: either way
+        // the number of sliders the control bar needs to show can differ from what's there now
+        if (clusterSetChanged || data.bandwidths.length !== sliders.length) {
           buildSliders(data);
           map.invalidateSize(); // bars above the map changed height
         }
         else {
-          // same cluster set: sync sliders to the backend's clamped values
+          // same cluster set and same level count: sync sliders to the backend's clamped values
           data.bandwidths.forEach((bw, i) => {
             sliders[i].value = bw;
             valueLabels[i].textContent = Math.round(bw);
