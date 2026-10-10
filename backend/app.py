@@ -116,18 +116,6 @@ def clusters():
 
     return jsonify({"frames": frames})
 
-# @app.route("/api/clusters/multi")
-# def clusters_multi():
-#     data = load_csv_incidents()
-#     
-#     all_results = {}
-#     for level, settings in cluster_levels.items():
-#         result = run_clusters(incidents=data, eps=settings["epsilon"], min_pts=settings["min_pts"], cluster_color=settings.get("color"))
-#         all_results[level] = result
-#         
-#     return jsonify(all_results)
-
-
 @app.route("/animation-lab")
 def animation_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
