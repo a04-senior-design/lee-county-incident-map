@@ -103,6 +103,26 @@
     }
     .stat-pill span { color: #fff; font-weight: 600; }
 
+    /* ── Analysis radios ──────────────────────────────────────────────────── */
+    #analysis-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+    .analysis-title { font-weight: 600; color: #fff; }
+    .analysis-option {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    /* cluster mode: the DBSCAN frame files define the frames, so hide the all-points fields */
+    #kde-heatmap-controls[data-mode="cluster-levels"] .all-points-field { display: none; }
+
     /* ── KDE heat map windowing controls ──────────────────────────────────── */
     #kde-heatmap-controls {
       flex-shrink: 0;
@@ -170,6 +190,17 @@
     <strong>Heatmap Animation Lab</strong>
     <span>KDE heat map over time — dev prototype</span>
   </div>
+  <div id="analysis-controls">
+    <div class="analysis-title">Analysis</div>
+    <label class="analysis-option">
+      <input type="radio" name="kde-heatmap-mode" value="all-points" checked />
+      KDE Heat Map (all points)
+    </label>
+    <label class="analysis-option">
+      <input type="radio" name="kde-heatmap-mode" value="cluster-levels" />
+      KDE Heat Map (by cluster density level)
+    </label>
+  </div>
   <div id="playback">
     <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
     <button id="btn-play" title="Play/pause">&#9654;</button>
@@ -190,24 +221,24 @@
   </div>
 </div>
 
-<div id="kde-heatmap-controls">
-  <div class="field-row">
+<div id="kde-heatmap-controls" data-mode="all-points">
+  <div class="field-row all-points-field">
     <label for="input-start-date">Start date</label>
     <input id="input-start-date" type="date" value="2026-07-06" />
   </div>
-  <div class="field-row">
+  <div class="field-row all-points-field">
     <label for="input-end-date">End date</label>
     <input id="input-end-date" type="date" value="2026-07-20" />
   </div>
-  <div class="field-row">
+  <div class="field-row all-points-field">
     <label for="input-window-length">Window size <span style="color:#555">(e.g. 1D, 5D, 2W)</span></label>
     <input id="input-window-length" type="text" value="5D" placeholder="required" />
   </div>
-  <div class="field-row">
+  <div class="field-row all-points-field">
     <label for="input-time-step">Time step <span style="color:#555">(e.g. 1D, 5D, 2W)</span></label>
     <input id="input-time-step" type="text" value="5D" placeholder="required" />
   </div>
-  <div class="field-row">
+  <div class="field-row all-points-field">
     <label for="input-bandwidth">Bandwidth: <span class="bw-value" id="bandwidth-value">1500</span> ft</label>
     <input id="input-bandwidth" type="range" min="500" max="10000" step="100" value="1500" />
   </div>
@@ -284,6 +315,44 @@
   const statFrame = document.getElementById("stat-frame");
   const statBandwidth = document.getElementById("stat-bandwidth");
   const playBtn = document.getElementById('btn-play');
+  // "all-points" (time windows, one bandwidth) or "cluster-levels" (DBSCAN frame files)
+  let kdeHeatmapMode = "all-points";
+  const kdeHeatmapControls = document.getElementById("kde-heatmap-controls");
+  const modeRadios = document.querySelectorAll('input[name="kde-heatmap-mode"]');
+
+  // stop playback and remove the current frames, overlay and labels
+  function clearKDEHeatmapAnimation() {
+    pause();
+    kdeHeatmapFrames = [];
+    frameIndex = 0;
+    scrub.max = 0;
+    scrub.value = 0;
+    frameLabel.textContent = "\u2014";
+    statFrame.textContent = "\u2014";
+    statBandwidth.textContent = "\u2014";
+
+    if (currentKDEHeatmapOverlay) {
+      map.removeLayer(currentKDEHeatmapOverlay);
+      currentKDEHeatmapOverlay = null;
+    }
+  }
+
+  // switching analysis: show that mode's fields and clear the old animation; Apply builds the new one
+  for (const radio of modeRadios) {
+    radio.addEventListener("change", () => {
+      kdeHeatmapMode = radio.value;
+      kdeHeatmapControls.dataset.mode = kdeHeatmapMode;
+      clearKDEHeatmapAnimation();
+      kdeHeatmapErrorLabel.textContent = "";
+    });
+  }
+
+  // enable or disable the analysis radios (disabled while a request is running)
+  function setModeRadiosDisabled(disabled) {
+    for (const radio of modeRadios) {
+      radio.disabled = disabled;
+    }
+  }
 
   // draw frame i: its heat map (if any), label and frame counter
   function renderKDEHeatmapFrame(i) {
@@ -382,38 +451,33 @@
   });
 
   async function applyKDEHeatmap() {
-    // all fields are required; stop before touching the current animation
-    const {params, missing} = readKDEHeatmapParams();
-    if (missing.length > 0) {
-      kdeHeatmapErrorLabel.textContent = `Enter a ${missing.join(", ")}.`;
-      return;
+    // build the request for the current analysis mode
+    let url;
+    if (kdeHeatmapMode === "cluster-levels") {
+      // the DBSCAN frame files define the frames; no bandwidths sent yet, so the backend uses its defaults
+      url = "/api/animation/kde-heatmap-dbscan";
+    }
+    else {
+      // all fields are required; stop before touching the current animation
+      const {params, missing} = readKDEHeatmapParams();
+      if (missing.length > 0) {
+        kdeHeatmapErrorLabel.textContent = `Enter a ${missing.join(", ")}.`;
+        return;
+      }
+      url = `/api/animation/kde-heatmap?${new URLSearchParams(params).toString()}`;
     }
 
-    // stop any running animation before clearing the frames
-    pause();
+    // clear the previous animation before building a new one
+    clearKDEHeatmapAnimation();
+    kdeHeatmapErrorLabel.textContent = "";
 
-    // clear previous kde heatmap frames (note that frames holds the heatmap snapshots)
-    kdeHeatmapFrames = [];
-    frameLabel.textContent = "\u2014";
-    statFrame.textContent = "\u2014";
-    statBandwidth.textContent = "\u2014";
-
-    // disable the button while the snapshots are being built
+    // disable the button and the analysis radios while the snapshots are being built
     kdeHeatmapApplyBtn.disabled = true;
     kdeHeatmapApplyBtn.textContent = "Loading\u2026";
+    setModeRadiosDisabled(true);
 
-    try{
-
-      kdeHeatmapErrorLabel.textContent = "";
-
-      // remove the previous overlay before drawing a new one
-      if (currentKDEHeatmapOverlay) {
-        map.removeLayer(currentKDEHeatmapOverlay);
-        currentKDEHeatmapOverlay = null;
-      }
-
-      const qs = new URLSearchParams(params).toString();
-      const res = await fetch(`/api/animation/kde-heatmap?${qs}`);
+    try {
+      const res = await fetch(url);
       const body = await res.json();
 
       if (!res.ok) {
@@ -422,7 +486,6 @@
       }
 
       const frames = body.frames;
-      console.log(`bandwidth used: ${body.bandwidth}`);
       console.log(`frames: ${frames.length}`);
       frames.forEach((frame, i) => {
         console.log(`frame ${i}: ${frame.label} (${frame.n_incidents} incidents) ${frame.image_filename}`);
@@ -432,13 +495,20 @@
       kdeHeatmapFrames = frames;
       scrub.max = Math.max(frames.length - 1, 0);
       renderKDEHeatmapFrame(0);
-      // bandwidth the displayed snapshots were built with
-      statBandwidth.textContent = `${body.bandwidth} ft`;
+
+      // bandwidth(s) the displayed snapshots were built with
+      if (kdeHeatmapMode === "cluster-levels") {
+        statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
+      }
+      else {
+        statBandwidth.textContent = `${body.bandwidth} ft`;
+      }
     }
     finally {
-      // runs after every return or error, so the button always comes back
+      // runs after every return or error, so the button and radios always come back
       kdeHeatmapApplyBtn.disabled = false;
       kdeHeatmapApplyBtn.textContent = "Apply";
+      setModeRadiosDisabled(false);
     }
   }
 
