@@ -122,6 +122,8 @@
 
     /* cluster mode: the DBSCAN frame files define the frames, so hide the all-points fields */
     #kde-heatmap-controls[data-mode="cluster-levels"] .all-points-field { display: none; }
+    /* all-points mode: hide the per-level sliders */
+    #kde-heatmap-controls[data-mode="all-points"] .cluster-levels-field { display: none; }
 
     /* ── KDE heat map windowing controls ──────────────────────────────────── */
     #kde-heatmap-controls {
@@ -160,6 +162,16 @@
       cursor: pointer;
     }
     .field-row label span.bw-value { color: #fff; font-weight: 600; }
+    #kde-heatmap-level-sliders {
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+    }
+    .bandwidth-hint {
+      font-size: 0.7rem;
+      color: #888;
+      align-self: center;
+    }
     #kde-heatmap-apply {
       border: 1px solid #E9C46A;
       background: #E9C46A;
@@ -242,6 +254,8 @@
     <label for="input-bandwidth">Bandwidth: <span class="bw-value" id="bandwidth-value">1500</span> ft</label>
     <input id="input-bandwidth" type="range" min="500" max="10000" step="100" value="1500" />
   </div>
+  <div id="kde-heatmap-level-sliders" class="cluster-levels-field"></div>
+  <span id="kde-heatmap-level-hint" class="bandwidth-hint cluster-levels-field">Click Apply to load frame 1's cluster levels.</span>
 
   <button id="kde-heatmap-apply">Apply</button>
   <span id="kde-heatmap-error"></span>
@@ -298,6 +312,60 @@
   bandwidthInput.addEventListener("input", () => {
     bandwidthValue.textContent = bandwidthInput.value;
   });
+
+  const levelSlidersContainer = document.getElementById("kde-heatmap-level-sliders");
+  const levelHint = document.getElementById("kde-heatmap-level-hint");
+
+  // build one slider per cluster level; level 0 (loosest / least-dense) first
+  function buildKDEHeatmapLevelSliders(bandwidths, minBandwidth, maxBandwidth) {
+    levelSlidersContainer.innerHTML = "";
+
+    for (let i = 0; i < bandwidths.length; i++) {
+      const row = document.createElement("div");
+      row.className = "field-row";
+      row.innerHTML = `
+        <label for="input-level-bandwidth-${i}">Level ${i} bandwidth: <span class="bw-value">${bandwidths[i]}</span> ft</label>
+        <input id="input-level-bandwidth-${i}" class="level-bandwidth" type="range"
+          min="${minBandwidth}" max="${maxBandwidth}" step="100" value="${bandwidths[i]}" />
+      `;
+      levelSlidersContainer.appendChild(row);
+    }
+
+    const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
+    for (let i = 0; i < sliders.length; i++) {
+      sliders[i].addEventListener("input", () => {
+        let value = parseFloat(sliders[i].value);
+
+        // can't go above the previous level's bandwidth
+        if (i > 0) {
+          const previous = parseFloat(sliders[i - 1].value);
+          value = Math.min(value, previous);
+        }
+        // can't go below the next level's bandwidth
+        if (i < sliders.length - 1) {
+          const next = parseFloat(sliders[i + 1].value);
+          value = Math.max(value, next);
+        }
+
+        sliders[i].value = value;
+        sliders[i].previousElementSibling.querySelector(".bw-value").textContent = value;
+      });
+    }
+
+    // e.g. "Constraint: Level 0 >= Level 1 >= Level 2"
+    const levelNames = [];
+    for (let i = 0; i < bandwidths.length; i++) {
+      levelNames.push(`Level ${i}`);
+    }
+    levelHint.textContent = `Constraint: ${levelNames.join(" >= ")}`;
+  }
+
+  // remove the sliders, so the next Apply sends no bandwidths and gets the defaults
+  function removeKDEHeatmapLevelSliders() {
+    levelSlidersContainer.innerHTML = "";
+    levelHint.textContent = "Click Apply to load frame 1's cluster levels.";
+  }
+
 
   let currentKDEHeatmapOverlay = null; // the kde heat map image on the map, if any
 
@@ -454,8 +522,13 @@
     // build the request for the current analysis mode
     let url;
     if (kdeHeatmapMode === "cluster-levels") {
-      // the DBSCAN frame files define the frames; no bandwidths sent yet, so the backend uses its defaults
-      url = "/api/animation/kde-heatmap-dbscan";
+      // one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
+      const query = new URLSearchParams();
+      const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
+      for (const slider of sliders) {
+        query.append("bandwidth", slider.value);
+      }
+      url = `/api/animation/kde-heatmap-dbscan?${query.toString()}`;
     }
     else {
       // all fields are required; stop before touching the current animation
@@ -482,6 +555,10 @@
 
       if (!res.ok) {
         kdeHeatmapErrorLabel.textContent = body.error || "Failed to load kde heat map snapshots";
+        // e.g. the DBSCAN files changed and the slider count no longer matches frame 1
+        if (kdeHeatmapMode === "cluster-levels") {
+          removeKDEHeatmapLevelSliders();
+        }
         return;
       }
 
@@ -499,9 +576,14 @@
       // bandwidth(s) the displayed snapshots were built with
       if (kdeHeatmapMode === "cluster-levels") {
         statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
+        // rebuild the sliders at the bandwidths the backend used (defaults on the first Apply)
+        buildKDEHeatmapLevelSliders(body.bandwidths, body.min_bandwidth, body.max_bandwidth);
       }
       else {
         statBandwidth.textContent = `${body.bandwidth} ft`;
+        // take the slider range from the backend
+        bandwidthInput.min = body.min_bandwidth;
+        bandwidthInput.max = body.max_bandwidth;
       }
     }
     finally {

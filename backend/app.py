@@ -385,12 +385,17 @@ def kde_heatmap_animation():
             img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
             frame["image"] = _png_to_base64(path=img_path)
 
-    return jsonify({"frames": frames, "bandwidth": bandwidth})
+    return jsonify({
+        "frames": frames,
+        "bandwidth": bandwidth,
+        "min_bandwidth": MIN_BANDWIDTH,
+        "max_bandwidth": MAX_BANDWIDTH,
+    })
 
 
 @app.route("/api/animation/kde-heatmap-dbscan")
 def kde_heatmap_dbscan_animation():
-    # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500bandwidth=800
+    # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500&bandwidth=800
     bandwidth_values = request.args.getlist("bandwidth")
 
     # no bandwidths sent (first load): use the default for each of frame 1's levels
@@ -425,7 +430,7 @@ def kde_heatmap_dbscan_animation():
         return jsonify({"error": str(e)}), 400
 
     for frame in frames:
-        # keep in filename before the image is replaced with its base64 data
+        # keep the filename before the image is replaced with its base64 data
         frame["image_filename"] = frame["image"]
 
         if frame["image"] is not None:
