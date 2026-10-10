@@ -211,6 +211,20 @@ def read_dbscan_frames():
 	return frames
 
 
+def count_first_frame_levels():
+	"""Return how many cluster levels (noise excluded) frame 1 has, i.e. how
+	many bandwidths build_kde_heatmap_snapshots_from_dbscan() expects.
+	Returns 0 if there are no frame files or frame 1 has no cluster levels."""
+	dbscan_frames = read_dbscan_frames()
+
+	if len(dbscan_frames) == 0:
+		return 0
+
+	levels = np.unique(dbscan_frames[0]["cluster_levels"])
+	levels = levels[levels != -1] # drop noise
+	return len(levels)
+
+
 def build_kde_heatmap_snapshots_from_dbscan(bandwidths):
 	"""Build one KDE heat map snapshot per DBSCAN frame CSV, with one
 	bandwidth per cluster density level.

@@ -16,7 +16,7 @@ from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: 
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
 from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
-from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, build_kde_heatmap_snapshots_from_dbscan, KDE_SNAPSHOT_DIR  # noqa: E402  # noqa: E402
+from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, build_kde_heatmap_snapshots_from_dbscan, count_first_frame_levels, KDE_SNAPSHOT_DIR  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -392,8 +392,11 @@ def kde_heatmap_animation():
 def kde_heatmap_dbscan_animation():
     # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500bandwidth=800
     bandwidth_values = request.args.getlist("bandwidth")
+
+    # no bandwidths sent (first load): use the default for each of frame 1's levels
     if len(bandwidth_values) == 0:
-        return jsonify({"error": "Missing required parameter: bandwidth (one per cluster level)"}), 400
+        level_count = count_first_frame_levels()
+        bandwidth_values = [DEFAULT_BANDWIDTH] * level_count
 
     # every bandwidth must be a number
     requested_bandwidths = []
@@ -429,7 +432,12 @@ def kde_heatmap_dbscan_animation():
             img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
             frame["image"] = _png_to_base64(path=img_path)
 
-    return jsonify({"frames": frames, "bandwidths": bandwidths})
+    return jsonify({
+        "frames": frames,
+        "bandwidths": bandwidths,
+        "min_bandwidth": MIN_BANDWIDTH,
+        "max_bandwidth": MAX_BANDWIDTH,
+    })
 
 
 
