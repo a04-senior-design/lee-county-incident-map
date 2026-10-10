@@ -16,7 +16,7 @@ from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: 
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
 from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
-from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, KDE_SNAPSHOT_DIR  # noqa: E402
+from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, build_kde_heatmap_snapshots_from_dbscan, KDE_SNAPSHOT_DIR  # noqa: E402  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -386,9 +386,50 @@ def kde_heatmap_animation():
             frame["image"] = _png_to_base64(path=img_path)
 
     return jsonify({"frames": frames, "bandwidth": bandwidth})
-  
 
 
+@app.route("/api/animation/kde-heatmap-dbscan")
+def kde_heatmap_dbscan_animation():
+    # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500bandwidth=800
+    bandwidth_values = request.args.getlist("bandwidth")
+    if len(bandwidth_values) == 0:
+        return jsonify({"error": "Missing required parameter: bandwidth (one per cluster level)"}), 400
+
+    # every bandwidth must be a number
+    requested_bandwidths = []
+    for value in bandwidth_values:
+        try:
+            requested_bandwidths.append(float(value))
+        except ValueError:
+            return jsonify({"error": f"Invalid bandwidth parameter: {value}"}), 400
+
+    # bandwidths must be non-increasing (level 0 >= level 1 >= level 2)
+    for i in range(len(requested_bandwidths) - 1):
+        if requested_bandwidths[i] < requested_bandwidths[i + 1]:
+            return jsonify({
+                "error": f"Bandwidths must be non-increasing: level {i} ({requested_bandwidths[i]}) "
+                f"< level {i + 1} ({requested_bandwidths[i + 1]})."
+            }), 400
+
+    # clamp each bandwidth to the shared limits
+    bandwidths = []
+    for bw in requested_bandwidths:
+        bandwidths.append(max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, bw)))
+
+    try:
+        frames = build_kde_heatmap_snapshots_from_dbscan(bandwidths=bandwidths)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    for frame in frames:
+        # keep in filename before the image is replaced with its base64 data
+        frame["image_filename"] = frame["image"]
+
+        if frame["image"] is not None:
+            img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
+            frame["image"] = _png_to_base64(path=img_path)
+
+    return jsonify({"frames": frames, "bandwidths": bandwidths})
 
 
 
