@@ -1,10 +1,12 @@
 import os
 import shutil
 
+import pandas as pd
 import numpy as np
 from pyproj import Transformer
 from pandas.tseries.frequencies import to_offset
 
+from ml.generate_dbscan_snapshots import DBSCAN_ANIMATION_DENSITIES_DIR
 from ml.time_windows import build_time_windows
 from ml.kde import KDEHeatMap
 
@@ -169,9 +171,50 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 	return frames
 
 
+def read_dbscan_frames():
+	"""Read the per-frame DBSCAN output CSVs written by the cluster animation.
+
+	Reads {n}_userID_dbscan.csv for n = 1, 2, ... from
+	DBSCAN_ANIMATION_DENSITIES_DIR, stopping at the first missing number.
+	Each file has easting, northing (EPSG:2882 feet) and
+	cluster_density_level (-1 = noise, 0 = least dense, ...).
+
+	Returns
+	-------
+	A list of frames in order, one per file:
+	{"frame_number", "points", "cluster_levels"}, where points is an
+	(N, 2) array of [easting, northing] and cluster_levels is an (N,)
+	array. A header-only file (empty window) gives N = 0.
+	"""
+	frames = []
+	frame_number = 1
+
+	while True:
+		csv_path = os.path.join(DBSCAN_ANIMATION_DENSITIES_DIR, f"{frame_number}_userID_dbscan.csv")
+
+		# no file for this number - all frames have been read
+		if not os.path.exists(csv_path):
+			break
+
+		dbscan_df = pd.read_csv(csv_path)
+		points = dbscan_df[["easting", "northing"]].to_numpy()
+		cluster_levels = dbscan_df["cluster_density_level"].to_numpy()
+
+		frames.append({
+			"frame_number": frame_number,
+			"points": points,
+			"cluster_levels": cluster_levels,
+		})
+
+		frame_number = frame_number + 1
+
+	return frames
+
+
 # test: run from backend/ with
 #   python3 -m ml.generate_kde_heatmap_snapshots
 if __name__ == "__main__":
+	"""
 	frames = build_kde_heatmap_snapshots(
 		start_date="2026-07-06",
 		end_date="2026-07-20",
@@ -184,6 +227,15 @@ if __name__ == "__main__":
 
 	for frame in frames:
 		print(frame["label"], frame["n_incidents"], frame["image"], frame["bounds"])
+	"""
+	# test reading the dbscan frame csv files
+	dbscan_frames = read_dbscan_frames()
+	print(f"len(dbscan_frames) = {len(dbscan_frames)}")
+
+	for frame in dbscan_frames:
+		levels = np.unique(frame["cluster_levels"])
+		non_noise_levels= levels[levels != -1]
+		print(f'frame {frame["frame_number"]}: {len(frame["points"])} points, levels {non_noise_levels.tolist()}')
 
 
 
