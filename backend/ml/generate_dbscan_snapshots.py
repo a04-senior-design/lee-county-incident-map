@@ -38,7 +38,7 @@ from pandas.tseries.frequencies import to_offset
 import tempfile
 
 from ml.time_windows import build_time_windows
-from ml.dbscan.DBSCANCluster import cluster_levels, run_clusters, compute_density_levels, run_clusters_from_points, compute_density_levels_from_points
+from ml.dbscan.DBSCANCluster import cluster_levels, run_clusters, compute_density_levels
 
 DEFAULT_N_WINDOWS = 1
 MAX_SNAPSHOTS = 30
