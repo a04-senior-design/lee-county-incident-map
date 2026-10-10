@@ -148,6 +148,86 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/kde-heatmap:
+    get:
+      summary: KDE heatmap of every mapped incident
+      description: |
+        One heatmap image over all incidents with a trusted coordinate inside
+        Lee County. With cluster_set=1 it weights the heatmap by DBSCAN
+        cluster level instead, which needs cluster results that this API
+        does not produce yet, so it currently answers 400.
+      parameters:
+        - name: bandwidth
+          in: query
+          description: |
+            KDE bandwidth in feet, repeated once per cluster level and
+            non-increasing. Clamped to 500 to 10000. Defaults to 1500 for
+            every level.
+          schema: { type: array, items: { type: number } }
+          style: form
+          explode: true
+        - name: cluster_set
+          in: query
+          description: Index into cluster_set_labels.
+          schema: { type: integer, enum: [0, 1], default: 0 }
+      responses:
+        "200":
+          description: The heatmap.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KdeHeatmap" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/animation/kde-heatmap:
+    get:
+      summary: KDE heatmap animation frames
+      description: |
+        Slides a window of window_length from start_date to end_date in steps
+        of time_step, and returns one heatmap per window from the mapped
+        incidents inside it. Dates are read as UTC. A window covers
+        window_start to window_end, excluding window_end, except the last
+        window, which is cut off at end_date and includes it. Each frame has
+        its own bounds, but all frames share one color scale, so a color
+        means the same density in every frame. At most 30 windows.
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-01"
+        - name: end_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-10-01"
+        - name: window_length
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: time_step
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 1D
+        - name: bandwidth
+          in: query
+          required: true
+          description: KDE bandwidth in feet. Clamped to 500 to 10000.
+          schema: { type: number }
+          example: 1500
+      responses:
+        "200":
+          description: The frames, oldest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KdeAnimation" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/auth/register:
     post:
       summary: Create an account
@@ -494,3 +574,54 @@ components:
               weekday: { type: integer, minimum: 1, maximum: 7 }
               count: { type: integer }
         dataset_revision: { type: integer }
+
+    Bounds:
+      type: object
+      description: Where the image goes on the map, in WGS84 degrees.
+      properties:
+        west: { type: number }
+        south: { type: number }
+        east: { type: number }
+        north: { type: number }
+
+    KdeHeatmap:
+      type: object
+      properties:
+        image: { type: string, description: A PNG as a data URL. }
+        bounds: { $ref: "#/components/schemas/Bounds" }
+        legend:
+          type: object
+          properties:
+            colors: { type: array, items: { type: string, example: "#0000ff" } }
+            vmin: { type: number }
+            vmax: { type: number }
+            ticks: { type: array, items: { type: number } }
+            caption: { type: string }
+        bandwidths: { type: array, items: { type: number } }
+        min_bandwidth: { type: number }
+        max_bandwidth: { type: number }
+        cluster_set: { type: integer }
+        cluster_set_labels: { type: array, items: { type: string } }
+        dbscan_status: { type: string, enum: [missing, all_noise, available] }
+
+    KdeAnimation:
+      type: object
+      properties:
+        bandwidth: { type: number }
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string, example: "2026-09-01 00:00 - 2026-09-08 00:00" }
+              window_start: { type: string, format: date-time }
+              window_end: { type: string, format: date-time }
+              n_incidents: { type: integer }
+              image:
+                type: [string, "null"]
+                description: A PNG as a data URL. Null when the window has no incidents.
+              image_filename: { type: [string, "null"] }
+              bounds:
+                oneOf:
+                  - $ref: "#/components/schemas/Bounds"
+                  - type: "null"
