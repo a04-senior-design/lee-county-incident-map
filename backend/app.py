@@ -16,7 +16,7 @@ from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: 
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
 from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
-from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, build_kde_heatmap_snapshots_from_dbscan, count_first_frame_levels, KDE_SNAPSHOT_DIR  # noqa: E402
+from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, build_kde_heatmap_snapshots_from_dbscan, count_first_frame_levels, get_dbscan_frames_status, KDE_SNAPSHOT_DIR  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
 OUTPUT_DIR = os.path.dirname(__file__)
@@ -443,6 +443,13 @@ def kde_heatmap_dbscan_animation():
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
     })
+    
+
+@app.route("/api/animation/kde-heatmap-dbscan/status")
+def kde_heatmap_dbscan_status():
+    # whether the cluster-levels option can be used: "missing", "no_cluster_levels" or "available"
+    dbscan_status = get_dbscan_frames_status()
+    return jsonify({"dbscan_status": dbscan_status})
 
 
 

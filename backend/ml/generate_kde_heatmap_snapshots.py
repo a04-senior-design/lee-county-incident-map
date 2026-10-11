@@ -223,6 +223,28 @@ def count_first_frame_levels():
 	levels = np.unique(dbscan_frames[0]["cluster_levels"])
 	levels = levels[levels != -1] # drop noise
 	return len(levels)
+	
+
+def get_dbscan_frames_status():
+	"""Report whether the DBSCAN frame files can be used for the KDE heat map.
+
+	Returns
+	-------
+	"missing" if there are no frame files, "no_cluster_levels" if frame 1
+	is empty or all noise, otherwise "available".
+	"""
+	dbscan_frames = read_dbscan_frames()
+
+	if len(dbscan_frames) == 0:
+		return "missing"
+
+	levels = np.unique(dbscan_frames[0]["cluster_levels"])
+	levels = levels[levels != -1] # drop noise
+
+	if len(levels) == 0:
+		return "no_cluster_levels"
+
+	return "available"
 
 
 def build_kde_heatmap_snapshots_from_dbscan(bandwidths):

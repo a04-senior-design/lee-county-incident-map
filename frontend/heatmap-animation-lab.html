@@ -119,6 +119,8 @@
       white-space: nowrap;
       cursor: pointer;
     }
+    /* option that can't be used yet (e.g. no DBSCAN frame files) */
+    .analysis-option.unavailable { opacity: 0.5; cursor: not-allowed; }
 
     /* cluster mode: the DBSCAN frame files define the frames, so hide the all-points fields */
     #kde-heatmap-controls[data-mode="cluster-levels"] .all-points-field { display: none; }
@@ -415,10 +417,41 @@
     });
   }
 
+  // the cluster-levels radio, and whether its DBSCAN frame files can be used (checked on page load)
+  const clusterLevelsRadio = document.querySelector('input[name="kde-heatmap-mode"][value="cluster-levels"]');
+  const clusterLevelsLabel = clusterLevelsRadio.parentElement;
+  let clusterLevelsAvailable = true;
+
   // enable or disable the analysis radios (disabled while a request is running)
   function setModeRadiosDisabled(disabled) {
     for (const radio of modeRadios) {
       radio.disabled = disabled;
+    }
+    // the cluster-levels radio stays disabled while its DBSCAN frame files can't be used
+    if (!clusterLevelsAvailable) {
+      clusterLevelsRadio.disabled = true;
+    }
+  }
+
+  // ask the backend whether the DBSCAN frame files can be used; if not, disable the cluster-levels radio
+  async function checkDBSCANFrames() {
+    const res = await fetch("/api/animation/kde-heatmap-dbscan/status");
+    const body = await res.json();
+
+    if (body.dbscan_status === "available") {
+      return;
+    }
+
+    clusterLevelsAvailable = false;
+    clusterLevelsRadio.disabled = true;
+    clusterLevelsLabel.classList.add("unavailable");
+
+    // tooltip on hover explains why
+    if (body.dbscan_status === "missing") {
+      clusterLevelsLabel.title = "No DBSCAN frame files found. Run cluster analysis in animation-lab first, then reload this page.";
+    }
+    else {
+      clusterLevelsLabel.title = "Frame 1 has no cluster levels (empty or all noise). Rerun cluster analysis in animation-lab, then reload this page.";
     }
   }
 
@@ -443,7 +476,12 @@
       currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
     }
 
-    frameLabel.textContent = `${frame.label} (${frame.n_incidents} incidents)`;
+    // add the frame's note, if any (e.g. empty or all-noise frame)
+    let labelText = `${frame.label} (${frame.n_incidents} incidents)`;
+    if (frame.note) {
+      labelText = `${labelText} \u2014 ${frame.note}`;
+    }
+    frameLabel.textContent = labelText;
     scrub.value = i;
     statFrame.textContent = `${i + 1} / ${kdeHeatmapFrames.length}`;
   }
@@ -595,6 +633,7 @@
   }
 
   kdeHeatmapApplyBtn.addEventListener("click", applyKDEHeatmap);
+  checkDBSCANFrames();
 })();
 </script>
 </body>
