@@ -164,6 +164,12 @@ def heatmap_animation_lab():
     return send_from_directory(frontend_dir, "heatmap-animation-lab.html")
 
 
+@app.route("/cluster-heatmap-animation-lab")
+def cluster_heatmap_animation_lab():
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+    return send_from_directory(frontend_dir, "cluster-heatmap-animation-lab.html")
+
+
 @app.route("/animation-assets/kde/<path:filename>")
 def animation_kde_asset(filename):
     return send_from_directory(kde_animation.PNG_DIR, filename)
