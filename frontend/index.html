@@ -29,6 +29,9 @@
         <button id="nature-filter-btn">All types ▾</button>
         <div id="nature-panel" class="hidden"></div>
       </div>
+      <button id="route-btn" title="Trace a route and grade how safe it is based on recent incidents">
+        🛣 Grade Route
+      </button>
       <button id="report-btn" title="Download a PDF report of incidents in the current viewport">
         ⬇ Generate Report
       </button>
@@ -36,6 +39,16 @@
   </header>
 
   <div id="map"></div>
+
+  <div id="route-panel" class="hidden">
+    <div class="route-title">Route Safety Grade</div>
+    <div id="route-body"></div>
+    <div class="route-actions">
+      <button id="route-undo">Undo</button>
+      <button id="route-clear">Clear</button>
+      <button id="route-grade" class="primary">Grade</button>
+    </div>
+  </div>
 
   <footer id="footer-bar">
     Created by: <a href="https://www.linkedin.com/in/andrew-kelton" target="_blank" rel="noopener">Andrew Kelton</a>

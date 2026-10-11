@@ -19,6 +19,30 @@
     default:      "#7f8c8d",
   };
 
+  // Route grader tuning
+  const ROUTE_CORRIDOR_M   = 400; // incidents farther than this from the route are ignored
+  const ROUTE_EDGE_WEIGHT  = 0.5; // proximity weight at the corridor edge (1 on the route)
+  const ROUTE_HALF_LIFE_D  = 14;  // an incident's weight halves every N days
+
+  // Severity tiers, tuned for runners and bikers (risk to someone passing
+  // through on foot or bike). Every route starts at 100; each incident deducts
+  // `pts` (when recent and right on the route; less when older or farther), and
+  // a tier's total deduction is capped at `cap`, so a pile of minor calls can't
+  // sink a route. Checked in order; first matching pattern wins, so the no-risk
+  // tier comes first to catch "identity theft", "stolen plate", etc.
+  const SEVERITY_TIERS = [
+    { re: /identity theft|fraud|stolen plate|stolen license|recover|cyber|medical|welfare|alarm|assist|lost|info|check|death investigation/, pts: 0, cap: 0 },
+    { re: /homicide|murder|shoot|shots|stab|assault|battery|robbery|carjack|kidnap|weapon|armed|deadly missile|sexual/, pts: 10, cap: Infinity },
+    { re: /harass|stalk|indecent|exposure|traffic|crash|hit and run/, pts: 5, cap: 20 },
+    { re: /theft|burglary|larceny|stolen/, pts: 2, cap: 15 },
+    { re: /animal|livestock/, pts: 3, cap: 10 },
+    { re: /domestic|fight|drug|narcotic|dui|reckless|vandal|mischief|suspicious|trespass|bomb/, pts: 2, cap: 15 },
+    // Plain disturbances are ~40% of all calls (mostly noise/neighbor disputes),
+    // so they get their own small budget instead of filling the tier above
+    { re: /disturbance/, pts: 1, cap: 10 },
+  ];
+  const SEVERITY_DEFAULT = { pts: 1, cap: 10 };
+
   // ── State ──────────────────────────────────────────────────────────────────
 
   let allIncidents = [];
@@ -141,6 +165,7 @@
       );
     }
     renderMarkers(filtered);
+    if (routeGraded) gradeRoute();
   }
 
   // ── Nature filter ──────────────────────────────────────────────────────────
@@ -324,6 +349,193 @@
       btn.textContent = "⬇ Generate Report";
       btn.disabled    = false;
     }
+  });
+
+  // Route safety grader
+  // The user clicks points on the map to trace a route.
+
+  let routeMode    = false;
+  let routeGraded  = false;
+  let routePoints  = [];
+  let routeLine    = null;
+  let routeHilites = null;
+
+  function tierOf(nature) {
+    const n = (nature || "").toLowerCase();
+    return SEVERITY_TIERS.find((t) => t.re.test(n)) || SEVERITY_DEFAULT;
+  }
+
+  // Distance in meters from point p to segment a–b, using a local flat projection
+  function distToSegmentM(p, a, b) {
+    const mPerDegLat = 111320;
+    const mPerDegLng = 111320 * Math.cos((p.lat * Math.PI) / 180);
+    const ax = (a.lng - p.lng) * mPerDegLng, ay = (a.lat - p.lat) * mPerDegLat;
+    const bx = (b.lng - p.lng) * mPerDegLng, by = (b.lat - p.lat) * mPerDegLat;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2));
+    return Math.hypot(ax + t * dx, ay + t * dy);
+  }
+
+  function distToRouteM(p) {
+    let best = Infinity;
+    for (let i = 1; i < routePoints.length; i++) {
+      best = Math.min(best, distToSegmentM(p, routePoints[i - 1], routePoints[i]));
+    }
+    return best;
+  }
+
+  function routeLengthKm() {
+    let m = 0;
+    for (let i = 1; i < routePoints.length; i++) {
+      m += map.distance(routePoints[i - 1], routePoints[i]);
+    }
+    return m / 1000;
+  }
+
+  // Points one incident d meters from the route deducts: tier pts × recency × proximity
+  function incidentPoints(tier, inc, d, now, days) {
+    const t       = new Date(normalizeDate(inc.occuredDate)).getTime();
+    const ageDays = Number.isNaN(t) ? days : Math.max(0, (now - t) / 86400000);
+    return tier.pts
+         * Math.pow(0.5, ageDays / ROUTE_HALF_LIFE_D)
+         * (1 - (1 - ROUTE_EDGE_WEIGHT) * (d / ROUTE_CORRIDOR_M));
+  }
+
+  function scoreColor(score) {
+    if (score >= 80) return "#27ae60";
+    if (score >= 60) return "#d9a441";
+    if (score >= 40) return "#e67e22";
+    return "#e74c3c";
+  }
+
+  function scoreLabel(score) {
+    if (score >= 80) return "Low risk";
+    if (score >= 60) return "Moderate risk";
+    if (score >= 40) return "Elevated risk";
+    return "High risk";
+  }
+
+  function drawRoute(color) {
+    if (routeLine) map.removeLayer(routeLine);
+    routeLine = L.polyline(routePoints, {
+      color: color || "#8ab4f8",
+      weight: 5,
+      opacity: 0.9,
+      dashArray: routeGraded ? null : "8 6",
+    }).addTo(map);
+  }
+
+  function gradeRoute() {
+    if (routePoints.length < 2) {
+      setRoutePanel(`<p class="route-hint">Add at least two points to grade a route.</p>`);
+      return;
+    }
+
+    const days = parseInt(document.getElementById("date-filter").value, 10);
+    const now  = Date.now();
+    const incidents = filterByDays(allIncidents, days).filter((i) => i.lat != null && i.lng != null);
+    const contributors = [];
+    const tierTotals = new Map();
+
+    for (const inc of incidents) {
+      const d = distToRouteM(inc);
+      if (d > ROUTE_CORRIDOR_M) continue;
+      const tier = tierOf(inc.nature);
+      const pts  = incidentPoints(tier, inc, d, now, days);
+      tierTotals.set(tier, (tierTotals.get(tier) || 0) + pts);
+      contributors.push({ inc, pts, d });
+    }
+
+    let penalty = 0;
+    for (const [tier, total] of tierTotals) penalty += Math.min(total, tier.cap);
+
+    const km    = routeLengthKm();
+    const score = Math.max(0, Math.round(100 - penalty));
+    const color = scoreColor(score);
+
+    routeGraded = true;
+    drawRoute(color);
+
+    if (routeHilites) map.removeLayer(routeHilites);
+    routeHilites = L.layerGroup(
+      contributors.map(({ inc }) =>
+        L.circleMarker([inc.lat, inc.lng], {
+          radius: 11, color, weight: 2, fill: false, interactive: false,
+        })
+      )
+    ).addTo(map);
+
+    contributors.sort((a, b) => b.pts - a.pts);
+    const top = contributors.filter((c) => c.pts > 0).slice(0, 5).map(({ inc, pts, d }) => `
+      <li><span class="nature-dot" style="background:${markerColor(inc.nature)}"></span>
+        ${toTitleCase(inc.nature || "Unknown")}
+        <span class="route-dist">${Math.round(d)} m · −${pts < 1 ? pts.toFixed(1) : Math.round(pts)}</span></li>`).join("");
+
+    setRoutePanel(`
+      <div class="route-score" style="color:${color}">${score}<span>/100</span></div>
+      <div class="route-label" style="color:${color}">${scoreLabel(score)}</div>
+      <div class="route-stats">
+        ${km.toFixed(2)} km · ${contributors.length} incident${contributors.length !== 1 ? "s" : ""}
+        within ${ROUTE_CORRIDOR_M} m · last ${days} day${days !== 1 ? "s" : ""}
+      </div>
+      ${top ? `<div class="route-sub">Biggest factors</div><ul class="route-top">${top}</ul>` : ""}
+    `);
+  }
+
+  function setRoutePanel(bodyHtml) {
+    document.getElementById("route-body").innerHTML = bodyHtml;
+  }
+
+  function clearRoute() {
+    routePoints = [];
+    routeGraded = false;
+    if (routeLine)    { map.removeLayer(routeLine);    routeLine = null; }
+    if (routeHilites) { map.removeLayer(routeHilites); routeHilites = null; }
+    setRoutePanel(`<p class="route-hint">Click the map to trace your route, then press <b>Grade</b> (or double-click the last point).</p>`);
+  }
+
+  function setRouteMode(on) {
+    routeMode = on;
+    document.getElementById("route-btn").classList.toggle("active", on);
+    document.getElementById("route-panel").classList.toggle("hidden", !on);
+    map.getContainer().classList.toggle("route-drawing", on);
+    if (on) {
+      map.doubleClickZoom.disable();
+      clearRoute();
+    } else {
+      map.doubleClickZoom.enable();
+      clearRoute();
+    }
+  }
+
+  map.on("click", (e) => {
+    if (!routeMode) return;
+    const last = routePoints[routePoints.length - 1];
+    if (last && last.equals(e.latlng)) return; // ignore the 2nd click of a double-click
+    if (routeGraded) {                          // start editing again after a grade
+      routeGraded = false;
+      if (routeHilites) { map.removeLayer(routeHilites); routeHilites = null; }
+    }
+    routePoints.push(e.latlng);
+    drawRoute();
+    setRoutePanel(`<p class="route-hint">${routePoints.length} point${routePoints.length !== 1 ? "s" : ""} · ${routeLengthKm().toFixed(2)} km</p>`);
+  });
+
+  map.on("dblclick", () => { if (routeMode) gradeRoute(); });
+
+  document.getElementById("route-btn").addEventListener("click", () => setRouteMode(!routeMode));
+  document.getElementById("route-grade").addEventListener("click", gradeRoute);
+  document.getElementById("route-clear").addEventListener("click", clearRoute);
+  document.getElementById("route-undo").addEventListener("click", () => {
+    routePoints.pop();
+    routeGraded = false;
+    if (routeHilites) { map.removeLayer(routeHilites); routeHilites = null; }
+    if (routePoints.length) drawRoute(); 
+    else clearRoute();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && routeMode) setRouteMode(false);
   });
 
   // ── Boot ───────────────────────────────────────────────────────────────────
