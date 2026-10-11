@@ -248,4 +248,9 @@ def kde_heatmap_animation():
                 img_path = os.path.join(output_dir, frame["image"])
                 frame["image"] = _png_to_base64(path=img_path)
 
-    return jsonify({"frames": frames, "bandwidth": bandwidth})
+    return jsonify({
+        "frames": frames,
+        "bandwidth": bandwidth,
+        "min_bandwidth": MIN_BANDWIDTH,
+        "max_bandwidth": MAX_BANDWIDTH,
+    })
