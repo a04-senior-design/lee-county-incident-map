@@ -124,6 +124,9 @@
 
     /* cluster mode: the DBSCAN frame files define the frames, so hide the all-points fields */
     #kde-heatmap-controls[data-mode="cluster-levels"] .all-points-field { display: none; }
+    /* placeholder modes (Cluster Analysis, Gi*): no controls yet, so hide the whole bar */
+    #kde-heatmap-controls[data-mode="clusters"],
+    #kde-heatmap-controls[data-mode="gistar-heatmap"] { display: none; }
     /* all-points mode: hide the per-level sliders */
     #kde-heatmap-controls[data-mode="all-points"] .cluster-levels-field { display: none; }
 
@@ -207,12 +210,20 @@
   <div id="analysis-controls">
     <div class="analysis-title">Analysis</div>
     <label class="analysis-option">
-      <input type="radio" name="kde-heatmap-mode" value="all-points" checked />
+      <input type="radio" name="analysis-mode" value="clusters" />
+      Cluster Analysis
+    </label>
+    <label class="analysis-option">
+      <input type="radio" name="analysis-mode" value="all-points" checked />
       KDE Heat Map (all points)
     </label>
     <label class="analysis-option">
-      <input type="radio" name="kde-heatmap-mode" value="cluster-levels" />
+      <input type="radio" name="analysis-mode" value="cluster-levels" />
       KDE Heat Map (by cluster density level)
+    </label>
+    <label class="analysis-option">
+      <input type="radio" name="analysis-mode" value="gistar-heatmap" />
+      Getis-Ord Gi* Heat Map
     </label>
   </div>
   <div id="playback">
@@ -385,10 +396,11 @@
   const statFrame = document.getElementById("stat-frame");
   const statBandwidth = document.getElementById("stat-bandwidth");
   const playBtn = document.getElementById('btn-play');
+  // "clusters" and "gistar-heatmap" (placeholders for now), or the two KDE heat map modes:
   // "all-points" (time windows, one bandwidth) or "cluster-levels" (DBSCAN frame files)
-  let kdeHeatmapMode = "all-points";
+  let analysisMode = "all-points";
   const kdeHeatmapControls = document.getElementById("kde-heatmap-controls");
-  const modeRadios = document.querySelectorAll('input[name="kde-heatmap-mode"]');
+  const modeRadios = document.querySelectorAll('input[name="analysis-mode"]');
 
   // stop playback and remove the current frames, overlay and labels
   function clearKDEHeatmapAnimation() {
@@ -410,15 +422,17 @@
   // switching analysis: show that mode's fields and clear the old animation; Apply builds the new one
   for (const radio of modeRadios) {
     radio.addEventListener("change", () => {
-      kdeHeatmapMode = radio.value;
-      kdeHeatmapControls.dataset.mode = kdeHeatmapMode;
+      analysisMode = radio.value;
+      kdeHeatmapControls.dataset.mode = analysisMode;
       clearKDEHeatmapAnimation();
       kdeHeatmapErrorLabel.textContent = "";
+      // the controls bar's height changed (or it was hidden), so Leaflet re-measures the map
+      map.invalidateSize();
     });
   }
 
   // the cluster-levels radio, and whether its DBSCAN frame files can be used (checked on page load)
-  const clusterLevelsRadio = document.querySelector('input[name="kde-heatmap-mode"][value="cluster-levels"]');
+  const clusterLevelsRadio = document.querySelector('input[name="analysis-mode"][value="cluster-levels"]');
   const clusterLevelsLabel = clusterLevelsRadio.parentElement;
   let clusterLevelsAvailable = true;
 
@@ -559,7 +573,7 @@
   async function applyKDEHeatmap() {
     // build the request for the current analysis mode
     let url;
-    if (kdeHeatmapMode === "cluster-levels") {
+    if (analysisMode === "cluster-levels") {
       // one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
       const query = new URLSearchParams();
       const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
@@ -594,7 +608,7 @@
       if (!res.ok) {
         kdeHeatmapErrorLabel.textContent = body.error || "Failed to load kde heat map snapshots";
         // e.g. the DBSCAN files changed and the slider count no longer matches frame 1
-        if (kdeHeatmapMode === "cluster-levels") {
+        if (analysisMode === "cluster-levels") {
           removeKDEHeatmapLevelSliders();
         }
         return;
@@ -612,7 +626,7 @@
       renderKDEHeatmapFrame(0);
 
       // bandwidth(s) the displayed snapshots were built with
-      if (kdeHeatmapMode === "cluster-levels") {
+      if (analysisMode === "cluster-levels") {
         statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
         // rebuild the sliders at the bandwidths the backend used (defaults on the first Apply)
         buildKDEHeatmapLevelSliders(body.bandwidths, body.min_bandwidth, body.max_bandwidth);
