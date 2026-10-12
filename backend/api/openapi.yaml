@@ -153,9 +153,10 @@ paths:
       summary: KDE heatmap of every mapped incident
       description: |
         One heatmap image over all incidents with a trusted coordinate inside
-        Lee County. With cluster_set=1 it weights the heatmap by DBSCAN
-        cluster level instead, which needs cluster results that this API
-        does not produce yet, so it currently answers 400.
+        Lee County. With cluster_set=1 it uses the cluster levels from a
+        /api/v1/clusters run instead, one bandwidth per level, so it needs
+        that run's run_id. dbscan_status says whether the run's results can
+        be used, and is missing without a run_id.
       parameters:
         - name: bandwidth
           in: query
@@ -170,6 +171,10 @@ paths:
           in: query
           description: Index into cluster_set_labels.
           schema: { type: integer, enum: [0, 1], default: 0 }
+        - name: run_id
+          in: query
+          description: The run_id from /api/v1/clusters. Needed for cluster_set=1.
+          schema: { type: string, pattern: "^[0-9a-f]{32}$" }
       responses:
         "200":
           description: The heatmap.
@@ -225,6 +230,64 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/KdeAnimation" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/clusters:
+    get:
+      summary: DBSCAN clusters over one date range
+      description: |
+        Runs DBSCAN at each enabled level over the mapped incidents in one
+        range, read as UTC. The range defaults to the last 30 days and is
+        capped at 60, because DBSCAN memory grows with the square of the
+        number of incidents. Each incident's cluster level is kept for an
+        hour under the returned run_id, for /api/v1/kde-heatmap?cluster_set=1.
+      parameters:
+        - name: start_date
+          in: query
+          description: Defaults to 30 days before end_date.
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: Defaults to now.
+          schema: { type: string, format: date }
+        - name: levels
+          in: query
+          description: Comma separated levels to run. Defaults to all three.
+          schema: { type: string }
+          example: street,neighborhood,district
+        - name: street_eps
+          in: query
+          description: DBSCAN radius in feet for the street level.
+          schema: { type: number, default: 1300 }
+        - name: neighborhood_eps
+          in: query
+          description: DBSCAN radius in feet for the neighborhood level.
+          schema: { type: number, default: 3000 }
+        - name: district_eps
+          in: query
+          description: DBSCAN radius in feet for the district level.
+          schema: { type: number, default: 13000 }
+      responses:
+        "200":
+          description: One frame covering the whole range, and the run for the cluster-level heatmap.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id: { type: string }
+                  frames:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label: { type: string, example: All Incidents }
+                        n_incidents: { type: integer }
+                        levels:
+                          type: object
+                          description: One GeoJSON FeatureCollection of cluster outlines per enabled level.
+                          additionalProperties: { type: object }
         "400":
           $ref: "#/components/responses/BadRequest"
 

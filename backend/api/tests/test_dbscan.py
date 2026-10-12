@@ -51,3 +51,36 @@ def test_run_id_must_be_one_the_api_issued(client):
     assert client.get(f"{KDE}/status?run_id=../../etc").status_code == 400
     assert client.get(f"{KDE}?bandwidth=1500").status_code == 400
     assert status(client, "0" * 32) == "missing"
+
+
+def clusters(client, query):
+    response = client.get(f"/api/v1/clusters?{query}")
+    assert response.status_code == 200, response.json
+    return response.json
+
+
+def test_clusters_cover_only_mapped_incidents_in_the_range(client):
+    body = clusters(client, "start_date=2026-06-10&end_date=2026-06-20")
+    # eight mapped incidents; the untrusted, out-of-county and unmapped ones are left out
+    assert body["frames"][0]["n_incidents"] == 8
+    assert set(body["frames"][0]["levels"]) == {"street", "neighborhood", "district"}
+    assert len(body["run_id"]) == 32
+
+
+def test_clusters_refuse_more_than_sixty_days(client):
+    response = client.get("/api/v1/clusters?start_date=2026-04-01&end_date=2026-06-20")
+    assert response.status_code == 400
+
+
+def test_a_clusters_run_drives_the_cluster_level_heatmap(client):
+    run_id = clusters(client, "start_date=2026-06-15&end_date=2026-06-20")["run_id"]
+    response = client.get(f"/api/v1/kde-heatmap?cluster_set=1&run_id={run_id}")
+    assert response.status_code == 200, response.json
+    assert response.json["dbscan_status"] == "available"
+    assert response.json["image"].startswith("data:image/png;base64,")
+
+
+def test_the_cluster_level_heatmap_needs_a_run(client):
+    response = client.get("/api/v1/kde-heatmap?cluster_set=1")
+    assert response.status_code == 400
+    assert response.json["dbscan_status"] == "missing"
