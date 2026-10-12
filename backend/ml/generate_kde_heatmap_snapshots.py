@@ -177,11 +177,11 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 	return frames
 
 
-def read_dbscan_frames():
+def read_dbscan_frames(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
 	"""Read the per-frame DBSCAN output CSVs written by the cluster animation.
 
 	Reads {n}_userID_dbscan.csv for n = 1, 2, ... from
-	DBSCAN_ANIMATION_DENSITIES_DIR, stopping at the first missing number.
+	densities_dir (DBSCAN_ANIMATION_DENSITIES_DIR by default), stopping at the first missing number.
 	Each file has easting, northing (EPSG:2882 feet) and
 	cluster_density_level (-1 = noise, 0 = least dense, ...).
 
@@ -196,7 +196,7 @@ def read_dbscan_frames():
 	frame_number = 1
 
 	while True:
-		csv_path = os.path.join(DBSCAN_ANIMATION_DENSITIES_DIR, f"{frame_number}_userID_dbscan.csv")
+		csv_path = os.path.join(densities_dir, f"{frame_number}_userID_dbscan.csv")
 
 		# no file for this number - all frames have been read
 		if not os.path.exists(csv_path):
@@ -217,11 +217,11 @@ def read_dbscan_frames():
 	return frames
 
 
-def count_first_frame_levels():
+def count_first_frame_levels(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
 	"""Return how many cluster levels (noise excluded) frame 1 has, i.e. how
 	many bandwidths build_kde_heatmap_snapshots_from_dbscan() expects.
 	Returns 0 if there are no frame files or frame 1 has no cluster levels."""
-	dbscan_frames = read_dbscan_frames()
+	dbscan_frames = read_dbscan_frames(densities_dir)
 
 	if len(dbscan_frames) == 0:
 		return 0
@@ -231,7 +231,7 @@ def count_first_frame_levels():
 	return len(levels)
 	
 
-def get_dbscan_frames_status():
+def get_dbscan_frames_status(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
 	"""Report whether the DBSCAN frame files can be used for the KDE heat map.
 
 	Returns
@@ -239,7 +239,7 @@ def get_dbscan_frames_status():
 	"missing" if there are no frame files, "no_cluster_levels" if frame 1
 	is empty or all noise, otherwise "available".
 	"""
-	dbscan_frames = read_dbscan_frames()
+	dbscan_frames = read_dbscan_frames(densities_dir)
 
 	if len(dbscan_frames) == 0:
 		return "missing"
@@ -253,7 +253,7 @@ def get_dbscan_frames_status():
 	return "available"
 
 
-def build_kde_heatmap_snapshots_from_dbscan(bandwidths):
+def build_kde_heatmap_snapshots_from_dbscan(bandwidths, densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR, output_dir=KDE_SNAPSHOT_DIR):
 	"""Build one KDE heat map snapshot per DBSCAN frame CSV, with one
 	bandwidth per cluster density level.
 
@@ -262,7 +262,7 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths):
 	i-th level (lowest level number first). Every later frame uses the
 	bandwidths for the levels it has, matched by level number; a frame
 	with fewer levels simply doesn't use the others. Noise points (-1)
-	are left out of the KDE. PNGs are saved to KDE_SNAPSHOT_DIR, which is
+	are left out of the KDE. PNGs are saved to output_dir (KDE_SNAPSHOT_DIR by default), which is
 	deleted and recreated on every call.
 
 	Parameters
@@ -284,7 +284,7 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths):
 	levels, if len(bandwidths) doesn't match frame 1's level count, or if
 	a later frame has a cluster level that frame 1 doesn't have.
 	"""
-	dbscan_frames = read_dbscan_frames()
+	dbscan_frames = read_dbscan_frames(densities_dir)
 
 	if len(dbscan_frames) == 0:
 		raise ValueError("No DBSCAN frame files found.")
@@ -317,8 +317,8 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths):
 					f"but frame 1 (used to set the number of bandwidths) has {first_levels.tolist()}."
 				)
 
-	shutil.rmtree(KDE_SNAPSHOT_DIR, ignore_errors=True)
-	os.makedirs(KDE_SNAPSHOT_DIR, exist_ok=True)
+	shutil.rmtree(output_dir, ignore_errors=True)
+	os.makedirs(output_dir, exist_ok=True)
 
 	# -- one heat map per frame --
 	frames = []
@@ -354,7 +354,7 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths):
 			x_max = np.max(clustered_points[:, 0]) + padding
 			y_max = np.max(clustered_points[:, 1]) + padding
 
-			kde_obj = KDEHeatMap(points=clustered_points, cluster_levels=clustered_levels, bandwidths=frame_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=300, output_dir=KDE_SNAPSHOT_DIR)
+			kde_obj = KDEHeatMap(points=clustered_points, cluster_levels=clustered_levels, bandwidths=frame_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=300, output_dir=output_dir)
 
 			image_filename = f"density_overlay_{frame_number}.png"
 			bounds = kde_obj.generate_heatmap_image(image_filename)

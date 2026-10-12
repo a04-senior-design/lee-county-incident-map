@@ -58,6 +58,8 @@ def build_dbscan_snapshots(
     window_length=None,
     time_step=None,
     level_configs=None,
+    incidents=None,
+    densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR,
 ) -> list:
     """Slide a window of `window_length` across [start_date, end_date] in
     steps of `time_step` and run DBSCAN — at every level in `level_configs` —
@@ -88,13 +90,13 @@ def build_dbscan_snapshots(
     dicts in time order.
     """
     
-    shutil.rmtree(DBSCAN_ANIMATION_DENSITIES_DIR, ignore_errors=True)
-    os.makedirs(DBSCAN_ANIMATION_DENSITIES_DIR, exist_ok=True)
+    shutil.rmtree(densities_dir, ignore_errors=True)
+    os.makedirs(densities_dir, exist_ok=True)
     
     level_configs = level_configs if level_configs is not None else cluster_levels
     
     only_one_frame = window_length is None
-    windows = build_time_windows(start_date, end_date, window_length, time_step)
+    windows = build_time_windows(start_date, end_date, window_length, time_step, incidents=incidents)
     
     # too many snapshots - stop before doing any heat map work
     if len(windows) > MAX_SNAPSHOTS:
@@ -141,7 +143,7 @@ def build_dbscan_snapshots(
         if not only_one_frame:
             densities = compute_density_levels(window_incidents, list(level_configs.values()))
             
-            curret_csv_snapshot_name = f"{DBSCAN_ANIMATION_DENSITIES_DIR}/{len(snapshots)}_{csv_path}"
+            curret_csv_snapshot_name = f"{densities_dir}/{len(snapshots)}_{csv_path}"
             with open(curret_csv_snapshot_name, mode="w", newline="", encoding="utf-8") as file:
                 writer = csv.writer(file)
                 writer.writerow(["easting", "northing", "cluster_density_level"])
