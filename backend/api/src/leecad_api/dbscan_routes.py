@@ -164,3 +164,34 @@ def kde_heatmap_dbscan_status():
     # whether the cluster-levels option can be used: "missing", "no_cluster_levels" or "available"
     dbscan_status = get_dbscan_frames_status(_run_dir(request.args))
     return jsonify({"dbscan_status": dbscan_status})
+
+
+@app.route("/api/clusters")
+def clusters():
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    has_level_overrides = any(
+        key == "levels" or key.endswith("_eps")
+        for key in request.args
+    )
+    
+    data_points, _, _ = load_points()
+    # easting = data_points_with_noise[:, 0]
+    # northing = data_points_with_noise[:, 1]
+
+    # no level params -> serve the precomputed snapshots, otherwise recompute on demand
+    if not any([start_date, end_date, has_level_overrides]):
+        return jsonify({"frames": dbscan_animation.load_snapshots()})
+
+    data_points, _, _ = load_points()
+
+    try:
+        level_configs = _parse_dbscan_level_overrides(request.args)
+        frames = build_dbscan_snapshots_from_points(
+            points=data_points,
+            level_configs=level_configs,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"frames": frames})
