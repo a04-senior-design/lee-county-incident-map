@@ -228,6 +228,109 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/animation/dbscan:
+    get:
+      summary: DBSCAN cluster animation frames
+      description: |
+        Windows the mapped incidents like /animation/kde-heatmap and runs
+        DBSCAN at each enabled level in every window. Each frame's cluster
+        levels are kept for an hour under the returned run_id, which the
+        KDE-with-clusters routes need. At most 30 windows.
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-01"
+        - name: end_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-29"
+        - name: window_length
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: time_step
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: levels
+          in: query
+          description: Comma separated levels to run. Defaults to all three.
+          schema: { type: string }
+          example: street,neighborhood,district
+        - name: street_eps
+          in: query
+          description: DBSCAN radius in feet for the street level.
+          schema: { type: number, default: 1300 }
+        - name: neighborhood_eps
+          in: query
+          description: DBSCAN radius in feet for the neighborhood level.
+          schema: { type: number, default: 3000 }
+        - name: district_eps
+          in: query
+          description: DBSCAN radius in feet for the district level.
+          schema: { type: number, default: 13000 }
+      responses:
+        "200":
+          description: The frames, oldest first, and the run to pass to the KDE-with-clusters routes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DbscanAnimation" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/animation/kde-heatmap-dbscan:
+    get:
+      summary: KDE animation weighted by DBSCAN cluster level
+      description: |
+        One heatmap per frame of a DBSCAN run, with one bandwidth per cluster
+        level. Frame 1's levels set how many bandwidths are expected. Noise
+        points are left out.
+      parameters:
+        - $ref: "#/components/parameters/run_id"
+        - name: bandwidth
+          in: query
+          description: |
+            KDE bandwidth in feet, repeated once per cluster level in frame 1
+            and non-increasing. Clamped to 500 to 10000. Defaults to 1500 for
+            every level.
+          schema: { type: array, items: { type: number } }
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: The frames, in the run's order.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KdeDbscanAnimation" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/animation/kde-heatmap-dbscan/status:
+    get:
+      summary: Whether a DBSCAN run can drive the KDE-with-clusters animation
+      parameters:
+        - $ref: "#/components/parameters/run_id"
+      responses:
+        "200":
+          description: |
+            missing when the run does not exist or has expired,
+            no_cluster_levels when frame 1 is empty or all noise.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dbscan_status: { type: string, enum: [missing, no_cluster_levels, available] }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/auth/register:
     post:
       summary: Create an account
@@ -425,6 +528,12 @@ components:
       in: query
       description: Value of next_cursor from the previous page.
       schema: { type: string }
+    run_id:
+      name: run_id
+      in: query
+      required: true
+      description: The run_id from /api/v1/animation/dbscan. Runs expire after an hour.
+      schema: { type: string, pattern: "^[0-9a-f]{32}$" }
 
   responses:
     BadRequest:
@@ -608,6 +717,8 @@ components:
       type: object
       properties:
         bandwidth: { type: number }
+        min_bandwidth: { type: number }
+        max_bandwidth: { type: number }
         frames:
           type: array
           items:
@@ -625,3 +736,46 @@ components:
                 oneOf:
                   - $ref: "#/components/schemas/Bounds"
                   - type: "null"
+
+    DbscanAnimation:
+      type: object
+      properties:
+        run_id: { type: string }
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              window_start: { type: string, format: date-time }
+              window_end: { type: string, format: date-time }
+              n_incidents: { type: integer }
+              levels:
+                type: object
+                description: One GeoJSON FeatureCollection of cluster outlines per enabled level.
+                additionalProperties: { type: object }
+
+    KdeDbscanAnimation:
+      type: object
+      properties:
+        bandwidths: { type: array, items: { type: number } }
+        min_bandwidth: { type: number }
+        max_bandwidth: { type: number }
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string, example: Frame 1 }
+              n_incidents: { type: integer }
+              image:
+                type: [string, "null"]
+                description: A PNG as a data URL. Null when the frame is empty or all noise.
+              image_filename: { type: [string, "null"] }
+              bounds:
+                oneOf:
+                  - $ref: "#/components/schemas/Bounds"
+                  - type: "null"
+              note:
+                type: [string, "null"]
+                description: Why a frame has no image.
