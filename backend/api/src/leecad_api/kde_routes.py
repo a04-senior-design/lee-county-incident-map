@@ -10,7 +10,7 @@ from ml.kde import KDEHeatMap
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
 
-from leecad_api import queries
+from leecad_api import queries, runs
 
 bp = Blueprint("kde", __name__)
 
@@ -99,11 +99,13 @@ def kde_heatmap():
         }), 400
 
     # status of cluster-lab's DBSCAN results: "missing", "all_noise", or "available"
+    # the results belong to the /clusters run named by run_id; without one there are none
+    dbscan_csv = os.path.join(runs.run_dir(request.args), "userID_dbscan.csv") if request.args.get("run_id") else None
     dbscan_df = None 
-    if not os.path.exists("userID_dbscan.csv"):
+    if dbscan_csv is None or not os.path.exists(dbscan_csv):
         dbscan_status = "missing"
     else:
-        dbscan_df = pd.read_csv("userID_dbscan.csv")
+        dbscan_df = pd.read_csv(dbscan_csv)
         if (dbscan_df["cluster_density_level"] == -1).all():
             dbscan_status = "all_noise"
         else:

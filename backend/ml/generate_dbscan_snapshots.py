@@ -166,6 +166,7 @@ def build_dbscan_snapshots(
 def build_dbscan_snapshots_from_points(
     points: np.ndarray,
     level_configs=None,
+    csv_name=csv_path,
 ) -> list:
     """Run DBSCAN — at every level in `level_configs` — directly on the provided
 
@@ -208,7 +209,6 @@ def build_dbscan_snapshots_from_points(
 
     # Compute density levels for all input points and export CSV
     densities = compute_density_levels_from_points(points, list(level_configs.values()))
-    csv_name = f"{csv_path}"
     
     with open(csv_name, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)

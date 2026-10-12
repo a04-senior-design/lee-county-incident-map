@@ -1,50 +1,29 @@
 import os
-import re
-import shutil
 import tempfile
-import time
-import uuid
 
+import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
 from ml.dbscan import cluster_levels
-from ml.generate_dbscan_snapshots import build_dbscan_snapshots
+from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points
 from ml.generate_kde_heatmap_snapshots import (
     build_kde_heatmap_snapshots_from_dbscan,
     count_first_frame_levels,
     get_dbscan_frames_status,
 )
 from pandas.tseries.frequencies import to_offset
+from pyproj import Transformer
 
-from leecad_api import queries
+from leecad_api import queries, runs
 from leecad_api.kde_routes import DEFAULT_BANDWIDTH, MAX_BANDWIDTH, MIN_BANDWIDTH, _png_to_base64
 
 bp = Blueprint("dbscan", __name__)
 
-# The DBSCAN animation leaves per-frame cluster levels that the KDE-with-clusters
-# requests read later, so each run gets its own folder, found again by run_id.
-RUNS_DIR = os.path.join(tempfile.gettempdir(), "leecad-dbscan-runs")
-RUN_ID = re.compile(r"[0-9a-f]{32}")
-RUN_LIFETIME = 3600
 
-
-def _new_run_dir() -> tuple[str, str]:
-    os.makedirs(RUNS_DIR, exist_ok=True)
-    cutoff = time.time() - RUN_LIFETIME
-    for name in os.listdir(RUNS_DIR):
-        path = os.path.join(RUNS_DIR, name)
-        if os.path.getmtime(path) < cutoff:
-            shutil.rmtree(path, ignore_errors=True)
-    run_id = uuid.uuid4().hex
-    return run_id, os.path.join(RUNS_DIR, run_id)
-
-
-def _run_dir(args) -> str:
-    # checked before it becomes part of a path
-    run_id = args.get("run_id", "")
-    if not RUN_ID.fullmatch(run_id):
-        raise ValueError("run_id must be the run_id returned by /api/v1/animation/dbscan")
-    return os.path.join(RUNS_DIR, run_id)
+def _utc(value: str) -> pd.Timestamp:
+    # dates are read as UTC, like build_time_windows() does with the stored timestamps
+    timestamp = pd.Timestamp(value)
+    return timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp
 
 
 def _parse_dbscan_level_overrides(args) -> dict:
@@ -80,7 +59,7 @@ def animation_dbscan():
     if missing:
         return jsonify({"error": f"Missing required parameter(s): {', '.join(missing)}"}), 400
 
-    run_id, densities_dir = _new_run_dir()
+    run_id, densities_dir = runs.new_run_dir()
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
@@ -104,7 +83,7 @@ def animation_dbscan():
 
 @bp.get("/api/v1/animation/kde-heatmap-dbscan")
 def kde_heatmap_dbscan_animation():
-    densities_dir = _run_dir(request.args)
+    densities_dir = runs.run_dir(request.args)
 
     # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500&bandwidth=800
     bandwidth_values = request.args.getlist("bandwidth")
@@ -162,36 +141,39 @@ def kde_heatmap_dbscan_animation():
 @bp.get("/api/v1/animation/kde-heatmap-dbscan/status")
 def kde_heatmap_dbscan_status():
     # whether the cluster-levels option can be used: "missing", "no_cluster_levels" or "available"
-    dbscan_status = get_dbscan_frames_status(_run_dir(request.args))
+    dbscan_status = get_dbscan_frames_status(runs.run_dir(request.args))
     return jsonify({"dbscan_status": dbscan_status})
 
 
-@app.route("/api/clusters")
+@bp.get("/api/v1/clusters")
 def clusters():
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
-    has_level_overrides = any(
-        key == "levels" or key.endswith("_eps")
-        for key in request.args
-    )
-    
-    data_points, _, _ = load_points()
-    # easting = data_points_with_noise[:, 0]
-    # northing = data_points_with_noise[:, 1]
-
-    # no level params -> serve the precomputed snapshots, otherwise recompute on demand
-    if not any([start_date, end_date, has_level_overrides]):
-        return jsonify({"frames": dbscan_animation.load_snapshots()})
-
-    data_points, _, _ = load_points()
 
     try:
+        # DBSCAN memory grows with the square of the point count, so instead of every incident
+        # the range defaults to the last 30 days and is capped at 60
+        end = _utc(end_date) if end_date else pd.Timestamp.now(tz="UTC")
+        start = _utc(start_date) if start_date else end - pd.Timedelta(days=30)
+        if end - start > pd.Timedelta(days=60):
+            raise ValueError("at most 60 days per request")
+        with current_app.pool.connection() as conn:
+            rows = conn.execute(queries.MAPPED_INCIDENTS_BETWEEN, (start, end)).fetchall()
+        # NAD 1983 StatePlane Florida West FIPS 0902 Feet, as load_points() did
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:2882", always_xy=True)
+        easting, northing = transformer.transform([r["lng"] for r in rows], [r["lat"] for r in rows])
+        data_points = np.column_stack([easting, northing])
+
+        run_id, densities_dir = runs.new_run_dir()
+        os.makedirs(densities_dir)
+
         level_configs = _parse_dbscan_level_overrides(request.args)
         frames = build_dbscan_snapshots_from_points(
             points=data_points,
             level_configs=level_configs,
+            csv_name=os.path.join(densities_dir, "userID_dbscan.csv"),
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    return jsonify({"frames": frames})
+    return jsonify({"frames": frames, "run_id": run_id})
