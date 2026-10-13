@@ -18,6 +18,7 @@ REFRESH_TTL = timedelta(days=30)
 MIN_PASSWORD = 8
 MAX_PASSWORD = 128
 MAX_EMAIL = 254
+MAX_NAME = 100
 
 bp = Blueprint("auth", __name__)
 
@@ -25,13 +26,13 @@ hasher = PasswordHasher()
 NO_SUCH_USER_HASH = hasher.hash(secrets.token_urlsafe(32))
 
 CREATE_USER = """
-    INSERT INTO users (email, password_hash) VALUES (%s, %s)
-    RETURNING id, email, created_at
+    INSERT INTO users (email, password_hash, name) VALUES (%s, %s, %s)
+    RETURNING id, email, name, created_at
 """
 
-FIND_USER = "SELECT id, email, password_hash, created_at FROM users WHERE lower(email) = %s"
+FIND_USER = "SELECT id, email, name, password_hash, created_at FROM users WHERE lower(email) = %s"
 
-FIND_USER_BY_ID = "SELECT id, email, created_at FROM users WHERE id = %s"
+FIND_USER_BY_ID = "SELECT id, email, name, created_at FROM users WHERE id = %s"
 
 STORE_REFRESH = "INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES (%s, %s, %s)"
 
@@ -41,7 +42,7 @@ CONSUME_REFRESH = """
          WHERE token_hash = %s AND expires_at > now()
         RETURNING user_id
     )
-    SELECT u.id, u.email, u.created_at
+    SELECT u.id, u.email, u.name, u.created_at
       FROM users u JOIN consumed ON consumed.user_id = u.id
 """
 
@@ -72,12 +73,16 @@ def register():
         raise ValueError("email is not valid")
     if not MIN_PASSWORD <= len(password) <= MAX_PASSWORD:
         raise ValueError(f"password must be {MIN_PASSWORD} to {MAX_PASSWORD} characters")
+    name = (request.get_json(silent=True) or {}).get("name")
+    name = name.strip() if isinstance(name, str) else ""
+    if not 1 <= len(name) <= MAX_NAME:
+        raise ValueError(f"name must be 1 to {MAX_NAME} characters")
 
     password_hash = hasher.hash(password)
     with current_app.pool.connection() as conn:
         try:
             with conn.transaction():
-                user = conn.execute(CREATE_USER, (email, password_hash)).fetchone()
+                user = conn.execute(CREATE_USER, (email, password_hash, name)).fetchone()
         except psycopg.errors.UniqueViolation:
             return jsonify({"error": "that email is already registered"}), 409
         return _session(conn, user), 201
@@ -141,7 +146,12 @@ def _password_matches(user, password: str) -> bool:
 
 
 def _user(row) -> dict:
-    return {"id": row["id"], "email": row["email"], "created_at": row["created_at"].isoformat()}
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "name": row["name"],
+        "created_at": row["created_at"].isoformat(),
+    }
 
 
 def _session(conn, user):
