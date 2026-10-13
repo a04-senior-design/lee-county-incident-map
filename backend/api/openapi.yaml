@@ -404,7 +404,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/Credentials" }
+            schema: { $ref: "#/components/schemas/Registration" }
       responses:
         "201":
           description: The account was created.
@@ -618,11 +618,23 @@ components:
         email: { type: string, format: email, maxLength: 254 }
         password: { type: string, minLength: 8, maxLength: 128 }
 
+    Registration:
+      type: object
+      required: [email, password, name]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+
     User:
       type: object
       properties:
         id: { type: integer }
         email: { type: string }
+        name:
+          type: string
+          nullable: true
+          description: Null only for accounts made before names were asked for.
         created_at: { type: string, format: date-time }
 
     Session:

@@ -10,10 +10,11 @@ from leecad_api.auth import ACCESS_TTL, API, AUTH, REFRESH_COOKIE
 
 EMAIL = "resident@example.com"
 PASSWORD = "correct horse battery"
+NAME = "Pat Resident"
 
 
-def register(client, email=EMAIL, password=PASSWORD):
-    return client.post(f"{AUTH}/register", json={"email": email, "password": password})
+def register(client, email=EMAIL, password=PASSWORD, name=NAME):
+    return client.post(f"{AUTH}/register", json={"email": email, "password": password, "name": name})
 
 
 def login(client, email=EMAIL, password=PASSWORD):
@@ -42,8 +43,21 @@ def test_registering_creates_an_account_and_signs_you_in(auth_client):
     assert response.status_code == 201
     body = response.json
     assert body["user"]["email"] == EMAIL
+    assert body["user"]["name"] == NAME
     assert body["expires_in"] == ACCESS_TTL.total_seconds()
     assert body["access_token"]
+
+
+def test_registering_requires_a_name(auth_client):
+    response = auth_client.post(f"{AUTH}/register", json={"email": EMAIL, "password": PASSWORD})
+    assert response.status_code == 400
+    assert register(auth_client, name="   ").status_code == 400
+    assert register(auth_client, name="x" * 101).status_code == 400
+
+
+def test_login_returns_the_name(auth_client):
+    register(auth_client, name="  Pat Resident ")
+    assert login(auth_client).json["user"]["name"] == NAME
 
 
 def test_the_response_never_contains_the_password(auth_client):
@@ -75,7 +89,7 @@ def test_a_bad_email_is_rejected(auth_client, email):
 
 @pytest.mark.parametrize("password", ["short", "x" * 129, None])
 def test_a_bad_password_is_rejected(auth_client, password):
-    response = auth_client.post(f"{AUTH}/register", json={"email": EMAIL, "password": password})
+    response = auth_client.post(f"{AUTH}/register", json={"email": EMAIL, "password": password, "name": NAME})
     assert response.status_code == 400
 
 
