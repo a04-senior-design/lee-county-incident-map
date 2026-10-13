@@ -8,7 +8,7 @@ type DatePickerProps = {
 }
 function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
   const today = dayjs()
-   const [draft, setDraft] = useState<DateRange>(dateRange)
+  const [draft, setDraft] = useState<DateRange>(dateRange)
   // keep the draft in sync when the parent changes it (presets, reset, etc.)
   useEffect(() => {
     setDraft(dateRange)
@@ -24,6 +24,7 @@ function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
   }
   return (
     <DatePickerInput
+      maxDate={today.toDate()}
       popoverProps={{ zIndex: 2000 }}
       styles={{
         presetsList: {

@@ -6,5 +6,13 @@ export default defineConfig({
   plugins: [react(), svgr()],
   server: {
     allowedHosts: ['.trycloudflare.com'],
-  },
+    proxy: {
+      '/api': {
+        target: 'https://leecountyincidentmap.com/',
+        changeOrigin: true,
+        timeout: 120000,
+        proxyTimeout: 120000
+      }
+    }
+  }
 })

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, memo } from 'react'
+import { useEffect, useState, useRef, memo, useMemo } from 'react'
 import {
   MapContainer,
   TileLayer,
@@ -29,8 +29,8 @@ function MoveMap({ selectedLocation, markerRef = null }) {
 
   useEffect(() => {
     if (selectedLocation) {
-      map.flyTo([selectedLocation[0], selectedLocation[1]], 18, {
-        duration: 1.4
+      map.flyTo([selectedLocation[0], selectedLocation[1]], 17, {
+        duration: 1.5
       })
       map.once('moveend', () => {
         //console.log(markerRef)
@@ -97,6 +97,7 @@ function AutoResize() {
 
   return null
 }
+const tileProvider = import.meta.env.VITE_CARTO_KEY
 function Map({
   finalList,
   countyCenter,
@@ -106,7 +107,12 @@ function Map({
   setAddressSearch,
   noLocationMove,
   SetAlertContent,
-  analysisOn
+  analysisOn,
+  selectedId,
+  setSelectedId,
+  start_date,
+  end_date
+
 }) {
   //render++
   //console.log('Map render: ', render)
@@ -117,6 +123,17 @@ function Map({
   const [addressList, setAddressList] = useState(null)
   const timer = useRef(null)
   //This state is used for addresswithout location to trigger the function in Map
+ 
+
+  // "Go to Map" from the list: locationMove is a new array on every click,
+  // so this effect fires even when you click the same incident twice
+  useEffect(() => {
+    if (locationMove) {
+      setTimeout(() => {
+        setSelectedId(idPopup)
+      }, 1500)
+    }
+  }, [locationMove])
 
   //trigger nolocation move
   useEffect(() => {
@@ -126,6 +143,11 @@ function Map({
       searchAddress(noLocationMove.address)
     }
   }, [noLocationMove])
+
+  const selectedIncident = useMemo(
+    () => finalList.find((i) => i.source_incident_id === selectedId) ?? null,
+    [finalList, selectedId]
+  )
   //Check the result inside or outside the polygon
   function checkBound(coordinates) {
     //console.log(coordinates)
@@ -387,10 +409,17 @@ function Map({
         maxBoundsViscosity={1.0}
       >
         <TileLayer
-          className='dark-map'
+          url={`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${tileProvider}`}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          updateWhenZooming={false}
+          keepBuffer={4}
+        />
+        {/* <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-        />
+          updateWhenZooming={false}
+          keepBuffer={4}
+        /> */}
         {/*create a custom hook to move the map when user click on the item */}
         <MoveMap selectedLocation={locationMove} markerRef={markerRef} />
         {/* <SearchAddress
@@ -425,14 +454,18 @@ function Map({
           }}
         />
         <AutoResize />
-        <Analysis active={analysisOn} filteredListWithLocation={finalList} />
+        <Analysis active={analysisOn} startDate={start_date} endDate ={end_date} />
         {!analysisOn && (
-          <MarkerClusterGroup chunkedLoading disableClusteringAtZoom={16}>
+          <MarkerClusterGroup
+            chunkedLoading
+            disableClusteringAtZoom={16}
+            maxClusterRadius={100}
+            animate={false}
+          >
             {finalList.map((incident, index) => (
               <CircleMarker
-                key={index}
+                key={incident.source_incident_id}
                 center={[incident.lat, incident.lon]}
-                position={[incident.lat, incident.lon]}
                 ref={idPopup === incident.source_incident_id ? markerRef : null}
                 radius={8}
                 pathOptions={{
@@ -441,14 +474,42 @@ function Map({
                   fillOpacity: 0.8,
                   weight: 2
                 }}
+                eventHandlers={{
+                  click: () => setSelectedId(incident.source_incident_id)
+                }}
               ></CircleMarker>
             ))}
           </MarkerClusterGroup>
+        )}
+        {selectedIncident && !analysisOn && (
+          <Popup
+            position={[selectedIncident.lat, selectedIncident.lon]}
+            autoPan={false}
+            eventHandlers={{ popupclose: () => setSelectedId(null) }}
+          >
+            <div className='popup-address'>
+              <h3>{selectedIncident.address}</h3>
+              <h5>{selectedIncident.city}</h5>
+            </div>
+            <div className='popup-line'></div>
+            <div className='popup-content'>
+              <h4 className='popup-content-normal'>{`Incident Number: ${selectedIncident.source_incident_id}`}</h4>
+              <h4 className='popup-content-normal'>
+                Type:{' '}
+                <span style={{ fontSize: '16px', color: '#ca745f' }}>
+                  {selectedIncident.nature}
+                </span>
+              </h4>
+              <h4 className='popup-content-normal'>{`Disposition: ${selectedIncident.status}`}</h4>
+              <h4 className='popup-content-normal'>{`Date: ${selectedIncident.occurred_at}`}</h4>
+            </div>
+          </Popup>
         )}
       </MapContainer>
     </div>
   )
 }
+
 {
   /* <Popup>
                 <div className='popup-address'>

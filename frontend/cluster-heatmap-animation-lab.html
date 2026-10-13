@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heatmap Animation Lab — Lee County</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    #top-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0.6rem 1.2rem;
+      background: rgba(15, 15, 30, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+
+    #branding { line-height: 1.3; }
+    #branding strong { font-size: 1rem; color: #fff; }
+    #branding span   { display: block; font-size: 0.72rem; color: #888; }
+
+    /* ── Playback controls ───────────────────────────────────────────────── */
+    #playback {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 260px;
+    }
+    #playback button {
+      width: 2.1em;
+      height: 2.1em;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #eee;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    #playback button:hover { background: rgba(255,255,255,0.14); }
+    #scrub { flex: 1; max-width: 320px; accent-color: #E9C46A; cursor: pointer; }
+    #frame-label {
+      font-size: 0.78rem;
+      color: #ccc;
+      white-space: nowrap;
+      min-width: 160px;
+    }
+
+    /* ── Speed control ────────────────────────────────────────────────────── */
+    #speed-control {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #speed-control span {
+      font-size: 0.72rem;
+      color: #888;
+    }
+    .speed-btn {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn:hover { background: rgba(255,255,255,0.14); }
+    .speed-btn.active {
+      background: #E9C46A;
+      border-color: #E9C46A;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    /* ── Stats ────────────────────────────────────────────────────────────── */
+    #stats {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .stat-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+    }
+    .stat-pill span { color: #fff; font-weight: 600; }
+
+    /* ── Analysis radios ──────────────────────────────────────────────────── */
+    #analysis-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+    .analysis-title { font-weight: 600; color: #fff; }
+    .analysis-option {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    /* option that can't be used yet (e.g. no DBSCAN run) */
+    .analysis-option.unavailable { opacity: 0.5; cursor: not-allowed; }
+
+    /* show only the current mode's fields */
+    /* time-window fields: used by Cluster Analysis and KDE (all points); KDE by cluster level reuses the DBSCAN run */
+    #animation-controls:not([data-mode="clusters"]):not([data-mode="all-points"]) .window-field { display: none; }
+    #animation-controls:not([data-mode="clusters"]) .clusters-field { display: none; }
+    #animation-controls:not([data-mode="all-points"]) .all-points-field { display: none; }
+    #animation-controls:not([data-mode="cluster-levels"]) .cluster-levels-field { display: none; }
+    /* placeholder mode (Gi*): no controls yet, so hide the whole bar */
+    #animation-controls[data-mode="gistar-heatmap"] { display: none; }
+
+    /* ── Animation windowing controls ─────────────────────────────────────── */
+    #animation-controls {
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+      padding: 0.5rem 1.2rem;
+      background: rgba(15, 15, 30, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-wrap: wrap;
+    }
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .field-row label {
+      font-size: 0.7rem;
+      color: #aaa;
+    }
+    .field-row input {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #eee;
+      border-radius: 5px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.78rem;
+      width: 130px;
+    }
+    .field-row input[type="range"] {
+      padding: 0;
+      border: none;
+      background: none;
+      accent-color: #E9C46A;
+      cursor: pointer;
+    }
+    .field-row label span.bw-value { color: #fff; font-weight: 600; }
+    #kde-heatmap-level-sliders {
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+    }
+    .bandwidth-hint {
+      font-size: 0.7rem;
+      color: #888;
+      align-self: center;
+    }
+    #animation-apply {
+      border: 1px solid #E9C46A;
+      background: #E9C46A;
+      color: #1a1a2e;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #animation-apply:hover { background: #d4b05a; }
+    #animation-apply:disabled { opacity: 0.6; cursor: wait; }
+    #dbscan-reset {
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      font-size: 0.78rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #dbscan-reset:hover { background: rgba(255,255,255,0.14); }
+    #dbscan-reset:disabled { opacity: 0.6; cursor: wait; }
+    #animation-error {
+      font-size: 0.72rem;
+      color: #E63946;
+      align-self: center;
+    }
+
+    /* ── Cluster Analysis (DBSCAN) level toggles/sliders ──────────────────── */
+    .level-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      padding: 0.45rem 0.65rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 4px 4px 0;
+      min-width: 185px;
+      transition: opacity 0.2s;
+    }
+    .level-block.level-off { opacity: 0.4; }
+    .level-block[data-level="district"]     { --accent: #0E6207; }
+    .level-block[data-level="neighborhood"] { --accent: #243092; }
+    .level-block[data-level="street"]       { --accent: #E63946; }
+
+    .level-header { display: flex; align-items: center; gap: 0.5rem; }
+    .level-name   { font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+    .level-hint   { font-size: 0.67rem; color: #555; }
+
+    .toggle-label {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 17px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .toggle-label input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #444;
+      border-radius: 17px;
+      transition: background 0.2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 11px; height: 11px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: transform 0.2s;
+    }
+    .toggle-label input:checked + .toggle-track { background: var(--accent); }
+    .toggle-label input:checked + .toggle-track::after { transform: translateX(13px); }
+
+    .level-slider-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: #666; }
+    .level-slider     { width: 110px; accent-color: var(--accent); cursor: pointer; }
+
+    .level-stats { display: flex; gap: 0.35rem; }
+    .level-stats .stat-pill { font-size: 0.7rem; padding: 0.1rem 0.4rem; color: #aaa; }
+
+    /* ── Map ──────────────────────────────────────────────────────────────── */
+    #map-container { position: relative; flex: 1; display: flex; }
+    #map { flex: 1; }
+
+    /* ── Cluster legend ───────────────────────────────────────────────────── */
+    .cluster-legend {
+      background: rgba(15, 15, 30, 0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      color: #eee;
+      line-height: 1.8;
+    }
+    .legend-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div id="branding">
+    <strong>Heatmap Animation Lab</strong>
+    <span>Clusters and KDE heat map over time — dev prototype</span>
+  </div>
+  <div id="analysis-controls">
+    <div class="analysis-title">Analysis</div>
+    <label class="analysis-option">
+      <input type="radio" name="analysis-mode" value="clusters" />
+      Cluster Analysis
+    </label>
+    <label class="analysis-option">
+      <input type="radio" name="analysis-mode" value="all-points" checked />
+      KDE Heat Map (all points)
+    </label>
+    <label class="analysis-option">
+      <input type="radio" name="analysis-mode" value="cluster-levels" />
+      KDE Heat Map (by cluster density level)
+    </label>
+    <label class="analysis-option">
+      <input type="radio" name="analysis-mode" value="gistar-heatmap" />
+      Getis-Ord Gi* Heat Map
+    </label>
+  </div>
+  <div id="playback">
+    <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
+    <button id="btn-play" title="Play/pause">&#9654;</button>
+    <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
+    <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+    <span id="frame-label">&mdash;</span>
+  </div>
+  <div id="speed-control">
+    <span>Speed</span>
+    <button class="speed-btn" data-speed="0.5">0.5x</button>
+    <button class="speed-btn active" data-speed="1">1x</button>
+    <button class="speed-btn" data-speed="2">2x</button>
+    <button class="speed-btn" data-speed="4">4x</button>
+  </div>
+  <div id="stats">
+    <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
+    <div class="stat-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
+  </div>
+</div>
+
+<div id="animation-controls" data-mode="all-points">
+  <div class="field-row window-field">
+    <label for="input-start-date">Start date</label>
+    <input id="input-start-date" type="date" value="2026-09-01" />
+  </div>
+  <div class="field-row window-field">
+    <label for="input-end-date">End date</label>
+    <input id="input-end-date" type="date" value="2026-09-29" />
+  </div>
+  <div class="field-row window-field">
+    <label for="input-window-length">Window size <span style="color:#555">(e.g. 1D, 7D, 2W)</span></label>
+    <input id="input-window-length" type="text" value="7D" placeholder="required" />
+  </div>
+  <div class="field-row window-field">
+    <label for="input-time-step">Time step <span style="color:#555">(e.g. 1D, 7D, 2W)</span></label>
+    <input id="input-time-step" type="text" value="7D" placeholder="required" />
+  </div>
+
+  <!-- KDE heat map (all points): one bandwidth -->
+  <div class="field-row all-points-field">
+    <label for="input-bandwidth">Bandwidth: <span class="bw-value" id="bandwidth-value">1500</span> ft</label>
+    <input id="input-bandwidth" type="range" min="500" max="10000" step="100" value="1500" />
+  </div>
+
+  <!-- KDE heat map (by cluster density level): one bandwidth per level, built after Apply -->
+  <div id="kde-heatmap-level-sliders" class="cluster-levels-field"></div>
+  <span id="kde-heatmap-level-hint" class="bandwidth-hint cluster-levels-field">Click Apply to load frame 1's cluster levels.</span>
+
+  <!-- Cluster Analysis: DBSCAN level toggles/sliders (from animation-lab) -->
+  <div class="level-block clusters-field" id="level-block-district" data-level="district">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="district" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">District</span>
+      <span class="level-hint">macro &middot; 2&ndash;6 mi</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="anim-slider-district" data-level="district"
+             min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="anim-stat-clusters-district">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="anim-stat-noise-district">&mdash;</span></span>
+    </div>
+  </div>
+
+  <div class="level-block clusters-field" id="level-block-neighborhood" data-level="neighborhood">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="neighborhood" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">Neighborhood</span>
+      <span class="level-hint">meso &middot; 0.5&ndash;2 mi</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="anim-slider-neighborhood" data-level="neighborhood"
+             min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="anim-stat-clusters-neighborhood">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="anim-stat-noise-neighborhood">&mdash;</span></span>
+    </div>
+  </div>
+
+  <div class="level-block clusters-field" id="level-block-street" data-level="street">
+    <div class="level-header">
+      <label class="toggle-label">
+        <input type="checkbox" class="level-toggle" data-level="street" checked />
+        <span class="toggle-track"></span>
+      </label>
+      <span class="level-name">Street</span>
+      <span class="level-hint">micro &middot; 300&ndash;2500 ft</span>
+    </div>
+    <div class="level-slider-row">
+      <span>Sparse</span>
+      <input type="range" class="level-slider" id="anim-slider-street" data-level="street"
+             min="0" max="100" step="1" value="50" />
+      <span>Dense</span>
+    </div>
+    <div class="level-stats">
+      <span class="stat-pill">Clusters: <span id="anim-stat-clusters-street">&mdash;</span></span>
+      <span class="stat-pill">Noise: <span id="anim-stat-noise-street">&mdash;</span></span>
+    </div>
+  </div>
+
+  <button id="animation-apply">Apply</button>
+  <button id="dbscan-reset" class="clusters-field">Reset</button>
+  <span id="animation-error"></span>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+</div>
+
+<!-- Leaflet is a classic script, so L is defined before the module below runs -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+(() => {
+  // Vite replaces import.meta.env.VITE_API_BASE_URL (set in .env); dev proxy forwards /api to the server
+  // Under Vite: VITE_API_BASE_URL ('/api/v1') goes through the dev proxy to leecountyincidentmap.com.
+  // Opened without Vite (no import.meta.env): call the deployed server directly.
+  const API_BASE = import.meta.env
+    ? (import.meta.env.VITE_API_BASE_URL || "/api/v1")
+    : "https://leecountyincidentmap.com/api/v1";
+
+  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const DEFAULT_ZOOM = 11;
+  const BASE_INTERVAL_MS = 2000; // time per frame at 1x speed
+
+  // run_id from the last Cluster Analysis Apply; the KDE-by-cluster routes need it (expires after 1 hour)
+  let dbscanRunId = null;
+
+  // preferCanvas: cluster frames draw many circle markers
+  const map = L.map("map", {preferCanvas: true}).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // read the time-window inputs (shared by Cluster Analysis and KDE all points);
+  // returns the params, plus the labels of any blank fields
+  function readWindowParams() {
+    const params = {
+      start_date: document.getElementById("input-start-date").value,
+      end_date: document.getElementById("input-end-date").value,
+      window_length: document.getElementById("input-window-length").value.trim(),
+      time_step: document.getElementById("input-time-step").value.trim(),
+    };
+
+    const labels = {
+      start_date: "start date",
+      end_date: "end date",
+      window_length: "window size",
+      time_step: "time step",
+    };
+
+    const missing = [];
+    for (const key in params) {
+      if (params[key] === "") {
+        missing.push(labels[key]);
+      }
+    }
+
+    return {params, missing};
+  }
+
+  // show the bandwidth value next to its label as the slider moves
+  const bandwidthInput = document.getElementById("input-bandwidth");
+  const bandwidthValue = document.getElementById("bandwidth-value");
+  bandwidthInput.addEventListener("input", () => {
+    bandwidthValue.textContent = bandwidthInput.value;
+  });
+
+  const levelSlidersContainer = document.getElementById("kde-heatmap-level-sliders");
+  const levelHint = document.getElementById("kde-heatmap-level-hint");
+
+  // build one slider per cluster level; level 0 (loosest / least-dense) first
+  function buildKDEHeatmapLevelSliders(bandwidths, minBandwidth, maxBandwidth) {
+    levelSlidersContainer.innerHTML = "";
+
+    for (let i = 0; i < bandwidths.length; i++) {
+      const row = document.createElement("div");
+      row.className = "field-row";
+      row.innerHTML = `
+        <label for="input-level-bandwidth-${i}">Level ${i} bandwidth: <span class="bw-value">${bandwidths[i]}</span> ft</label>
+        <input id="input-level-bandwidth-${i}" class="level-bandwidth" type="range"
+          min="${minBandwidth}" max="${maxBandwidth}" step="100" value="${bandwidths[i]}" />
+      `;
+      levelSlidersContainer.appendChild(row);
+    }
+
+    const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
+    for (let i = 0; i < sliders.length; i++) {
+      sliders[i].addEventListener("input", () => {
+        let value = parseFloat(sliders[i].value);
+
+        // can't go above the previous level's bandwidth
+        if (i > 0) {
+          const previous = parseFloat(sliders[i - 1].value);
+          value = Math.min(value, previous);
+        }
+        // can't go below the next level's bandwidth
+        if (i < sliders.length - 1) {
+          const next = parseFloat(sliders[i + 1].value);
+          value = Math.max(value, next);
+        }
+
+        sliders[i].value = value;
+        sliders[i].previousElementSibling.querySelector(".bw-value").textContent = value;
+      });
+    }
+
+    // e.g. "Constraint: Level 0 >= Level 1 >= Level 2"
+    const levelNames = [];
+    for (let i = 0; i < bandwidths.length; i++) {
+      levelNames.push(`Level ${i}`);
+    }
+    levelHint.textContent = `Constraint: ${levelNames.join(" >= ")}`;
+  }
+
+  // remove the sliders, so the next Apply sends no bandwidths and gets the defaults
+  function removeKDEHeatmapLevelSliders() {
+    levelSlidersContainer.innerHTML = "";
+    levelHint.textContent = "Click Apply to load frame 1's cluster levels.";
+  }
+
+
+  // ── Cluster Analysis (DBSCAN) rendering, from animation-lab ─────────────
+  // District drawn first (bottom), neighborhood middle, street on top
+  const LEVEL_DRAW_ORDER = ["district", "neighborhood", "street"];
+  const LEVEL_LABELS = { district: "District", neighborhood: "Neighborhood", street: "Street" };
+  const LEVEL_STYLES = {
+    district:     { fillOpacity: 0.1,  weight: 1,   opacity: 0.5,  pointRadius: 4, noiseRadius: 2 },
+    neighborhood: { fillOpacity: 0.16, weight: 1.5, opacity: 0.7,  pointRadius: 6, noiseRadius: 3 },
+    street:       { fillOpacity: 0.28, weight: 2,   opacity: 0.85, pointRadius: 8, noiseRadius: 4 },
+  };
+
+  // Same per-level epsilon ranges as cluster-lab.html: min_pts is a fixed
+  // backend constant (4), not user-adjustable; only epsilon changes with the
+  // slider. slider=0 (Sparse) -> large eps (few big clusters), slider=100
+  // (Dense) -> small eps (many tight clusters).
+  const LEVEL_PRESETS = {
+    district:     { epsMax: 30000, epsMin: 10000 },
+    neighborhood: { epsMax: 10000, epsMin: 3000  },
+    street:       { epsMax: 2500,  epsMin: 300   },
+  };
+
+  const levelEnabled = { district: true, neighborhood: true, street: true };
+
+  let currentClusterLayer = null; // the cluster frame's L.layerGroup on the map, if any
+  let clusterLegendControl = null;
+
+  function levelChildrenGroup(levelName, geojson) {
+    const st = LEVEL_STYLES[levelName];
+    const polygons = geojson.features.filter(f => f.properties.feature_type === "polygon");
+    const points   = geojson.features.filter(f => f.properties.feature_type === "point");
+    const group = L.layerGroup();
+
+    L.geoJSON({ type: "FeatureCollection", features: polygons }, {
+      style: feature => ({
+        fillColor: feature.properties.color,
+        color:     feature.properties.color,
+        fillOpacity: st.fillOpacity,
+        weight:      st.weight,
+        opacity:     st.opacity,
+      }),
+      onEachFeature: (feature, layer) => {
+        layer.bindTooltip(
+          `[${LEVEL_LABELS[levelName]}] Cluster ${feature.properties.cluster_id} — ${feature.properties.point_count} incidents`,
+          { sticky: true }
+        );
+      },
+    }).addTo(group);
+
+    L.geoJSON({ type: "FeatureCollection", features: points }, {
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, {
+          radius:      feature.properties.cluster_id === -1 ? st.noiseRadius : st.pointRadius,
+          fillColor:   feature.properties.color,
+          color:       "#fff",
+          weight:      0.5,
+          fillOpacity: feature.properties.cluster_id === -1 ? 0.35 : 0.85,
+        }),
+      onEachFeature: (feature, layer) => {
+        const label = feature.properties.cluster_id === -1
+          ? `[${LEVEL_LABELS[levelName]}] Noise`
+          : `[${LEVEL_LABELS[levelName]}] Cluster ${feature.properties.cluster_id}`;
+        layer.bindTooltip(label, { sticky: true });
+      },
+    }).addTo(group);
+
+    return group;
+  }
+
+  function buildClusterLegend(snapshot) {
+    const sections = LEVEL_DRAW_ORDER
+      .filter(levelName => snapshot.levels[levelName])
+      .map(levelName => {
+        const polygons = snapshot.levels[levelName].features.filter(f => f.properties.feature_type === "polygon");
+        if (!polygons.length) return "";
+        const rows = polygons
+          .map(f =>
+            `<div><span class="legend-swatch" style="background:${f.properties.color}"></span>` +
+            `Cluster ${f.properties.cluster_id} — ${f.properties.point_count} pts</div>`
+          ).join("");
+        return `<div style="margin-bottom:0.4rem"><strong style="font-size:0.7rem;color:#aaa;text-transform:uppercase;letter-spacing:0.05em">${LEVEL_LABELS[levelName]}</strong>${rows}</div>`;
+      })
+      .join("");
+
+    if (!sections.replace(/<[^>]*>/g, "").trim()) return;
+
+    clusterLegendControl = L.control({ position: "bottomright" });
+    clusterLegendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "cluster-legend");
+      div.innerHTML = sections;
+      return div;
+    };
+    clusterLegendControl.addTo(map);
+  }
+
+  // per-level Clusters / Noise pills; pass null to reset them to dashes
+  function updateClusterLevelStats(snapshot) {
+    LEVEL_DRAW_ORDER.forEach(levelName => {
+      const meta = snapshot && snapshot.levels[levelName] && snapshot.levels[levelName].metadata;
+      document.getElementById(`anim-stat-clusters-${levelName}`).textContent = meta ? meta.n_clusters : "—";
+      document.getElementById(`anim-stat-noise-${levelName}`).textContent = meta ? meta.n_noise : "—";
+    });
+  }
+
+  function clearClusterLayer() {
+    if (currentClusterLayer) {
+      map.removeLayer(currentClusterLayer);
+      currentClusterLayer = null;
+    }
+    if (clusterLegendControl) {
+      clusterLegendControl.remove();
+      clusterLegendControl = null;
+    }
+  }
+
+  function levelToParams(levelName, sliderVal) {
+    const t = sliderVal / 100;
+    const p = LEVEL_PRESETS[levelName];
+    // log scale for eps: at t=0 (Sparse) -> epsMax; at t=1 (Dense) -> epsMin
+    const eps = Math.round(Math.exp(Math.log(p.epsMax) + (Math.log(p.epsMin) - Math.log(p.epsMax)) * t));
+    return { eps };
+  }
+
+  document.querySelectorAll(".level-toggle").forEach(checkbox => {
+    checkbox.addEventListener("change", () => {
+      const levelName = checkbox.dataset.level;
+      levelEnabled[levelName] = checkbox.checked;
+      document.getElementById(`level-block-${levelName}`).classList.toggle("level-off", !checkbox.checked);
+    });
+  });
+
+
+  let currentKDEHeatmapOverlay = null; // the kde heat map image on the map, if any
+
+  const applyBtn = document.getElementById("animation-apply");
+  const resetBtn = document.getElementById("dbscan-reset");
+  const errorLabel = document.getElementById("animation-error");
+  // playback state
+  let frames = []; // frames from the last Apply (cluster snapshots or kde heat map frames)
+  let frameIndex = 0; // frame currently shown
+  let playing = false; // true while the animation is running
+  let timer = null; // the interval that advances frames
+  let speed = 1; // 0.5, 1, 2 or 4
+
+  const scrub = document.getElementById("scrub");
+  const frameLabel = document.getElementById("frame-label");
+  const statFrame = document.getElementById("stat-frame");
+  const statBandwidth = document.getElementById("stat-bandwidth");
+  const playBtn = document.getElementById('btn-play');
+  // "clusters" (DBSCAN snapshots), "gistar-heatmap" (placeholder for now), or the two KDE heat map modes:
+  // "all-points" (time windows, one bandwidth) or "cluster-levels" (uses the last DBSCAN run_id)
+  let analysisMode = "all-points";
+  const animationControls = document.getElementById("animation-controls");
+  const modeRadios = document.querySelectorAll('input[name="analysis-mode"]');
+
+  // stop playback and remove the current frames, overlays and labels
+  function clearAnimation() {
+    pause();
+    frames = [];
+    frameIndex = 0;
+    scrub.max = 0;
+    scrub.value = 0;
+    frameLabel.textContent = "—";
+    statFrame.textContent = "—";
+    statBandwidth.textContent = "—";
+
+    if (currentKDEHeatmapOverlay) {
+      map.removeLayer(currentKDEHeatmapOverlay);
+      currentKDEHeatmapOverlay = null;
+    }
+    clearClusterLayer();
+    updateClusterLevelStats(null);
+  }
+
+  // switching analysis: show that mode's fields and clear the old animation; Apply builds the new one
+  for (const radio of modeRadios) {
+    radio.addEventListener("change", () => {
+      analysisMode = radio.value;
+      animationControls.dataset.mode = analysisMode;
+      clearAnimation();
+      errorLabel.textContent = "";
+      // the controls bar's height changed (or it was hidden), so Leaflet re-measures the map
+      map.invalidateSize();
+    });
+  }
+
+  // the cluster-levels radio, and whether the last DBSCAN run can be used (checked on page load
+  // and after every Cluster Analysis Apply, since that creates a new run)
+  const clusterLevelsRadio = document.querySelector('input[name="analysis-mode"][value="cluster-levels"]');
+  const clusterLevelsLabel = clusterLevelsRadio.parentElement;
+  let clusterLevelsAvailable = true;
+
+  // enable or disable the analysis radios and buttons (disabled while a request is running)
+  function setControlsDisabled(disabled) {
+    for (const radio of modeRadios) {
+      radio.disabled = disabled;
+    }
+    // the cluster-levels radio stays disabled while the DBSCAN run can't be used
+    if (!clusterLevelsAvailable) {
+      clusterLevelsRadio.disabled = true;
+    }
+    applyBtn.disabled = disabled;
+    applyBtn.textContent = disabled ? "Loading…" : "Apply";
+    resetBtn.disabled = disabled;
+  }
+
+  // ask the backend whether the DBSCAN run can be used; enable or disable the cluster-levels radio
+  async function checkDBSCANFrames() {
+    let status = "missing";
+
+    if (dbscanRunId) {
+      try {
+        const query = new URLSearchParams({run_id: dbscanRunId});
+        const res = await fetch(`${API_BASE}/animation/kde-heatmap-dbscan/status?${query.toString()}`);
+        if (res.ok) {
+          status = (await res.json()).dbscan_status;
+        }
+      }
+      catch (err) {
+        console.error("DBSCAN status check failed", err);
+      }
+    }
+
+    // the docs only list two failure values, so anything else counts as usable
+    clusterLevelsAvailable = (status !== "missing" && status !== "no_cluster_levels");
+    clusterLevelsRadio.disabled = !clusterLevelsAvailable;
+    clusterLevelsLabel.classList.toggle("unavailable", !clusterLevelsAvailable);
+
+    // tooltip on hover explains why
+    if (clusterLevelsAvailable) {
+      clusterLevelsLabel.title = "";
+    }
+    else if (status === "no_cluster_levels") {
+      clusterLevelsLabel.title = "Frame 1 has no cluster levels (empty or all noise). Rerun Cluster Analysis with different settings.";
+    }
+    else {
+      clusterLevelsLabel.title = "No DBSCAN run found, or it expired (runs last 1 hour). Run Cluster Analysis first.";
+    }
+  }
+
+  // draw a kde heat map frame: its heat map (if any) and label
+  function renderKDEHeatmapFrame(frame) {
+    // remove the previous frame's overlay
+    if (currentKDEHeatmapOverlay) {
+      map.removeLayer(currentKDEHeatmapOverlay);
+      currentKDEHeatmapOverlay = null;
+    }
+
+    // empty window: no image, just the label
+    if (frame.image) {
+      // Leaflet wants [[south, west], [north, east]]
+      const bounds = [
+        [frame.bounds.south, frame.bounds.west],
+        [frame.bounds.north, frame.bounds.east],
+      ];
+      currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
+    }
+
+    // add the frame's note, if any (e.g. empty or all-noise frame)
+    let labelText = `${frame.label} (${frame.n_incidents} incidents)`;
+    if (frame.note) {
+      labelText = `${labelText} — ${frame.note}`;
+    }
+    frameLabel.textContent = labelText;
+  }
+
+  // draw a cluster snapshot: each level's polygons/points in draw order, legend and level stats
+  function renderClusterFrame(snapshot) {
+    clearClusterLayer();
+
+    const group = L.layerGroup();
+    LEVEL_DRAW_ORDER.forEach(levelName => {
+      if (!snapshot.levels[levelName]) return;
+      levelChildrenGroup(levelName, snapshot.levels[levelName]).addTo(group);
+    });
+    currentClusterLayer = group.addTo(map);
+
+    buildClusterLegend(snapshot);
+    updateClusterLevelStats(snapshot);
+    frameLabel.textContent = `${snapshot.label} (${snapshot.n_incidents} incidents)`;
+  }
+
+  // draw frame i with the current mode's renderer, and update the frame counter
+  function renderFrame(i) {
+    frameIndex = i;
+    if (analysisMode === "clusters") {
+      renderClusterFrame(frames[i]);
+    }
+    else {
+      renderKDEHeatmapFrame(frames[i]);
+    }
+    scrub.value = i;
+    statFrame.textContent = `${i + 1} / ${frames.length}`;
+  }
+
+  // stop the animation and show the play symbol
+  function pause() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    playing = false;
+    playBtn.innerHTML = "&#9654;";
+  }
+
+  // advance one frame every BASE_INTERVAL_MS / speed, looping at the end
+  function play() {
+    if (timer || frames.length < 2) return;
+    playing = true;
+    playBtn.innerHTML = "&#10074;&#10074;"; // pause symbol
+    timer = setInterval(() => {
+      const count = frames.length;
+      renderFrame((frameIndex + 1) % count);
+    }, BASE_INTERVAL_MS / speed);
+  }
+
+  // change speed; if playing, restart the timer at the new interval
+  function setSpeed(nextSpeed) {
+    speed = nextSpeed;
+    const buttons = document.querySelectorAll(".speed-btn");
+    for (const btn of buttons) {
+      const btnSpeed = parseFloat(btn.dataset.speed);
+      if (btnSpeed === speed) {
+        btn.classList.add("active");
+      }
+      else {
+        btn.classList.remove("active");
+      }
+    }
+    if (playing) {
+      pause();
+      play();
+    }
+  }
+
+  // move forward or back by delta frames, wrapping around at either end
+  function step(delta) {
+    if (frames.length === 0) return;
+    pause();
+    const count = frames.length;
+    renderFrame((frameIndex + delta + count) % count);
+  }
+
+  document.getElementById("btn-rewind").addEventListener("click", () => step(-1));
+  document.getElementById("btn-forward").addEventListener("click", () => step(1));
+
+  scrub.addEventListener("input", () => {
+    if (frames.length === 0) return;
+    pause();
+    renderFrame(parseInt(scrub.value, 10));
+  });
+
+  playBtn.addEventListener("click", () => {
+    if (playing) {
+      pause();
+    }
+    else {
+      play();
+    }
+  });
+
+  document.querySelectorAll(".speed-btn").forEach(btn => {
+    btn.addEventListener("click", () => setSpeed(parseFloat(btn.dataset.speed)));
+  });
+
+  // build the request url for the current analysis mode; returns {url} or {error} (stop before fetching)
+  function buildApplyRequest() {
+    if (analysisMode === "cluster-levels") {
+      if (!dbscanRunId) {
+        return {error: "Run Cluster Analysis first."};
+      }
+      // run_id plus one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
+      const query = new URLSearchParams({run_id: dbscanRunId});
+      const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
+      for (const slider of sliders) {
+        query.append("bandwidth", slider.value);
+      }
+      return {url: `${API_BASE}/animation/kde-heatmap-dbscan?${query.toString()}`};
+    }
+
+    // Cluster Analysis and KDE all points: the time-window fields are required
+    const {params, missing} = readWindowParams();
+    if (missing.length > 0) {
+      return {error: `Enter a ${missing.join(", ")}.`};
+    }
+
+    if (analysisMode === "clusters") {
+      // at least one level, with each enabled level's epsilon from its slider
+      const enabledLevels = LEVEL_DRAW_ORDER.filter(levelName => levelEnabled[levelName]);
+      if (!enabledLevels.length) {
+        return {error: "Enable at least one cluster level"};
+      }
+      params.levels = enabledLevels.join(",");
+      enabledLevels.forEach(levelName => {
+        const sliderVal = Number(document.getElementById(`anim-slider-${levelName}`).value);
+        const { eps } = levelToParams(levelName, sliderVal);
+        params[`${levelName}_eps`] = eps;
+      });
+      return {url: `${API_BASE}/animation/dbscan?${new URLSearchParams(params).toString()}`};
+    }
+
+    params.bandwidth = bandwidthInput.value;
+    return {url: `${API_BASE}/animation/kde-heatmap?${new URLSearchParams(params).toString()}`};
+  }
+
+  async function applyAnimation() {
+    // stop before touching the current animation if a field is missing
+    const {url, error} = buildApplyRequest();
+    if (error) {
+      errorLabel.textContent = error;
+      return;
+    }
+    // the mode this request is for (radios are disabled while it runs, but keep it explicit)
+    const mode = analysisMode;
+
+    // clear the previous animation before building a new one
+    clearAnimation();
+    errorLabel.textContent = "";
+
+    // disable the buttons and the analysis radios while the snapshots are being built
+    setControlsDisabled(true);
+
+    try {
+      const res = await fetch(url);
+      const body = await res.json();
+
+      if (!res.ok) {
+        errorLabel.textContent = body.error || (mode === "clusters"
+          ? "Failed to load DBSCAN snapshots"
+          : "Failed to load kde heat map snapshots");
+        // e.g. the run expired or the slider count no longer matches frame 1
+        if (mode === "cluster-levels") {
+          removeKDEHeatmapLevelSliders();
+          await checkDBSCANFrames(); // the run may have expired
+        }
+        return;
+      }
+
+      const newFrames = body.frames;
+      console.log(`frames: ${newFrames.length}`);
+
+      // keep all frames and show the first one
+      frames = newFrames;
+      scrub.max = Math.max(frames.length - 1, 0);
+      if (frames.length > 0) {
+        renderFrame(0);
+      }
+      else {
+        frameLabel.textContent = "No frames in this date range";
+      }
+
+      // bandwidth(s) the displayed snapshots were built with
+      if (mode === "clusters") {
+        // a new DBSCAN run was created: remember its id, drop the old KDE level sliders
+        // (the level count may have changed; next cluster-levels Apply uses defaults) and recheck availability
+        dbscanRunId = body.run_id;
+        removeKDEHeatmapLevelSliders();
+        await checkDBSCANFrames();
+      }
+      else if (mode === "cluster-levels") {
+        statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
+        // rebuild the sliders at the bandwidths the backend used (defaults on the first Apply)
+        buildKDEHeatmapLevelSliders(body.bandwidths, body.min_bandwidth, body.max_bandwidth);
+      }
+      else {
+        statBandwidth.textContent = `${body.bandwidth} ft`;
+        // take the slider range from the backend
+        bandwidthInput.min = body.min_bandwidth;
+        bandwidthInput.max = body.max_bandwidth;
+      }
+    }
+    catch (err) {
+      console.error("Apply failed", err);
+      errorLabel.textContent = "Request failed. Check the connection and try again.";
+    }
+    finally {
+      // runs after every return or error, so the buttons and radios always come back
+      setControlsDisabled(false);
+    }
+  }
+
+  applyBtn.addEventListener("click", applyAnimation);
+
+  // Cluster Analysis reset: level toggles back on and sliders to the middle, then back to the
+  // blank "Click Apply" state. The date/window fields are shared with KDE (all points), so they're kept.
+  resetBtn.addEventListener("click", () => {
+    document.querySelectorAll(".level-toggle").forEach(checkbox => {
+      checkbox.checked = true;
+      levelEnabled[checkbox.dataset.level] = true;
+      document.getElementById(`level-block-${checkbox.dataset.level}`).classList.remove("level-off");
+    });
+    document.querySelectorAll(".level-slider").forEach(slider => { slider.value = 50; });
+    errorLabel.textContent = "";
+    clearAnimation();
+  });
+
+  checkDBSCANFrames();
+})();
+</script>
+</body>
+</html>

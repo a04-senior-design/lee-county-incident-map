@@ -12,6 +12,7 @@ function MapInfoBar({
   selectedNatures,
   setSelectedNatures,
   filteredListWithLocation,
+  filteredListWithoutLocation,
   allType,
   natures,
   onNatureChange,
@@ -38,7 +39,7 @@ function MapInfoBar({
           justifyContent: 'right', //{xs:'space-evenly', md:'center'}
           gap: 2,
           // flexDirection:{xs:'column', md:'row'},
-          width: { sm: '100%', md: '570px' },
+          width: { sm: '100%', md: '620px' },
           height: (theme) => theme.mapCustom.mapInfoBarHeight,
 
           borderBottomLeftRadius: '6px'
@@ -59,14 +60,14 @@ function MapInfoBar({
         icon={<ModeStandbyIcon />}
         label={
           filteredListWithLocation.length !== 0
-            ? `${filteredListWithLocation.length} incidents`
+            ? `${filteredListWithLocation.length}/${filteredListWithLocation.length + filteredListWithoutLocation.length}  incidents`
             : '- incidents'
         }
       />
      
       <Box
         sx={{
-          width: '900px',
+          width: '500px',
           '& .m_8fb7ebe7': {
             fontWeight: 500
           }

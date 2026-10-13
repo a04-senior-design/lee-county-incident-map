@@ -169,7 +169,7 @@ function IntList({
         open={isPulled}
         onClose={toggleDrawer(false)}
       >
-        {DrawerList}
+        {isPulled && DrawerList}
       </Drawer>
     </div>
   )

@@ -9,8 +9,19 @@ import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import AppAlert from './AppAlert/AppAlert'
 import dayjs from 'dayjs'
-import Analysis from './Analysis/Analysis'
 const today = dayjs()
+
+function cleanDuplicateId(incidentList) {
+  const bucket = new Set()
+  const newList = incidentList.filter((inc) => {
+    if (bucket.has(inc.source_incident_id)) return false
+    bucket.add(inc.source_incident_id)
+    return true
+  })
+  return newList
+}
+
+const LEE_COUNTY_CENTER = [26.56, -81.87]
 function MapPage() {
   // ── Constants ──────────────────────────────────────────────────────────────
   // Color palette keyed by incident nature (first word, lowercase)
@@ -27,7 +38,6 @@ function MapPage() {
     domestic: '#c0392b',
     default: '#7f8c8d'
   }
-  const LEE_COUNTY_CENTER = [26.56, -81.87]
   const database = import.meta.env.VITE_API_BASE_URL
   // ── State ──────────────────────────────────────────────────────────────────
   const [daysAgo, setDaysAgo] = useState(3)
@@ -39,6 +49,7 @@ function MapPage() {
     today.subtract(7, 'day').format('YYYY-MM-DD'),
     today.format('YYYY-MM-DD')
   ])
+  const [start_date, end_date] = dateRange
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
   const [isPulled, setIsPulled] = useState(false) //pull out the interactive list
@@ -55,45 +66,91 @@ function MapPage() {
   //── Analysis mode ───────────────────────────────────────────────────────────
   const [analysisOn, setAnalysisOn] = useState(false)
 
+  
+  const [selectedId, setSelectedId] = useState(null)
   useEffect(() => {
     const [fromDay, toDay] = dateRange
     if (!fromDay || !toDay) return
 
-    async function fetchData() {
+    const controller = new AbortController()
+
+    async function fetchAll() {
       try {
-        console.log('fromDay:', fromDay)
-        console.log('toDay:', toDay)
-        console.log('await....')
-        const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`
-        //console.log('API URL:', url)
-        const res = await fetch(url)
-        if (!res.ok) {
-          const errorText = await res.text()
-          throw new Error(`HTTP ${res.status}: ${errorText}`)
-        }
+        let all = []
+        let cursor = null
+        let count = 0
+        do {
+          const params = new URLSearchParams({
+            from: fromDay,
+            to: toDay,
+            limit: '500'
+          })
+          if (cursor) params.set('cursor', cursor) // confirm this param name
 
-        const incidentList = await res.json()
+          const res = await fetch(`${database}/incidents?${params}`, {
+            signal: controller.signal
+          })
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+          }
 
-        console.log('incidentList =', incidentList)
+          const page = await res.json()
+          all = all.concat(page.incidents)
+          cursor = page.next_cursor
+          count++
+        } while (count < 20)
 
-        setAllIncidents(incidentList.incidents)
-
-        const newNatures = [
-          ...new Set(
-            incidentList.incidents.map((inc) => inc.category || 'Unknown')
-          )
-        ].sort()
-
-        setSelectedNatures(newNatures)
-
-        console.log('fetched successfully')
+        setAllIncidents(all)
+        setSelectedNatures(
+          [...new Set(all.map((inc) => inc.category || 'Unknown'))].sort()
+        )
       } catch (err) {
-        console.error(err)
+        if (err.name !== 'AbortError') console.error(err)
       }
     }
 
-    fetchData()
+    fetchAll()
+    return () => controller.abort()
   }, [dateRange])
+  // useEffect(() => {
+  //   const [fromDay, toDay] = dateRange
+  //   if (!fromDay || !toDay) return
+
+  //   async function fetchData() {
+  //     try {
+  //       console.log('fromDay:', fromDay)
+  //       console.log('toDay:', toDay)
+  //       console.log('await....')
+  //       const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`
+  //       //console.log('API URL:', url)
+  //       const res = await fetch(url)
+  //       if (!res.ok) {
+  //         const errorText = await res.text()
+  //         throw new Error(`HTTP ${res.status}: ${errorText}`)
+  //       }
+
+  //       const incidentList = await res.json()
+
+  //       console.log('incidentList =', incidentList)
+
+  //       setAllIncidents(incidentList.incidents)
+
+  //       const newNatures = [
+  //         ...new Set(
+  //           incidentList.incidents.map((inc) => inc.category || 'Unknown')
+  //         )
+  //       ].sort()
+
+  //       setSelectedNatures(newNatures)
+
+  //       console.log('fetched successfully')
+  //     } catch (err) {
+  //       console.error(err)
+  //     }
+  //   }
+
+  //   fetchData()
+  // }, [dateRange])
 
   // useEffect(() => {
   //   setSelectedNatures(natures)
@@ -113,21 +170,20 @@ function MapPage() {
   //const filteredList = handleNature(filteredByDays, selectedNatures)
   const filteredListWithLocation = useMemo(
     () =>
-      filteredList.filter(
-        (incident) => incident.lat !== null && incident.lon !== null
+      cleanDuplicateId(
+        filteredList.filter((i) => i.lat != null && i.lon != null)
       ),
     [filteredList]
   )
-
   const filteredListWithoutLocation = useMemo(
     () =>
-      filteredList.filter(
-        (incident) => incident.lat === null && incident.lon === null
+      cleanDuplicateId(
+        filteredList.filter((i) => i.lat == null || i.lon == null)
       ),
     [filteredList]
   )
-
-  console.log('list with loc', filteredListWithLocation)
+  //console.log(newListWithLocation)
+  //console.log('list with loc', filteredListWithLocation)
   //console.log('list without loc',filteredListWithoutLocation)
   //check
 
@@ -201,6 +257,9 @@ function MapPage() {
         SetAlertContent={SetAlertContent}
         analysisOn={analysisOn}
         setAnalysisOn={setAnalysisOn}
+        dateRange={dateRange}
+        setIdPopup ={setIdPopup}
+        setSelectedId = {setSelectedId}
       />
 
       <Box
@@ -283,10 +342,11 @@ function MapPage() {
                 sx={{
                   width: '400px',
                   fontSize: '11px',
-                  color: (theme) => theme.palette.grey[600]
+                  fontWeight: 600,
+                  color: (theme) => theme.palette.grey[400]
                 }}
               >
-                Lee County Sheriff's Office — last 1,000 incidents (48hr delay)
+                Lee County Sheriff's Office
               </Typography>
             </Box>
             {/* Map display bar */}
@@ -296,6 +356,7 @@ function MapPage() {
               selectedNatures={selectedNatures}
               setSelectedNatures={setSelectedNatures}
               filteredListWithLocation={filteredListWithLocation}
+              filteredListWithoutLocation={filteredListWithoutLocation}
               allType={allType}
               natures={natures}
               onNatureChange={onNatureChange}
@@ -307,7 +368,7 @@ function MapPage() {
             sx={{
               height: 'calc(100% - 50px)',
               width: isPulled === true ? 'calc(100% + 400px)' : '100%',
-              transform: `translateX(${isPulled? '-200px' : '0'})`,
+              transform: `translateX(${isPulled ? '-200px' : '0'})`,
               transition: 'linear 0.3s'
             }}
           >
@@ -321,6 +382,10 @@ function MapPage() {
               noLocationMove={noLocationMove}
               SetAlertContent={SetAlertContent}
               analysisOn={analysisOn}
+              selectedId ={selectedId}
+              setSelectedId={setSelectedId}
+              start_date ={start_date}
+              end_date = {end_date}
             />
           </Box>
         </Paper>
