@@ -439,6 +439,8 @@
   const LEE_COUNTY_CENTER = [26.56, -81.87];
   const DEFAULT_ZOOM = 11;
   const BASE_INTERVAL_MS = 2000; // time per frame at 1x speed
+  // backend/api (leecad_api); this page must be served from one of its ALLOWED_ORIGINS
+  const API_BASE = "http://157.245.129.175/api/v1";
 
   // preferCanvas: cluster frames draw many circle markers
   const map = L.map("map", {preferCanvas: true}).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
@@ -724,6 +726,8 @@
   const clusterLevelsRadio = document.querySelector('input[name="analysis-mode"][value="cluster-levels"]');
   const clusterLevelsLabel = clusterLevelsRadio.parentElement;
   let clusterLevelsAvailable = true;
+  // the DBSCAN run from the last Cluster Analysis Apply; the KDE cluster-level routes read its frame files
+  let dbscanRunId = null;
 
   // enable or disable the analysis radios and buttons (disabled while a request is running)
   function setControlsDisabled(disabled) {
@@ -741,10 +745,15 @@
 
   // ask the backend whether the DBSCAN frame files can be used; enable or disable the cluster-levels radio
   async function checkDBSCANFrames() {
-    const res = await fetch("/api/animation/kde-heatmap-dbscan/status");
-    const body = await res.json();
+    // no Cluster Analysis run yet, so there are no frame files to ask about
+    let dbscanStatus = "missing";
+    if (dbscanRunId) {
+      const res = await fetch(`${API_BASE}/animation/kde-heatmap-dbscan/status?run_id=${dbscanRunId}`);
+      const body = await res.json();
+      dbscanStatus = body.dbscan_status;
+    }
 
-    clusterLevelsAvailable = (body.dbscan_status === "available");
+    clusterLevelsAvailable = (dbscanStatus === "available");
     clusterLevelsRadio.disabled = !clusterLevelsAvailable;
     clusterLevelsLabel.classList.toggle("unavailable", !clusterLevelsAvailable);
 
@@ -752,7 +761,7 @@
     if (clusterLevelsAvailable) {
       clusterLevelsLabel.title = "";
     }
-    else if (body.dbscan_status === "missing") {
+    else if (dbscanStatus === "missing") {
       clusterLevelsLabel.title = "No DBSCAN frame files found. Run Cluster Analysis first.";
     }
     else {
@@ -889,12 +898,12 @@
   function buildApplyRequest() {
     if (analysisMode === "cluster-levels") {
       // one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
-      const query = new URLSearchParams();
+      const query = new URLSearchParams({run_id: dbscanRunId});
       const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
       for (const slider of sliders) {
         query.append("bandwidth", slider.value);
       }
-      return {url: `/api/animation/kde-heatmap-dbscan?${query.toString()}`};
+      return {url: `${API_BASE}/animation/kde-heatmap-dbscan?${query.toString()}`};
     }
 
     // Cluster Analysis and KDE all points: the time-window fields are required
@@ -915,11 +924,11 @@
         const { eps } = levelToParams(levelName, sliderVal);
         params[`${levelName}_eps`] = eps;
       });
-      return {url: `/api/animation/dbscan?${new URLSearchParams(params).toString()}`};
+      return {url: `${API_BASE}/animation/dbscan?${new URLSearchParams(params).toString()}`};
     }
 
     params.bandwidth = bandwidthInput.value;
-    return {url: `/api/animation/kde-heatmap?${new URLSearchParams(params).toString()}`};
+    return {url: `${API_BASE}/animation/kde-heatmap?${new URLSearchParams(params).toString()}`};
   }
 
   async function applyAnimation() {
@@ -969,8 +978,9 @@
 
       // bandwidth(s) the displayed snapshots were built with
       if (mode === "clusters") {
-        // the DBSCAN frame files were just rewritten: the KDE cluster-level count may have changed,
+        // this Apply made a new DBSCAN run: the KDE cluster-level count may have changed,
         // so drop the old sliders (next cluster-levels Apply uses defaults) and recheck availability
+        dbscanRunId = body.run_id;
         removeKDEHeatmapLevelSliders();
         await checkDBSCANFrames();
       }
@@ -985,6 +995,11 @@
         bandwidthInput.min = body.min_bandwidth;
         bandwidthInput.max = body.max_bandwidth;
       }
+    }
+    catch (err) {
+      // the API is unreachable, or the browser blocked it because this page's origin isn't in ALLOWED_ORIGINS
+      errorLabel.textContent = `Could not reach the API at ${API_BASE} (page origin: ${location.origin})`;
+      console.error(err);
     }
     finally {
       // runs after every return or error, so the buttons and radios always come back

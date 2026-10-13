@@ -370,6 +370,8 @@
 (() => {
   const LEE_COUNTY_CENTER = [26.56, -81.87];
   const DEFAULT_ZOOM = 11;
+  // backend/api (leecad_api); this page must be served from one of its ALLOWED_ORIGINS
+  const API_BASE = "http://157.245.129.175/api/v1";
 
   // map setup
   const map = L.map("map", { preferCanvas: true }).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
@@ -424,6 +426,8 @@
   let clusterLegendControl = null;
   // DBSCAN is fetched lazily, the first time the Cluster Analysis radio is chosen
   let clustersLoaded = false;
+  // the run from the last /clusters request; /kde-heatmap reads its DBSCAN results for cluster_set 1
+  let clustersRunId = null;
   const dbscanError = document.getElementById("dbscan-controls-error");
 
   // explanation shown when cluster-dependent-KDE is disabled, keyed by the backend's dbscan_status
@@ -782,12 +786,13 @@
     const qs = new URLSearchParams(params).toString();
 
     try {
-      const res = await fetch(`/api/clusters${qs ? "?" + qs : ""}`);
+      const res = await fetch(`${API_BASE}/clusters${qs ? "?" + qs : ""}`);
       const body = await res.json();
 
       if (!res.ok) {
         throw new Error(body.error || `HTTP ${res.status}`);
       }
+      clustersRunId = body.run_id;
 
       // the response still wraps results in frames; render the first snapshot
       const snapshot = body.frames && body.frames.length ? body.frames[0] : null;
@@ -894,8 +899,10 @@
     const params = new URLSearchParams();
     if (clusterSet !== undefined && clusterSet !== null) params.append("cluster_set", clusterSet);
     if (bandwidths) bandwidths.forEach(bw => params.append("bandwidth", bw));
+    // without a run_id the backend reports dbscan_status "missing"
+    if (clustersRunId) params.append("run_id", clustersRunId);
     const query = params.toString();
-    const url = query ? `/api/kde-heatmap?${query}` : "/api/kde-heatmap";
+    const url = query ? `${API_BASE}/kde-heatmap?${query}` : `${API_BASE}/kde-heatmap`;
 
     fetch(url)
       .then(async res => {
