@@ -9,6 +9,8 @@ import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import AppAlert from './AppAlert/AppAlert'
 import dayjs from 'dayjs'
+import { useAuth } from '../Context/AuthContext'
+
 const today = dayjs()
 
 function cleanDuplicateId(incidentList) {
@@ -23,6 +25,8 @@ function cleanDuplicateId(incidentList) {
 
 const LEE_COUNTY_CENTER = [26.56, -81.87]
 function MapPage() {
+  const { user } = useAuth()
+
   // ── Constants ──────────────────────────────────────────────────────────────
   // Color palette keyed by incident nature (first word, lowercase)
   const NATURE_COLORS = {
@@ -63,10 +67,28 @@ function MapPage() {
     severity: '',
     content: ''
   })
+  useEffect(() => {
+    if (user) {
+      SetAlertContent({
+        open: true,
+        vertical: 'bottom',
+        horizontal: 'center',
+        severity: 'success',
+        content: 'User login successfully'
+      })
+    } else {
+      SetAlertContent({
+        open: true,
+        vertical: 'bottom',
+        horizontal: 'center',
+        severity: 'warning',
+        content: 'log in as guest'
+      })
+    }
+  }, [user])
   //── Analysis mode ───────────────────────────────────────────────────────────
   const [analysisOn, setAnalysisOn] = useState(false)
 
-  
   const [selectedId, setSelectedId] = useState(null)
   useEffect(() => {
     const [fromDay, toDay] = dateRange
@@ -258,8 +280,8 @@ function MapPage() {
         analysisOn={analysisOn}
         setAnalysisOn={setAnalysisOn}
         dateRange={dateRange}
-        setIdPopup ={setIdPopup}
-        setSelectedId = {setSelectedId}
+        setIdPopup={setIdPopup}
+        setSelectedId={setSelectedId}
       />
 
       <Box
@@ -382,10 +404,10 @@ function MapPage() {
               noLocationMove={noLocationMove}
               SetAlertContent={SetAlertContent}
               analysisOn={analysisOn}
-              selectedId ={selectedId}
+              selectedId={selectedId}
               setSelectedId={setSelectedId}
-              start_date ={start_date}
-              end_date = {end_date}
+              start_date={start_date}
+              end_date={end_date}
             />
           </Box>
         </Paper>

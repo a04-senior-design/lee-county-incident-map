@@ -9,7 +9,8 @@ function AuthProvider({ children }) {
   const setSession = (currentUser, tokenAccess) => {
     setUser({
       id: currentUser.id,
-      email: currentUser.email
+      email: currentUser.email,
+      name: currentUser.name
     })
     setToken(tokenAccess)
     //console.log('in auth user and token are: ', currentUser.id, tokenAccess)
@@ -28,6 +29,7 @@ function AuthProvider({ children }) {
     } finally {
       setUser(null)
       setToken(null)
+      
     }
   }
   useEffect(() => {

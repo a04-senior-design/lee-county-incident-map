@@ -59,6 +59,40 @@ function Login() {
     content: ''
   })
   // --------Function------------------------------------------
+  const generateAlert = (severity, content) => {
+    SetAlertContent((prev) => ({
+      ...prev,
+      open: true,
+      severity: severity,
+      content: content
+    }))
+  }
+  const signupCheck = () => {
+    if (!userSignup.name) {
+      generateAlert('error', 'Please enter your name')
+      return false
+    } else if (!/^[a-zA-Z]+$/.test(userSignup.name)) {
+      generateAlert('error', 'Name must contain letters only')
+      return false
+    } else if (!userSignup.email) {
+      generateAlert('error', 'Please enter your email')
+      return false
+    } else if (!/^[^\s@]+@gmail\.com$/.test(userSignup.email)) {
+      generateAlert('error', 'Please enter a valid Gmail address')
+      return false
+    } else if (!userSignup.password) {
+      generateAlert('error', 'Please enter your password')
+      return false
+    } else if (!/^(?=.*\d).{8,}$/.test(userSignup.password)) {
+      generateAlert(
+        'error',
+        'Password must be at least 8 characters and contain at least 1 number'
+      )
+      return false
+    }
+
+    return true
+  }
   const handleLogin = async () => {
     try {
       const res = await fetch(`${url}/auth/login`, {
@@ -75,27 +109,17 @@ function Login() {
       const data = await res.json()
 
       if (!res.ok) throw new Error(data.error || 'Login failed')
-      SetAlertContent((prev) => ({
-        ...prev,
-        open: true,
-        severity: 'success',
-        content: 'User login successfully'
-      }))
+      generateAlert('success', 'User login successfully')
 
       setSession(data.user, data.access_token)
       setUserLogin({ email: '', password: '' })
       navigate('/')
     } catch (error) {
-      SetAlertContent((prev) => ({
-        ...prev,
-        open: true,
-        severity: 'error',
-        content: error.message
-      }))
+      generateAlert('error', error.message)
     }
   }
   const handleSignup = async () => {
-    if (passwordLength < 8) {
+    if (!signupCheck()) {
       return
     }
     try {
@@ -107,30 +131,21 @@ function Login() {
         },
         body: JSON.stringify({
           email: userSignup.email,
-          password: userSignup.password
+          password: userSignup.password,
+          name: userSignup.name
         })
       })
       const data = await res.json()
 
       if (!res.ok) throw new Error(data.error || 'Signup failed')
-      SetAlertContent((prev) => ({
-        ...prev,
-        open: true,
-        severity: 'success',
-        content: 'User registed successfully'
-      }))
+      generateAlert('success', 'User registed successfully')
       setSession(data.user, data.access_token)
 
       setUserSignup({ name: '', email: '', password: '' })
       setPasswordLength(null)
       navigate('/')
     } catch (error) {
-      SetAlertContent((prev) => ({
-        ...prev,
-        open: true,
-        severity: 'error',
-        content: error.message
-      }))
+      generateAlert('error', error.message)
     }
   }
   return (
@@ -142,76 +157,88 @@ function Login() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: ''
+          backgroundColor: '#0b3447'
         }}
       >
         <Paper
-          elevation={24}
+          elevation={3}
           sx={{
+            borderRadius: 5,
             width: '100vw',
             height: '100vh',
             display: 'flex',
             position: 'fixed',
-            backgroundColor: '#104862',
-            zIndex: 2
+            background: 'linear-gradient(135deg, #46B1E1 0%, #104862 100%)',
+            zIndex: 2,
+            '&:hover': {
+              transform: 'scale(1.02)',
+              boxShadow: 24
+            },
+            transition: 'ease-in-out 0.3s'
           }}
         ></Paper>
         <Paper
-          elevation={24}
+          elevation={3}
           sx={{
+            borderRadius: 5,
             width: '80vw',
             height: '87.5vh',
             display: 'flex',
             position: 'fixed',
-            backgroundColor: '#46B1E1',
+            background: 'linear-gradient(135deg, #C1E5F5 0%, #46B1E1 100%)',
             zIndex: 2,
             top: '6.5%',
             '&:hover': {
-              transform: 'scale(1.02)'
+              transform: 'scale(1.02)',
+              boxShadow: 24
             },
             transition: 'ease-in-out 0.3s'
           }}
         ></Paper>
         <Paper
-          elevation={24}
+          elevation={3}
           sx={{
+            borderRadius: 5,
             width: '60vw',
             height: '75vh',
             display: 'flex',
             position: 'fixed',
-            backgroundColor: '#C1E5F5',
+            background: 'linear-gradient(135deg, #e5eff3 0%, #C1E5F5 100%)',
             zIndex: 9,
             top: '12.5%',
             '&:hover': {
-              transform: 'scale(1.02)'
+              transform: 'scale(1.02)',
+              boxShadow: 24
             },
             transition: 'ease-in-out 0.3s'
           }}
         ></Paper>
         <Paper
-          elevation={18}
+          elevation={3}
           sx={{
+            borderRadius: 5,
             width: 'clamp(390px, 65vw,1000px)',
             height: '62.5vh',
             display: 'flex',
             zIndex: 10,
             '&:hover': {
-              transform: 'scale(1.02)'
+              transform: 'scale(1.02)',
+              boxShadow: 24
             },
             transition: 'ease-in-out 0.3s'
           }}
         >
           <Box
             sx={{
-              borderRadius: '4px',
+              borderRadius: 5,
               height: '100%',
               flexGrow: 1,
-              p: 4
+              background: 'linear-gradient(135deg, #d8dee7 0%, #53a1b4 100%)'
             }}
           >
             <LeftLoginPage />
           </Box>
-          <Paper
+          <Box
             sx={{
               height: '100%',
               width: '42%',
@@ -439,7 +466,7 @@ function Login() {
                 <Typography>The password must be 8 characters long.</Typography>
               </Alert>
             </Box>
-          </Paper>
+          </Box>
         </Paper>
       </Box>
     </Box>
