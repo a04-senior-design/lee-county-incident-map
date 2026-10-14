@@ -451,20 +451,42 @@ function Login() {
                   Continue as Guest
                 </Link>
               </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Alert
+                  severity={passwordLength >= 8 ? 'success' : 'warning'}
+                  sx={{
+                    width: '250px',
+                    height: '80px',
+                    display: 'flex',
 
-              <Alert
-                severity={passwordLength >= 8 ? 'success' : 'warning'}
-                sx={{
-                  width: '250px',
-                  height: '80px',
-                  display: 'flex',
+                    opacity: loginOn ? 0 : 100,
+                    transition: 'linear 0.3s'
+                  }}
+                >
+                  <Typography>
+                    The password must be 8 characters long.
+                  </Typography>
+                </Alert>
+                <Alert
+                  severity={
+                    /\d/.test(userSignup.password)
+                      ? 'success'
+                      : 'warning'
+                  }
+                  sx={{
+                    width: '250px',
+                    height: '80px',
+                    display: 'flex',
 
-                  opacity: loginOn ? 0 : 100,
-                  transition: 'linear 0.3s'
-                }}
-              >
-                <Typography>The password must be 8 characters long.</Typography>
-              </Alert>
+                    opacity: loginOn ? 0 : 100,
+                    transition: 'linear 0.3s'
+                  }}
+                >
+                  <Typography>
+                    The password must have at least 1 number.
+                  </Typography>
+                </Alert>
+              </Box>
             </Box>
           </Box>
         </Paper>
