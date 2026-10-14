@@ -5,13 +5,17 @@ generate a PNG heat map image.  This image is then overlaid onto a folium map,
 a Python wrapper around the Leaflet JavaScript library.
 """
 
-from GiStarHeatMap import GiStarHeatMap
+
 import os
+
 import pandas as pd
 import numpy as np
+import geopandas as gpd
 from pyproj import Transformer
 import folium
 import branca.colormap as bcm
+
+from GiStarHeatMap import GiStarHeatMap
 
 
 #----------------------Gi-Star heatmap overlay generated below--------------------------------------------------------------------
@@ -56,8 +60,22 @@ x_max = np.max(easting) + padding
 y_min = np.min(northing) - padding
 y_max = np.max(northing) + padding
 
+
+# HAVE BACKEND READ THIS FILE ONCE UPON STARTUP
+
+# land polygon from the county land mask shapefile (the "WATER" type features are ignored)
+LAND_MASK_PATH = os.path.join(os.path.dirname(__file__), "CountyBackground_Land_Mask", "CountyBackground.shp")
+land_gdf = gpd.read_file(LAND_MASK_PATH)
+land_gdf = land_gdf[land_gdf["TYPE"] == "LAND"].to_crs("EPSG:2882")
+# make_valid repairs the invalid LAND polygon before the pieces are merged
+land_polygon = land_gdf.geometry.make_valid().union_all()
+
+
+
+# distance_band will be adjustable by the user
+distance_band = 1.5 * cell_size
 # instantiate a GiStarHeatMap object
-gi_star_obj = GiStarHeatMap(points=data_points, distance_band=cell_size * 1.5, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, cell_size=cell_size, output_dir=".")
+gi_star_obj = GiStarHeatMap(points=data_points, distance_band=distance_band, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, cell_size=cell_size, land_polygon=land_polygon, output_dir=".")
 # generate the heat map overlay PNG image file and get its latitude/longitude boundaries
 bounds = gi_star_obj.generate_zscore_heatmap_image()
 print(f'bounds:  {bounds}')
