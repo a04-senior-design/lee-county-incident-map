@@ -1,39 +1,21 @@
 import Box from '@mui/material/Box'
-import AppBar from '../../components/AppBar/AppBar'
 import Paper from '@mui/material/Paper'
-import ModeSelect from '../../components/ModeSelect/ModeSelect'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
-import CarAnimation from '../../assets/carAnimation.svg'
 import Link from '@mui/material/Link'
 import Button from '@mui/material/Button'
 import Alert from '@mui/material/Alert'
 import InputAdornment from '@mui/material/InputAdornment'
-import SearchIcon from '@mui/icons-material/Search'
-import { useState, useContext } from 'react'
+import { useState } from 'react'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import AppAlert from '../../components/AppAlert/AppAlert'
-import { Navigate, useNavigate } from 'react-router-dom'
+import {  useNavigate } from 'react-router-dom'
 import { useAuth } from '../../Context/AuthContext'
 import LeftLoginPage from './LeftLoginPage/LeftLoginPage'
-import * as React from 'react'
-import { useTheme } from '@mui/material/styles'
-import MobileStepper from '@mui/material/MobileStepper'
-import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft'
-import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight'
 const url = import.meta.env.VITE_API_BASE_URL
 function Login() {
-  const theme = useTheme()
-  const [activeStep, setActiveStep] = React.useState(0)
-
-  const handleNext = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep + 1)
-  }
-
-  const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1)
-  }
+ 
   const { setSession } = useAuth()
   const navigate = useNavigate()
   const [loginOn, setLoginOn] = useState(true)
@@ -153,7 +135,7 @@ function Login() {
       <Box
         sx={{
           width: '100vw',
-          height: (theme) => `calc(100vh)`,
+          height: `calc(100vh)`,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',

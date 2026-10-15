@@ -5,7 +5,6 @@ function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [authReady, setAuthReady] = useState(false)
-
   const setSession = (currentUser, tokenAccess) => {
     setUser({
       id: currentUser.id,
@@ -29,7 +28,7 @@ function AuthProvider({ children }) {
     } finally {
       setUser(null)
       setToken(null)
-      
+
     }
   }
   useEffect(() => {

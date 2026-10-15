@@ -22,6 +22,8 @@ import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
 import ListItemText from '@mui/material/ListItemText'
 import Analysis from './Analysis/Analysis'
+import LinearProgress from '@mui/material/LinearProgress'
+import Typography from '@mui/material/Typography'
 let iconCache = {}
 //create a custom hook to move the map when user click on the item
 function MoveMap({ selectedLocation, markerRef = null }) {
@@ -29,7 +31,7 @@ function MoveMap({ selectedLocation, markerRef = null }) {
 
   useEffect(() => {
     if (selectedLocation) {
-      map.flyTo([selectedLocation[0], selectedLocation[1]], 17, {
+      map.flyTo([selectedLocation[0], selectedLocation[1]], 16, {
         duration: 1.5
       })
       map.once('moveend', () => {
@@ -42,7 +44,19 @@ function MoveMap({ selectedLocation, markerRef = null }) {
   return null
 }
 //setup the bound
-
+const check = {
+  address: 'TAMIAMI TRL / MICHAEL G RIPPE PKWY',
+  category: 'TRAFFIC',
+  city: 'FORT MYERS',
+  disposition: null,
+  lat: null,
+  lon: null,
+  nature: 'CRASH',
+  occurred_at: '2026-10-14T21:49:55+00:00',
+  source: 'lee_county_traffic',
+  source_incident_id: 'L26558835',
+  status: 'ARRIVED'
+}
 const LEECOUNTY_BOUNDARY = [
   [
     [26.78980006125687, -82.272362941444],
@@ -111,8 +125,9 @@ function Map({
   selectedId,
   setSelectedId,
   start_date,
-  end_date
-
+  end_date,
+  isLoading,
+  setIsLoading
 }) {
   //render++
   //console.log('Map render: ', render)
@@ -123,7 +138,6 @@ function Map({
   const [addressList, setAddressList] = useState(null)
   const timer = useRef(null)
   //This state is used for addresswithout location to trigger the function in Map
- 
 
   // "Go to Map" from the list: locationMove is a new array on every click,
   // so this effect fires even when you click the same incident twice
@@ -298,6 +312,32 @@ function Map({
 
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+      <Box
+        sx={{
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(255,255,255,0.7)',
+          zIndex: 5000,
+          position: 'absolute',
+          alignItems: 'center',
+          justifyContent: 'center',
+          display: isLoading ? 'flex' : 'none',
+          flexDirection: 'column',
+          gap: 1
+        }}
+      >
+        <Typography
+          sx={{
+            color: '#757575',
+            fontSize: 'clamp(20px, 20px + 2rem, 40px)',
+            fontWeight: 600
+          }}
+        >
+          Data Loading...
+        </Typography>
+        <LinearProgress sx={{ width: '50%' }} aria-label='Loading…' />
+      </Box>
+
       {addressSearch === true && (
         <Box
           sx={{
@@ -454,7 +494,12 @@ function Map({
           }}
         />
         <AutoResize />
-        <Analysis active={analysisOn} startDate={start_date} endDate ={end_date} />
+        <Analysis
+          active={analysisOn}
+          startDate={start_date}
+          endDate={end_date}
+          setIsLoading={setIsLoading}
+        />
         {!analysisOn && (
           <MarkerClusterGroup
             chunkedLoading
@@ -500,7 +545,7 @@ function Map({
                   {selectedIncident.nature}
                 </span>
               </h4>
-              <h4 className='popup-content-normal'>{`Disposition: ${selectedIncident.status}`}</h4>
+              <h4 className='popup-content-normal'>{`Disposition: ${selectedIncident.source === 'lee_county_traffic' ? selectedIncident.status : selectedIncident.source === 'lee_county' ? selectedIncident.disposition : 'N/A'}`}</h4>
               <h4 className='popup-content-normal'>{`Date: ${selectedIncident.occurred_at}`}</h4>
             </div>
           </Popup>

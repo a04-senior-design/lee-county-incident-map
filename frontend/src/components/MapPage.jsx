@@ -67,6 +67,8 @@ function MapPage() {
     severity: '',
     content: ''
   })
+
+  const [isLoading, setIsLoading] = useState(false)
   useEffect(() => {
     if (user) {
       SetAlertContent({
@@ -101,6 +103,7 @@ function MapPage() {
         let all = []
         let cursor = null
         let count = 0
+        setIsLoading(true)
         do {
           const params = new URLSearchParams({
             from: fromDay,
@@ -108,7 +111,7 @@ function MapPage() {
             limit: '500'
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name
-
+          
           const res = await fetch(`${database}/incidents?${params}`, {
             signal: controller.signal
           })
@@ -121,7 +124,7 @@ function MapPage() {
           cursor = page.next_cursor
           count++
         } while (count < 20)
-
+        setIsLoading(false)
         setAllIncidents(all)
         setSelectedNatures(
           [...new Set(all.map((inc) => inc.category || 'Unknown'))].sort()
@@ -408,6 +411,8 @@ function MapPage() {
               setSelectedId={setSelectedId}
               start_date={start_date}
               end_date={end_date}
+              isLoading = {isLoading}
+              setIsLoading={setIsLoading}
             />
           </Box>
         </Paper>

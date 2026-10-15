@@ -22,7 +22,7 @@ function BoardBar({
   analysisOn,
   setAnalysisOn,
   dateRange,
-  setIdPopup,
+
   setSelectedId
 }) {
   // const [activeBtn, setActiveBtn] = useState({
