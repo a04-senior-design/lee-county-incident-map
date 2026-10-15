@@ -84,18 +84,7 @@ function AppBar() {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button
-            sx={[
-              { color: 'white' },
-              (theme) =>
-                theme.applyStyles('dark', {
-                  color: 'rgba(255, 255, 255, 0.92)'
-                })
-            ]}
-            startIcon={<HomeIcon />}
-          >
-            Home
-          </Button>
+          
           <Button
             sx={[
               { color: 'white' },
@@ -136,7 +125,7 @@ function AppBar() {
       </Box>
       {user ? (
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Tooltip title='Notification'>
+          {/* <Tooltip title='Notification'>
             <IconButton
               sx={{
                 '.MuiSvgIcon-root': {
@@ -149,7 +138,7 @@ function AppBar() {
                 <NotificationsNoneIcon sx={{ color: 'white' }} />
               </Badge>
             </IconButton>
-          </Tooltip>
+          </Tooltip> */}
 
           <Box sx={{ ml: 1.5, cursor: 'pointer' }}>
             <Avatar
@@ -173,11 +162,7 @@ function AppBar() {
                 }
               }}
             >
-              <MenuItem onClick={handleClose}>
-                {' '}
-                <AccountCircleIcon sx={{ marginRight: 1 }} /> Profile
-              </MenuItem>
-              <Divider />
+           
               <MenuItem onClick={handleClose}>
                 <ManageAccountsIcon sx={{ marginRight: 1 }} />
                 My account

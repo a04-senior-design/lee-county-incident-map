@@ -125,7 +125,10 @@ function BoardBar({
             { padding: '8px 16px' }
           ]}
           startIcon={<TravelExploreIcon />}
-          onClick={() => setAddressSearch(!addressSearch)}
+          onClick={() => {
+            setAddressSearch(!addressSearch)
+            setSelectedId(null)
+          }}
           disabled={analysisOn ? true : false}
         >
           Adress Search

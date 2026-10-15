@@ -43,6 +43,9 @@ function IncidentCardContent({
           key={index}
           sx={[
             {
+              '&:hover':{
+                transform:'scale(1.02)'
+              },
               width: '95%',
               height: '180px',
               flexShrink: 0,

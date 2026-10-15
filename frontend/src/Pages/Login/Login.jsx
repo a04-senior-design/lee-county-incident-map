@@ -10,12 +10,11 @@ import { useState } from 'react'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import AppAlert from '../../components/AppAlert/AppAlert'
-import {  useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../Context/AuthContext'
 import LeftLoginPage from './LeftLoginPage/LeftLoginPage'
 const url = import.meta.env.VITE_API_BASE_URL
 function Login() {
- 
   const { setSession } = useAuth()
   const navigate = useNavigate()
   const [loginOn, setLoginOn] = useState(true)
@@ -53,7 +52,7 @@ function Login() {
     if (!userSignup.name) {
       generateAlert('error', 'Please enter your name')
       return false
-    } else if (!/^[a-zA-Z]+$/.test(userSignup.name)) {
+    } else if (!/^[a-zA-Z ]+$/.test(userSignup.name)) {
       generateAlert('error', 'Name must contain letters only')
       return false
     } else if (!userSignup.email) {
@@ -229,7 +228,17 @@ function Login() {
               justifyContent: 'center'
             }}
           >
-            <Box>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+
+                if (loginOn) {
+                  handleLogin()
+                } else {
+                  handleSignup()
+                }
+              }}
+            >
               <Box sx={{ marginTop: '50px', marginBottom: '30px' }}>
                 <Typography
                   variant='span'
@@ -403,16 +412,13 @@ function Login() {
                     marginBottom: '16px'
                   }}
                 >
-                  <Button
-                    variant='contained'
-                    onClick={() => {
-                      loginOn ? handleLogin() : handleSignup()
-                    }}
-                  >
+                  <Button variant='contained' type='submit'>
                     {loginOn ? 'Login' : 'Signup'}
                   </Button>
                   <Button
                     variant='outlined'
+                    type="button"
+
                     onClick={() => {
                       setLoginOn(!loginOn)
                       setVisible(false)
@@ -451,9 +457,7 @@ function Login() {
                 </Alert>
                 <Alert
                   severity={
-                    /\d/.test(userSignup.password)
-                      ? 'success'
-                      : 'warning'
+                    /\d/.test(userSignup.password) ? 'success' : 'warning'
                   }
                   sx={{
                     width: '250px',
@@ -469,7 +473,7 @@ function Login() {
                   </Typography>
                 </Alert>
               </Box>
-            </Box>
+            </form>
           </Box>
         </Paper>
       </Box>
