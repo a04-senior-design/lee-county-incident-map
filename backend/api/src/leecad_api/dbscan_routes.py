@@ -14,16 +14,10 @@ from ml.generate_kde_heatmap_snapshots import (
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
 
-from leecad_api import queries, runs
-from leecad_api.kde_routes import DEFAULT_BANDWIDTH, MAX_BANDWIDTH, MIN_BANDWIDTH, _png_to_base64
+from leecad_api import filters, queries, runs
+from leecad_api.kde_routes import DEFAULT_BANDWIDTH, MAX_BANDWIDTH, MIN_BANDWIDTH, _png_to_base64, _utc
 
 bp = Blueprint("dbscan", __name__)
-
-
-def _utc(value: str) -> pd.Timestamp:
-    # dates are read as UTC, like build_time_windows() does with the stored timestamps
-    timestamp = pd.Timestamp(value)
-    return timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp
 
 
 def _parse_dbscan_level_overrides(args) -> dict:
@@ -64,8 +58,9 @@ def animation_dbscan():
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
         with current_app.pool.connection() as conn:
-            incidents = conn.execute(queries.MAPPED_INCIDENTS_BETWEEN,
-                                     (pd.Timestamp(start_date), pd.Timestamp(end_date))).fetchall()
+            incidents = conn.execute(*queries.mapped_incidents_between(
+                filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
+            )).fetchall()
         frames = build_dbscan_snapshots(
             start_date=start_date,
             end_date=end_date,
@@ -158,7 +153,9 @@ def clusters():
         if end - start > pd.Timedelta(days=60):
             raise ValueError("at most 60 days per request")
         with current_app.pool.connection() as conn:
-            rows = conn.execute(queries.MAPPED_INCIDENTS_BETWEEN, (start, end)).fetchall()
+            rows = conn.execute(*queries.mapped_incidents_between(
+                filters.parse_without_dates(request.args), start, end
+            )).fetchall()
         # NAD 1983 StatePlane Florida West FIPS 0902 Feet, as load_points() did
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:2882", always_xy=True)
         easting, northing = transformer.transform([r["lng"] for r in rows], [r["lat"] for r in rows])

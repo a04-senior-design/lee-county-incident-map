@@ -150,14 +150,31 @@ paths:
 
   /api/v1/kde-heatmap:
     get:
-      summary: KDE heatmap of every mapped incident
+      summary: KDE heatmap of the mapped incidents
       description: |
-        One heatmap image over all incidents with a trusted coordinate inside
-        Lee County. With cluster_set=1 it uses the cluster levels from a
-        /api/v1/clusters run instead, one bandwidth per level, so it needs
-        that run's run_id. dbscan_status says whether the run's results can
-        be used, and is missing without a run_id.
+        One heatmap image over the incidents with a trusted coordinate inside
+        Lee County. start_date and end_date are read as UTC, like the other
+        KDE and DBSCAN routes, and without them every incident is used. Takes
+        the same category, city, source and bbox filters as /api/v1/incidents;
+        days, from and to are refused. With
+        cluster_set=1 it uses the cluster levels from a /api/v1/clusters run
+        instead, one bandwidth per level, so it needs that run's run_id; the
+        filters are ignored then, so pass them to /api/v1/clusters.
+        dbscan_status says whether the run's results can be used, and is
+        missing without a run_id.
       parameters:
+        - name: start_date
+          in: query
+          description: Defaults to the earliest incident.
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: Defaults to the latest incident.
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: bandwidth
           in: query
           description: |
@@ -195,7 +212,14 @@ paths:
         window, which is cut off at end_date and includes it. Each frame has
         its own bounds, but all frames share one color scale, so a color
         means the same density in every frame. At most 30 windows.
+        Takes the same category, city, source and bbox filters as
+        /api/v1/incidents. Dates come only from start_date and end_date, so
+        days, from and to are refused.
       parameters:
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: start_date
           in: query
           required: true
@@ -242,7 +266,14 @@ paths:
         capped at 60, because DBSCAN memory grows with the square of the
         number of incidents. Each incident's cluster level is kept for an
         hour under the returned run_id, for /api/v1/kde-heatmap?cluster_set=1.
+        Takes the same category, city, source and bbox filters as
+        /api/v1/incidents. Dates come only from start_date and end_date, so
+        days, from and to are refused.
       parameters:
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: start_date
           in: query
           description: Defaults to 30 days before end_date.
@@ -299,7 +330,14 @@ paths:
         DBSCAN at each enabled level in every window. Each frame's cluster
         levels are kept for an hour under the returned run_id, which the
         KDE-with-clusters routes need. At most 30 windows.
+        Takes the same category, city, source and bbox filters as
+        /api/v1/incidents. Dates come only from start_date and end_date, so
+        days, from and to are refused.
       parameters:
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: start_date
           in: query
           required: true
