@@ -728,6 +728,70 @@ paths:
         "404":
           $ref: "#/components/responses/NoSuchArea"
 
+  /api/v1/users/me/alerts:
+    get:
+      summary: New incidents in your saved areas
+      description: |
+        Incidents mapped since you last marked alerts seen, inside any of your
+        areas with alerts on and in that area's categories. Only incidents
+        that happened in the last 30 days count, so an old incident mapped
+        late doesn't alert. Oldest first, at most 100. Reading does not mark
+        them seen, so the bell can poll this; when the user opens the bell,
+        send the cursor to /api/v1/users/me/alerts/seen. If has_more is true,
+        mark these seen and call again for the rest.
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: Your new alerts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Incident"
+                        - type: object
+                          properties:
+                            areas:
+                              type: array
+                              items: { type: string }
+                              description: The names of your areas the incident is in.
+                  cursor:
+                    type: [string, "null"]
+                    description: Marks these alerts seen. Null when there are none.
+                  has_more: { type: boolean }
+        "401":
+          $ref: "#/components/responses/SignIn"
+
+  /api/v1/users/me/alerts/seen:
+    post:
+      summary: Mark alerts seen
+      description: |
+        Everything up to the cursor stops being an alert. A cursor older than
+        what you have already marked seen changes nothing.
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cursor]
+              properties:
+                cursor: { type: string, description: The cursor from /api/v1/users/me/alerts. }
+      responses:
+        "204":
+          description: Marked seen.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+
 components:
   securitySchemes:
     accessToken:

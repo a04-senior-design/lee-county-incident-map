@@ -1,8 +1,15 @@
+import base64
+from datetime import datetime
+
 from flask import Blueprint, current_app, g, jsonify, request
 
 from leecad_api.auth import API, requires_access_token
+from leecad_api.queries import COLUMNS, FROM_AND_JOINS
 
 AREAS = f"{API}/users/me/areas"
+ALERTS = f"{API}/users/me/alerts"
+MAX_ALERTS = 100
+METERS_PER_MILE = 1609.344
 MAX_AREAS = 10
 MAX_NAME = 100
 MIN_RADIUS_MI = 0.1
@@ -42,6 +49,58 @@ START_ALERTS = """
     INSERT INTO alert_state (user_id, geocoded_at, source, source_incident_id)
     VALUES (%s, now(), '', '') ON CONFLICT (user_id) DO NOTHING
 """
+
+
+# Incidents mapped after the user's marker, inside any of their enabled areas. Old
+# incidents are still being mapped, so occurred_at keeps those from alerting as new.
+NEW_ALERTS = COLUMNS + """,
+           i.geocoded_at,
+           array_agg(a.name ORDER BY a.id) AS areas
+""" + FROM_AND_JOINS + f"""
+    JOIN alert_state s ON s.user_id = %(user_id)s
+    JOIN saved_areas a ON a.user_id = %(user_id)s AND a.alerts_enabled
+     AND ST_DWithin(i.geom, a.geom, a.radius_mi * {METERS_PER_MILE})
+     AND (cardinality(a.categories) = 0 OR COALESCE(nc.category_code, 'OTHER') = ANY(a.categories))
+    WHERE i.location_quality = 'in_county' AND i.geocode_trusted
+      AND i.occurred_at > now() - interval '30 days'
+      AND (i.geocoded_at, i.source, i.source_incident_id) > (s.geocoded_at, s.source, s.source_incident_id)
+    GROUP BY i.source, i.source_incident_id, nc.category_code, ca.raw_city, ca.canonical_city
+    ORDER BY i.geocoded_at, i.source, i.source_incident_id
+    LIMIT %(limit)s
+"""
+
+# Only forward, so an old cursor sent late can't bring back alerts already seen.
+MARK_SEEN = """
+    UPDATE alert_state SET geocoded_at = %s, source = %s, source_incident_id = %s
+     WHERE user_id = %s AND (geocoded_at, source, source_incident_id) < (%s, %s, %s)
+"""
+
+
+@bp.get(ALERTS)
+@requires_access_token
+def alerts():
+    with current_app.pool.connection() as conn:
+        rows = conn.execute(NEW_ALERTS, {"user_id": g.user_id, "limit": MAX_ALERTS + 1}).fetchall()
+    has_more = len(rows) > MAX_ALERTS
+    rows = rows[:MAX_ALERTS]
+    return jsonify({
+        "alerts": [_alert(r) for r in rows],
+        "cursor": _encode_cursor(rows[-1]) if rows else None,
+        "has_more": has_more,
+    })
+
+
+@bp.post(f"{ALERTS}/seen")
+@requires_access_token
+def mark_seen():
+    body = request.get_json(silent=True)
+    cursor = body.get("cursor") if isinstance(body, dict) else None
+    if not isinstance(cursor, str):
+        raise ValueError("send the cursor from /api/v1/users/me/alerts")
+    marker = _decode_cursor(cursor)
+    with current_app.pool.connection() as conn:
+        conn.execute(MARK_SEEN, (*marker, g.user_id, *marker))
+    return "", 204
 
 
 @bp.get(AREAS)
@@ -155,3 +214,21 @@ def _number(value, name: str, low: float, high: float) -> float:
 
 def _area(row) -> dict:
     return {**row, "created_at": row["created_at"].isoformat()}
+
+
+def _alert(row) -> dict:
+    alert = {key: value for key, value in row.items() if key != "geocoded_at"}
+    return {**alert, "occurred_at": row["occurred_at"].isoformat()}
+
+
+def _encode_cursor(row) -> str:
+    raw = f"{row['geocoded_at'].isoformat()}|{row['source']}|{row['source_incident_id']}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime, str, str]:
+    try:
+        geocoded_at, source, source_incident_id = base64.urlsafe_b64decode(cursor.encode()).decode().split("|", 2)
+        return datetime.fromisoformat(geocoded_at), source, source_incident_id
+    except (ValueError, UnicodeDecodeError):
+        raise ValueError("cursor is not valid") from None
