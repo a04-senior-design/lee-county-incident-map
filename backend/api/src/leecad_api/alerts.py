@@ -96,7 +96,7 @@ def mark_seen():
     body = request.get_json(silent=True)
     cursor = body.get("cursor") if isinstance(body, dict) else None
     if not isinstance(cursor, str):
-        raise ValueError("send the cursor from /api/v1/users/me/alerts")
+        raise ValueError("send the cursor from /api/v1/users/me/alerts")  # noqa: TRY004, the app answers ValueError with a 400
     marker = _decode_cursor(cursor)
     with current_app.pool.connection() as conn:
         conn.execute(MARK_SEEN, (*marker, g.user_id, *marker))
@@ -163,7 +163,7 @@ def delete_area(area_id):
 def _body() -> dict:
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
-        raise ValueError("send a JSON object")
+        raise ValueError("send a JSON object")  # noqa: TRY004, the app answers ValueError with a 400
     unknown = [name for name in body if name not in FIELDS]
     if unknown:
         raise ValueError(f"unknown field {unknown[0]}; fields are {', '.join(FIELDS)}")
