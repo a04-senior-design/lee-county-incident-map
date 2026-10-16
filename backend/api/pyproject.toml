@@ -18,8 +18,10 @@ dependencies = [
     "pyproj==3.8.0",
     "python-dotenv>=1.2",
     "rasterio==1.5.1",
+    "reportlab==5.0.1",
     "scikit-learn==1.9.1",
     "shapely==2.1.2",
+    "staticmap==0.5.7",
 ]
 
 [dependency-groups]

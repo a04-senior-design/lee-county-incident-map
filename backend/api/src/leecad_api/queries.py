@@ -175,6 +175,12 @@ def incident_list(filters, limit: int, cursor: str | None) -> tuple[str, list]:
     return sql, params
 
 
+def report_incidents(filters) -> tuple[str, list]:
+    # every match, not a page: the report counts them all
+    where, params = _conditions(replace(filters, mapped_only=True))
+    return COLUMNS + FROM_AND_JOINS + _where(where) + ORDER, params
+
+
 # Mapped only: one stray geocode outside the county would stretch the KDE grid to cover it.
 def mapped_points(filters, start=None, end=None) -> tuple[str, list]:
     where, params = _conditions(replace(filters, mapped_only=True))

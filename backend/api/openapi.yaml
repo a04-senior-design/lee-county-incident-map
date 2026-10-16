@@ -792,6 +792,45 @@ paths:
         "401":
           $ref: "#/components/responses/SignIn"
 
+  /api/v1/reports:
+    get:
+      summary: PDF report of the mapped incidents
+      description: |
+        A PDF with a map of the incidents, summary numbers, and charts by
+        category, city, day, hour and weekday. Takes the same filters as
+        /api/v1/incidents, but needs both from and to, and covers at most 366
+        days counting both ends. Only incidents with a trusted coordinate
+        inside Lee County are included, as on the map. Times are Eastern.
+      security:
+        - accessToken: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Start date, inclusive, read as Eastern time.
+          schema: { type: string, format: date }
+          example: "2026-09-01"
+        - name: to
+          in: query
+          required: true
+          description: End date, inclusive, read as Eastern time.
+          schema: { type: string, format: date }
+          example: "2026-09-30"
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
+      responses:
+        "200":
+          description: The report, as a download named lee-county-report-FROM_to_TO.pdf.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+
 components:
   securitySchemes:
     accessToken:

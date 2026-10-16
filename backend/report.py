@@ -23,17 +23,23 @@ _BLUE  = "#2563eb"
 _LIGHT = colors.HexColor("#f0f4f8")
 _RULE  = colors.HexColor("#ddd")
 
+# keyed on the category codes from /api/v1/incident-types, in lowercase
 _NATURE_COLORS = {
-    "disturbance": "#e74c3c",
-    "assault":     "#c0392b",
-    "theft":       "#e67e22",
-    "burglary":    "#d35400",
-    "traffic":     "#3498db",
-    "suspicious":  "#9b59b6",
-    "medical":     "#1abc9c",
-    "fire":        "#e74c3c",
-    "welfare":     "#27ae60",
-    "domestic":    "#c0392b",
+    "violent":     "#d62728",
+    "firearm":     "#8c1c13",
+    "sex_offense": "#9467bd",
+    "burglary":    "#ff7f0e",
+    "theft":       "#e6a817",
+    "vehicle":     "#bcbd22",
+    "fraud":       "#17becf",
+    "drugs":       "#2ca02c",
+    "harassment":  "#e377c2",
+    "disturbance": "#1f77b4",
+    "traffic":     "#6baed6",
+    "death":       "#2d2d2d",
+    "animal":      "#8c564b",
+    "hazard":      "#ffd700",
+    "other":       "#7f8c8d",
 }
 
 
@@ -47,7 +53,7 @@ def _incident_color(nature):
 def _map_snapshot(incidents, bounds):
     """Download OSM tiles and plot incident dots; returns a PNG BytesIO or None."""
     try:
-        m = StaticMap(750, 450)
+        m = StaticMap(750, 450, tile_request_timeout=10)
 
         lat_c = (bounds["north"] + bounds["south"]) / 2
         lng_c = (bounds["east"]  + bounds["west"])  / 2
