@@ -638,6 +638,96 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /api/v1/users/me/areas:
+    get:
+      summary: Your saved areas
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: Oldest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  areas:
+                    type: array
+                    items: { $ref: "#/components/schemas/SavedArea" }
+        "401":
+          $ref: "#/components/responses/SignIn"
+    post:
+      summary: Save an area
+      description: |
+        A circle you get alerts for. At most 10 per account. Saving your
+        first area starts your alerts, so only incidents mapped after that
+        show up in /api/v1/users/me/alerts.
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SavedAreaFields"
+                - required: [name, lat, lon, radius_mi]
+      responses:
+        "201":
+          description: The saved area.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedArea" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+        "409":
+          description: You already have 10 saved areas.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/users/me/areas/{area_id}:
+    parameters:
+      - name: area_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      summary: Change a saved area
+      description: Only the fields you send change.
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SavedAreaFields" }
+      responses:
+        "200":
+          description: The area after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedArea" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+        "404":
+          $ref: "#/components/responses/NoSuchArea"
+    delete:
+      summary: Delete a saved area
+      security:
+        - accessToken: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/SignIn"
+        "404":
+          $ref: "#/components/responses/NoSuchArea"
+
 components:
   securitySchemes:
     accessToken:
@@ -727,7 +817,17 @@ components:
 
   responses:
     BadRequest:
-      description: A query parameter was invalid. The message says which one.
+      description: A query parameter or body field was invalid. The message says which one.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    SignIn:
+      description: No access token, or one that is not valid.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NoSuchArea:
+      description: No area with that id belongs to you.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -955,6 +1055,34 @@ components:
                 oneOf:
                   - $ref: "#/components/schemas/Bounds"
                   - type: "null"
+
+    SavedAreaFields:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100, example: Home }
+        lat:
+          type: number
+          minimum: 26.2
+          maximum: 27.0
+          description: The center. Must be in or near Lee County.
+          example: 26.64
+        lon: { type: number, minimum: -82.4, maximum: -81.4, example: -81.87 }
+        radius_mi: { type: number, minimum: 0.1, maximum: 10, example: 0.5 }
+        categories:
+          type: array
+          items: { type: string }
+          description: Codes from /api/v1/incident-types. Empty means every category.
+          example: [BURGLARY, THEFT]
+        alerts_enabled: { type: boolean, default: true }
+
+    SavedArea:
+      allOf:
+        - $ref: "#/components/schemas/SavedAreaFields"
+        - type: object
+          properties:
+            id: { type: integer }
+            created_at: { type: string, format: date-time }
 
     KdeAnimation:
       type: object
