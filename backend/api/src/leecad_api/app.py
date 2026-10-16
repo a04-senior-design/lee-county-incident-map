@@ -8,7 +8,7 @@ from psycopg import OperationalError
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
 
-from leecad_api import auth, dbscan_routes, kde_routes, queries
+from leecad_api import auth, dbscan_routes, gi_star_routes, kde_routes, queries
 from leecad_api import filters as filters_module
 
 API = "/api/v1"
@@ -29,6 +29,7 @@ def create_app(database_url: str | None = None) -> Flask:
     app.register_blueprint(auth.bp)
     app.register_blueprint(kde_routes.bp)
     app.register_blueprint(dbscan_routes.bp)
+    app.register_blueprint(gi_star_routes.bp)
 
     @app.errorhandler(ValueError)
     def bad_request(exc):

@@ -432,6 +432,43 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/gi-star-heatmap:
+    get:
+      summary: Getis-Ord Gi* heatmap of the mapped incidents
+      description: |
+        Counts the incidents in a grid of 2500 ft cells and colors each cell
+        by its Gi* z-score: how much more (or less) busy it and its
+        neighbors are than the county as a whole. Cells whose center is in
+        the water are left out unless they hold an incident. Dates and
+        filters work as on /api/v1/kde-heatmap.
+      parameters:
+        - name: start_date
+          in: query
+          description: Read as UTC. Defaults to the earliest incident.
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: Read as UTC. Defaults to the latest incident.
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
+        - name: distance_band
+          in: query
+          description: |
+            How far, in feet, from a cell's center its neighbors can be.
+            Clamped to 500 to 10000. Defaults to 2500.
+          schema: { type: number, default: 2500 }
+      responses:
+        "200":
+          description: The heatmap.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GiStarHeatmap" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/auth/register:
     post:
       summary: Create an account
@@ -825,6 +862,23 @@ components:
         cluster_set: { type: integer }
         cluster_set_labels: { type: array, items: { type: string } }
         dbscan_status: { type: string, enum: [missing, all_noise, available] }
+
+    GiStarHeatmap:
+      type: object
+      properties:
+        image: { type: string, description: A PNG as a data URL. }
+        bounds: { $ref: "#/components/schemas/Bounds" }
+        legend:
+          type: object
+          properties:
+            colors: { type: array, items: { type: string } }
+            vmin: { type: number }
+            vmax: { type: number }
+            ticks: { type: array, items: { type: number } }
+            caption: { type: string, example: Gi* z-score }
+        distance_band: { type: number }
+        min_distance_band: { type: number }
+        max_distance_band: { type: number }
 
     KdeAnimation:
       type: object
