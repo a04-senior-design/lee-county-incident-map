@@ -67,8 +67,10 @@ function MapPage() {
     severity: '',
     content: ''
   })
-
+  //── Overlay ───────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false)
+  //── Route safety ───────────────────────────────────────────────────────────
+  const [routeOn, setRouteOn] = useState(false)
   useEffect(() => {
     if (user) {
       SetAlertContent({
@@ -111,7 +113,7 @@ function MapPage() {
             limit: '500'
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name
-          
+
           const res = await fetch(`${database}/incidents?${params}`, {
             signal: controller.signal
           })
@@ -285,6 +287,8 @@ function MapPage() {
         dateRange={dateRange}
         setIdPopup={setIdPopup}
         setSelectedId={setSelectedId}
+        routeOn = {routeOn}
+        setRouteOn = {setRouteOn}
       />
 
       <Box
@@ -331,6 +335,7 @@ function MapPage() {
             }}
           >
             <AppAlert
+            
               AlertContent={AlertContent}
               SetAlertContent={SetAlertContent}
             />
@@ -411,8 +416,10 @@ function MapPage() {
               setSelectedId={setSelectedId}
               start_date={start_date}
               end_date={end_date}
-              isLoading = {isLoading}
+              isLoading={isLoading}
               setIsLoading={setIsLoading}
+              routeOn={routeOn}
+              setRouteOn={setRouteOn}
             />
           </Box>
         </Paper>

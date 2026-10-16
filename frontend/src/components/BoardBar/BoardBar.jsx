@@ -8,6 +8,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import { useState } from 'react'
 import AnimationIcon from '@mui/icons-material/Animation'
 import { useAuth } from '../../Context/AuthContext'
+import RouteIcon from '@mui/icons-material/Route';
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -22,7 +23,8 @@ function BoardBar({
   analysisOn,
   setAnalysisOn,
   dateRange,
-
+  routeOn,
+  setRouteOn,
   setSelectedId
 }) {
   // const [activeBtn, setActiveBtn] = useState({
@@ -128,6 +130,7 @@ function BoardBar({
           onClick={() => {
             setAddressSearch(!addressSearch)
             setSelectedId(null)
+            setRouteOn(false)
           }}
           disabled={analysisOn ? true : false}
         >
@@ -153,6 +156,7 @@ function BoardBar({
             setAddressSearch(false)
             handleActive(e)
             setSelectedId(null)
+            setRouteOn(false)
           }}
         >
           {analysisOn ? 'Back to View Mode' : 'Analysis Mode'}
@@ -196,6 +200,27 @@ function BoardBar({
           }}
         >
           User Reports
+        </Button>
+        <Button
+          disabled={user ? false : true}
+          variant={activeBtn === 'report' ? 'contained' : 'text'}
+          color={activeBtn === 'report' ? 'info' : 'primary'}
+          value='report'
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
+            { padding: '8px 20px' }
+          ]}
+          startIcon={<RouteIcon />}
+          onClick={(e) => {
+            setRouteOn(!routeOn)
+            setSelectedId(null)
+            setAddressSearch(false)
+          }}
+        >
+          Route Grader
         </Button>
       </Box>
       <Box>

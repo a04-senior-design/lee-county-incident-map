@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, memo, useMemo } from 'react'
+import { useEffect, useState, useRef, memo, useMemo, useCallback } from 'react'
 import {
   MapContainer,
   TileLayer,
@@ -24,6 +24,8 @@ import ListItemText from '@mui/material/ListItemText'
 import Analysis from './Analysis/Analysis'
 import LinearProgress from '@mui/material/LinearProgress'
 import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
+import RouteGrader from './RouteSafety/RouteGrader.jsx'
 let iconCache = {}
 //create a custom hook to move the map when user click on the item
 function MoveMap({ selectedLocation, markerRef = null }) {
@@ -127,8 +129,11 @@ function Map({
   start_date,
   end_date,
   isLoading,
-  setIsLoading
+  setIsLoading,
+  routeOn,
+  setRouteOn
 }) {
+  const exitRoute = useCallback(() => setRouteOn(false), [])
   //render++
   //console.log('Map render: ', render)
   const markerRef = useRef(null) //useRef to mark the popup id
@@ -137,8 +142,19 @@ function Map({
   const [addressType, setAddressType] = useState('')
   const [addressList, setAddressList] = useState(null)
   const timer = useRef(null)
-  //This state is used for addresswithout location to trigger the function in Map
-
+  //route---------------------------------------------
+  const [startRoute, setStartRoute] = useState('')
+  const [startRouteList, setStartRouteList] = useState(null)
+  const [endRoute, setEndRoute] = useState('')
+  const [EndRouteList, setEndRouteList] = useState(null)
+  const [routePoints, setRoutePoints] = useState(null)
+  const [searchWay, setSearchWay] = useState('click') //set between click or type in search box
+  useEffect(() => {
+    if (!routeOn) {
+      setSearchWay('searchBox')
+      setRoutePoints(null)
+    }
+  }, [routeOn])
   // "Go to Map" from the list: locationMove is a new array on every click,
   // so this effect fires even when you click the same incident twice
   useEffect(() => {
@@ -162,8 +178,17 @@ function Map({
     () => finalList.find((i) => i.source_incident_id === selectedId) ?? null,
     [finalList, selectedId]
   )
+  //Alert-------------------------------------------
+  const showAlert = (severity, content) =>
+    SetAlertContent((prev) => ({
+      ...prev,
+      open: true,
+      severity,
+      content,
+      key: Date.now() // new key = new alert instance
+    }))
   //Check the result inside or outside the polygon
-  function checkBound(coordinates) {
+  function checkBound(coordinates, setRoutePair = false) {
     //console.log(coordinates)
     const longitude = coordinates[0][0]
     const latitude = coordinates[0][1]
@@ -203,6 +228,8 @@ function Map({
     if (count % 2 !== 0) {
       //console.log('success')
       setIsInside(true)
+      if (setRoutePair) setRoutePair([latitude, longitude]) //this line is for route safety
+      console.log('setroute: ', setRoutePair)
       setSelectedAddress([latitude, longitude])
       //generate alert
       SetAlertContent((prev) => ({
@@ -223,7 +250,7 @@ function Map({
     }
   }
   //search function
-  async function searchAddress(address) {
+  async function searchAddress(address, setList = setAddressList) {
     const token = import.meta.env.VITE_MAPBOX_TOKEN
     //console.log('go search')
     try {
@@ -238,7 +265,7 @@ function Map({
       console.log('has data:', data)
       if (data.features.length > 0) {
         console.log(data.features)
-        setAddressList(data.features)
+        setList(data.features)
         //console.log(addressList)
         //console.log('has list:', addressList)
       }
@@ -295,10 +322,10 @@ function Map({
     return iconCache[color]
   }
 
-  const searching = (e) => {
+  const searching = (e, set = setAddressType, setList = setAddressList) => {
     const value = e.target.value
 
-    setAddressType(value)
+    set(value)
 
     clearTimeout(timer.current)
 
@@ -306,7 +333,7 @@ function Map({
 
     timer.current = setTimeout(() => {
       //console.log('CALLING SEARCH:', value)
-      searchAddress(value)
+      searchAddress(value, setList)
     }, 500)
   }
 
@@ -437,6 +464,233 @@ function Map({
           </Box>
         </Box>
       )}
+      {routeOn === true && (
+        <Box
+          sx={{
+            position: 'absolute',
+            zIndex: 1000,
+            top: '100px',
+            width: '100vw',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            gap: 4
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              flexDirection: 'column'
+            }}
+          >
+            <TextField
+              disabled={searchWay === 'click' ? true : false}
+              autoComplete='off'
+              id='filterList'
+              type='text'
+              placeholder='Enter Start Route...'
+              variant='outlined'
+              size='small'
+              onChange={(e) => {
+                searching(e, setStartRoute, setStartRouteList)
+              }}
+              value={startRoute}
+              sx={[
+                {
+                  width: '350px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  color: 'black',
+                  '& .MuiInputBase-input': {
+                    color: 'black'
+                  },
+                  //For the outlined of the button and textfield things
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  },
+
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  },
+
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  }
+                },
+                (theme) =>
+                  theme.applyStyles('light', {
+                    borderColor: theme.palette.grey[900]
+                  }),
+                (theme) =>
+                  theme.applyStyles('dark', {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'none'
+                    }
+                  })
+              ]}
+            />
+            <List sx={{ p: '3px 0' }}>
+              {startRoute.length !== 0 &&
+                startRouteList?.map((address, index) => (
+                  <>
+                    <ListItem
+                      key={index}
+                      sx={{
+                        backgroundColor: 'white',
+                        width: '350px',
+                        p: 0
+                      }}
+                    >
+                      <ListItemButton
+                        onClick={() => {
+                          setStartRoute(`${address.place_name}`)
+                          setStartRouteList(null)
+                          checkBound([address.center], setRoutePoints)
+                        }}
+                      >
+                        <ListItemText
+                          primary={address.place_name}
+                          sx={{
+                            color: 'black'
+                          }}
+                          slotProps={{
+                            textOverflow: 'ellipsis',
+                            overflow: 'hidden'
+                          }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                    <Divider component='li' />
+                  </>
+                ))}
+            </List>
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              flexDirection: 'column'
+            }}
+          >
+            <TextField
+              disabled={searchWay === 'click' ? true : false}
+              autoComplete='off'
+              id='filterList'
+              type='text'
+              placeholder='Enter End Route...'
+              variant='outlined'
+              size='small'
+              onChange={(e) => {
+                searching(e, setEndRoute, setEndRouteList)
+              }}
+              value={endRoute}
+              sx={[
+                {
+                  width: '350px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  color: 'black',
+                  '& .MuiInputBase-input': {
+                    color: 'black'
+                  },
+                  //For the outlined of the button and textfield things
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  },
+
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  },
+
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: 'none'
+                  }
+                },
+                (theme) =>
+                  theme.applyStyles('light', {
+                    borderColor: theme.palette.grey[900]
+                  }),
+                (theme) =>
+                  theme.applyStyles('dark', {
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'none'
+                    }
+                  })
+              ]}
+            />
+            <List sx={{ p: '3px 0' }}>
+              {endRoute.length !== 0 &&
+                EndRouteList?.map((address, index) => (
+                  <>
+                    <ListItem
+                      key={index}
+                      sx={{
+                        backgroundColor: 'white',
+                        width: '350px',
+                        p: 0
+                      }}
+                    >
+                      <ListItemButton
+                        onClick={() => {
+                          setEndRoute(`${address.place_name}`)
+                          setEndRouteList(null)
+                          checkBound([address.center], setRoutePoints)
+                        }}
+                      >
+                        <ListItemText
+                          primary={address.place_name}
+                          sx={{
+                            color: 'black'
+                          }}
+                          slotProps={{
+                            textOverflow: 'ellipsis',
+                            overflow: 'hidden'
+                          }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                    <Divider component='li' />
+                  </>
+                ))}
+            </List>
+          </Box>
+          <Button
+            sx={{ width: '200px' }}
+            variant='contained'
+            onClick={() => {
+              if (searchWay === 'click') {
+                setSearchWay('searchBox')
+                setRoutePoints(null)
+                showAlert(
+                  'success',
+                  'Now you can click on the map to set routes'
+                )
+              } else {
+                setSearchWay('click')
+                setRoutePoints(null)
+                showAlert('success', 'Now you can use the search box')
+              }
+            }}
+          >
+            {searchWay === 'click' ? 'Change to search box' : 'Change to click'}
+          </Button>
+          <Button
+            color='warning'
+            sx={{
+              width: '100px'
+            }}
+            variant='contained'
+            onClick={() => {
+              setStartRoute('')
+              setEndRoute('')
+              setRoutePoints(null)
+            }}
+          >
+            Reset
+          </Button>
+        </Box>
+      )}
       <MapContainer
         preferCanvas
         center={countyCenter}
@@ -494,6 +748,13 @@ function Map({
           }}
         />
         <AutoResize />
+        <RouteGrader
+          active={routeOn && !analysisOn}
+          incidents={finalList}
+          onExit={exitRoute}
+          pair={routePoints}
+          type={searchWay}
+        />
         <Analysis
           active={analysisOn}
           startDate={start_date}
@@ -509,6 +770,7 @@ function Map({
           >
             {finalList.map((incident, index) => (
               <CircleMarker
+                bubblingMouseEvents={false}
                 key={incident.source_incident_id}
                 center={[incident.lat, incident.lon]}
                 ref={idPopup === incident.source_incident_id ? markerRef : null}
@@ -520,7 +782,9 @@ function Map({
                   weight: 2
                 }}
                 eventHandlers={{
-                  click: () => setSelectedId(incident.source_incident_id)
+                  click: () => {
+                    if (!routeOn) setSelectedId(incident.source_incident_id)
+                  }
                 }}
               ></CircleMarker>
             ))}

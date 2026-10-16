@@ -2,8 +2,9 @@ import React from 'react'
 import Button from '@mui/material/Button'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
-function AppAlert({AlertContent,SetAlertContent}) {
-  const {vertical, horizontal, open , severity, content} = AlertContent
+
+function AppAlert({ AlertContent, SetAlertContent }) {
+  const { vertical, horizontal, open, severity, content, key } = AlertContent
   const handleClick = () => {
     SetAlertContent((prev) => ({ ...prev, open: true }))
   }
@@ -11,8 +12,6 @@ function AppAlert({AlertContent,SetAlertContent}) {
   const handleClose = () => {
     SetAlertContent({ ...AlertContent, open: false })
   }
-
-
 
   return (
     <div>
@@ -22,7 +21,7 @@ function AppAlert({AlertContent,SetAlertContent}) {
         autoHideDuration={2500}
         onClose={handleClose}
         message='Note archived'
-        key={vertical + horizontal}
+        key={key}
       >
         <Alert severity={severity}>{content}</Alert>
       </Snackbar>
