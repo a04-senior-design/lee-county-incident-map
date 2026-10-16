@@ -1,0 +1,430 @@
+import io
+import datetime
+from collections import Counter
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+from staticmap import StaticMap, CircleMarker
+from reportlab.platypus import KeepTogether
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Image,
+    Table, TableStyle, HRFlowable,
+)
+
+_NAVY  = colors.HexColor("#1e3a5f")
+_BLUE  = "#2563eb"
+_LIGHT = colors.HexColor("#f0f4f8")
+_RULE  = colors.HexColor("#ddd")
+
+# keyed on the category codes from /api/v1/incident-types, in lowercase
+_NATURE_COLORS = {
+    "violent":     "#d62728",
+    "firearm":     "#8c1c13",
+    "sex_offense": "#9467bd",
+    "burglary":    "#ff7f0e",
+    "theft":       "#e6a817",
+    "vehicle":     "#bcbd22",
+    "fraud":       "#17becf",
+    "drugs":       "#2ca02c",
+    "harassment":  "#e377c2",
+    "disturbance": "#1f77b4",
+    "traffic":     "#6baed6",
+    "death":       "#2d2d2d",
+    "animal":      "#8c564b",
+    "hazard":      "#ffd700",
+    "other":       "#7f8c8d",
+}
+
+
+def _incident_color(nature):
+    if not nature:
+        return "#7f8c8d"
+    key = nature.strip().lower().split()[0] if nature.strip() else ""
+    return _NATURE_COLORS.get(key, "#7f8c8d")
+
+
+def _map_snapshot(incidents, bounds):
+    """Download OSM tiles and plot incident dots; returns a PNG BytesIO or None."""
+    try:
+        m = StaticMap(750, 450, tile_request_timeout=10)
+
+        lat_c = (bounds["north"] + bounds["south"]) / 2
+        lng_c = (bounds["east"]  + bounds["west"])  / 2
+        lat_span = bounds["north"] - bounds["south"]
+
+        if   lat_span > 1.0:  zoom = 10
+        elif lat_span > 0.5:  zoom = 11
+        elif lat_span > 0.25: zoom = 12
+        elif lat_span > 0.1:  zoom = 13
+        else:                 zoom = 14
+
+        for inc in incidents:
+            lat = inc.get("lat")
+            lng = inc.get("lng")
+            if lat is not None and lng is not None:
+                color = _incident_color(inc.get("nature"))
+                # StaticMap expects (longitude, latitude)
+                m.add_marker(CircleMarker((float(lng), float(lat)), color, 8))
+
+        image = m.render(zoom=zoom, center=(lng_c, lat_c))
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
+    except Exception:
+        return None
+
+
+def _parse_date(inc):
+    d = inc.get("occuredDate")
+    if not d:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(d.replace(" ", "T")[:19])
+    except Exception:
+        return None
+
+
+def _bar_chart(nature_counts):
+    """Horizontal bar chart — incident counts by type (top 12)."""
+    items = sorted(nature_counts.items(), key=lambda x: x[1], reverse=True)[:12]
+    labels = [k.title() for k, _ in items]
+    vals = [v for _, v in items]
+
+    fig, ax = plt.subplots(figsize=(7, max(2.5, len(labels) * 0.38)))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    bars = ax.barh(labels[::-1], vals[::-1], color=_BLUE, edgecolor="none", height=0.6)
+    ax.set_xlabel("Incident Count", fontsize=9)
+    ax.set_title("Incidents by Type", fontsize=11, fontweight="bold", pad=10)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=8)
+
+    for bar, val in zip(bars, vals[::-1]):
+        ax.text(
+            bar.get_width() + 0.3,
+            bar.get_y() + bar.get_height() / 2,
+            str(val), va="center", ha="left", fontsize=8, color="#333",
+        )
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def _city_chart(city_counts):
+    """Horizontal bar chart — incident counts by city (top 10)."""
+    items = sorted(city_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    labels = [k.title() for k, _ in items]
+    vals = [v for _, v in items]
+
+    fig, ax = plt.subplots(figsize=(7, max(2.5, len(labels) * 0.38)))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    bars = ax.barh(labels[::-1], vals[::-1], color=_BLUE, edgecolor="none", height=0.6)
+    ax.set_xlabel("Incident Count", fontsize=9)
+    ax.set_title("Incidents by City", fontsize=11, fontweight="bold", pad=10)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=8)
+
+    for bar, val in zip(bars, vals[::-1]):
+        ax.text(
+            bar.get_width() + 0.3,
+            bar.get_y() + bar.get_height() / 2,
+            str(val), va="center", ha="left", fontsize=8, color="#333",
+        )
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def _hour_chart(incidents):
+    """Bar chart — incident counts by hour of day (0-23)."""
+    bucket = Counter()
+    for inc in incidents:
+        d = _parse_date(inc)
+        if d:
+            bucket[d.hour] += 1
+
+    hours = list(range(24))
+    vals = [bucket.get(h, 0) for h in hours]
+
+    fig, ax = plt.subplots(figsize=(3.15, 2.5))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    ax.bar(hours, vals, color=_BLUE, edgecolor="none", width=0.7)
+    ax.set_title("Incidents by Hour of Day", fontsize=10, fontweight="bold", pad=8)
+    ax.set_xlabel("Hour", fontsize=8)
+    ax.set_xticks(range(0, 24, 3))
+    ax.set_xticklabels([f"{h:02d}" for h in range(0, 24, 3)])
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=7)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def _weekday_chart(incidents):
+    """Bar chart — incident counts by day of week."""
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    bucket = Counter()
+    for inc in incidents:
+        d = _parse_date(inc)
+        if d:
+            bucket[d.weekday()] += 1
+
+    vals = [bucket.get(i, 0) for i in range(7)]
+
+    fig, ax = plt.subplots(figsize=(3.15, 2.5))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    ax.bar(names, vals, color=_BLUE, edgecolor="none", width=0.6)
+    ax.set_title("Incidents by Day of Week", fontsize=10, fontweight="bold", pad=8)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=7)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def _line_chart(incidents, start_date, end_date):
+    num_days = (end_date - start_date).days
+
+    bucket = Counter()
+    for inc in incidents:
+        d = _parse_date(inc)
+        if d:
+            bucket[d.date()] += 1
+
+    all_dates = [start_date + datetime.timedelta(days=i) for i in range(num_days + 1)]
+    all_vals  = [bucket.get(d, 0) for d in all_dates]
+
+    fig, ax = plt.subplots(figsize=(7, 2.6))
+    fig.patch.set_facecolor("#f8f9fa")
+    ax.set_facecolor("#f8f9fa")
+
+    ax.plot(all_dates, all_vals, color=_BLUE, linewidth=1.8,
+            marker="o", markersize=4, markerfacecolor="#1d4ed8")
+    ax.fill_between(all_dates, all_vals, alpha=0.12, color=_BLUE)
+    ax.set_title("Daily Incident Count", fontsize=11, fontweight="bold", pad=10)
+    ax.set_ylabel("Count", fontsize=9)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(labelsize=7)
+
+    locator = mdates.DayLocator() if num_days <= 14 else mdates.WeekdayLocator()
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    fig.autofmt_xdate(rotation=30)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+def generate_pdf(incidents, bounds, start_date, end_date):
+    """Assemble and return a BytesIO PDF for the given filtered incidents."""
+    buf = io.BytesIO()
+    styles = getSampleStyleSheet()
+
+    title_s = ParagraphStyle(
+        "RTitle", parent=styles["Title"],
+        fontSize=18, textColor=_NAVY, spaceAfter=4,
+    )
+    sub_s = ParagraphStyle(
+        "RSub", parent=styles["Normal"],
+        fontSize=9, textColor=colors.HexColor("#555"), spaceAfter=2,
+    )
+    h2_s = ParagraphStyle(
+        "RH2", parent=styles["Heading2"],
+        fontSize=12, textColor=_NAVY, spaceBefore=14, spaceAfter=6,
+    )
+    footer_s = ParagraphStyle(
+        "RFooter", parent=styles["Normal"],
+        fontSize=7.5, textColor=colors.HexColor("#888"),
+    )
+
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        leftMargin=0.85 * inch, rightMargin=0.85 * inch,
+        topMargin=0.85 * inch,  bottomMargin=0.85 * inch,
+    )
+
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    nature_counts = Counter(
+        (inc.get("nature") or "Unknown").strip() for inc in incidents
+    )
+    city_counts = Counter()
+    for inc in incidents:
+        city = (inc.get("city") or "").strip()
+        city_counts[city if city else "Unknown"] += 1
+    most_common  = nature_counts.most_common(1)[0][0].title() if nature_counts else "N/A"
+    days_label   = f"{start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
+    story = []
+
+    # Title block
+    story.append(Paragraph("Lee County Incident Report", title_s))
+    story.append(Paragraph(
+        f"Generated: {now.strftime('%B %d, %Y at %H:%M UTC')} &nbsp;·&nbsp; Period: {days_label}",
+        sub_s,
+    ))
+    story.append(Paragraph(
+        f"Viewport: N {bounds['north']:.4f}° &nbsp; S {bounds['south']:.4f}° &nbsp;"
+        f" E {bounds['east']:.4f}° &nbsp; W {bounds['west']:.4f}°",
+        sub_s,
+    ))
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(HRFlowable(width="100%", thickness=1, color=_RULE, spaceAfter=10))
+
+    # Map snapshot
+    map_png = _map_snapshot(incidents, bounds)
+    if map_png:
+        story.append(Paragraph("Incident Map", h2_s))
+        story.append(Image(map_png, width=6.5*inch, height=3.9*inch))
+        story.append(Spacer(1, 0.1 * inch))
+
+    # Summary stats
+    story.append(Paragraph("Summary", h2_s))
+    cell_s = ParagraphStyle(
+    "RCell", parent=styles["Normal"],
+    fontName="Helvetica-Bold", fontSize=11, leading=13,
+    textColor=_NAVY, alignment=1,  # 1 = centered
+)
+    stat_data = [
+        ["Total Incidents", "Most Common Type", "Period", "Data Source"],
+        [
+        Paragraph(str(len(incidents)), cell_s),
+        Paragraph(most_common, cell_s),
+        Paragraph(days_label, cell_s),
+        Paragraph("LCSO Public Log", cell_s),
+    ],
+    ]
+    stat_tbl = Table(stat_data, colWidths=[1.5*inch, 2*inch, 1.3*inch, 1.9*inch])
+    stat_tbl.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0), _NAVY),
+        ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, 0), 9),
+        ("FONTSIZE",      (0, 1), (-1, 1), 12),
+        ("FONTNAME",      (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("TEXTCOLOR",     (0, 1), (-1, 1), _NAVY),
+        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND",    (0, 1), (-1, 1), _LIGHT),
+        ("GRID",          (0, 0), (-1, -1), 0.5, _RULE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+    ]))
+    story.append(stat_tbl)
+    story.append(Spacer(1, 0.1 * inch))
+
+    # Bar chart
+    story.append(KeepTogether([
+    Paragraph("Incidents by Type", h2_s),
+    Image(_bar_chart(nature_counts), width=6.5*inch, height=3.4*inch),
+    ]))
+    story.append(Spacer(1, 0.05 * inch))
+
+    # City chart
+    if city_counts:
+        story.append(KeepTogether([
+            Paragraph("Incidents by City", h2_s),
+            Image(_city_chart(city_counts), width=6.5*inch, height=3.0*inch),
+            ]))
+        
+        story.append(Spacer(1, 0.05 * inch))
+
+    # Line chart
+    story.append(KeepTogether([
+                Paragraph("Daily Incident Trend", h2_s),
+                Image(_line_chart(incidents, start_date, end_date), width=6.5*inch, height=2.5*inch),
+                ]))
+    
+    story.append(Spacer(1, 0.1 * inch))
+
+    # Hour-of-day / day-of-week charts, side by side
+    story.append(Paragraph("Incident Timing", h2_s))
+    timing_tbl = Table(
+        [[
+            Image(_hour_chart(incidents), width=3.15*inch, height=2.5*inch),
+            Image(_weekday_chart(incidents), width=3.15*inch, height=2.5*inch),
+        ]],
+        colWidths=[3.25*inch, 3.25*inch],
+    )
+    timing_tbl.setStyle(TableStyle([
+        ("VALIGN",       (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(timing_tbl)
+    story.append(Spacer(1, 0.1 * inch))
+
+    # Breakdown table
+    story.append(Paragraph("Incident Type Breakdown", h2_s))
+    total    = len(incidents)
+    tbl_data = [["Incident Type", "Count", "% of Total"]]
+    for nature, count in nature_counts.most_common():
+        pct = f"{100 * count / total:.1f}%" if total > 0 else "—"
+        tbl_data.append([nature.title(), str(count), pct])
+
+    breakdown = Table(tbl_data, colWidths=[3.6*inch, 1.4*inch, 1.7*inch])
+    breakdown.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0), _NAVY),
+        ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, -1), 9),
+        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, _LIGHT]),
+        ("GRID",          (0, 0), (-1, -1), 0.5, _RULE),
+        ("ALIGN",         (1, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.append(breakdown)
+
+    # Footer
+    story.append(Spacer(1, 0.3 * inch))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=_RULE))
+    story.append(Spacer(1, 0.07 * inch))
+    story.append(Paragraph(
+        "Data sourced from the Lee County Sheriff's Office public incident log. "
+        "Incidents are published with a 48-hour delay. "
+        "Only geocoded incidents (~55–60% of total) are included in viewport-filtered reports.",
+        footer_s,
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf

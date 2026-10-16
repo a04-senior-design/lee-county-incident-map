@@ -10,7 +10,7 @@ from ml.kde import KDEHeatMap
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
 
-from leecad_api import queries, runs
+from leecad_api import filters, queries, runs
 
 bp = Blueprint("kde", __name__)
 
@@ -24,16 +24,32 @@ CLUSTER_SET_LABELS = [
     "KDE Heat Map (by cluster density level)",
 ]
 
+def _utc(value: str) -> pd.Timestamp:
+    # dates are read as UTC, like build_time_windows() does with the stored timestamps
+    timestamp = pd.Timestamp(value)
+    return timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp
+
+
 def load_points() -> np.ndarray:
     """
     Load the mapped incidents from the database and return a (N, 2)
     array of projected x/y coordinates suitable for euclidean distance.
     """
 
+    # optional; without them every mapped incident is used
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    start = _utc(start_date) if start_date else None
+    end = _utc(end_date) if end_date else None
+
     with current_app.pool.connection() as conn:
-        rows = conn.execute(queries.MAPPED_POINTS).fetchall()
+        rows = conn.execute(*queries.mapped_points(
+            filters.parse_without_dates(request.args), start, end
+        )).fetchall()
     incidents_df = pd.DataFrame(rows, columns=["lat", "lon"]).dropna(subset=["lat", "lon"])
-    
+    if incidents_df.empty:
+        raise ValueError("no mapped incidents match these filters")
+
     latitude = incidents_df["lat"].to_numpy()
     longitude = incidents_df["lon"].to_numpy()
 
@@ -228,8 +244,9 @@ def kde_heatmap_animation():
         try:
             start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
             with current_app.pool.connection() as conn:
-                incidents = conn.execute(queries.MAPPED_INCIDENTS_BETWEEN,
-                                         (pd.Timestamp(start_date), pd.Timestamp(end_date))).fetchall()
+                incidents = conn.execute(*queries.mapped_incidents_between(
+                    filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
+                )).fetchall()
             frames = build_kde_heatmap_snapshots(
                 start_date=start_date,
                 end_date=end_date,

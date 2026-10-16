@@ -1,4 +1,5 @@
 import base64
+from dataclasses import replace
 from datetime import datetime
 
 FROM_AND_JOINS = """
@@ -174,14 +175,26 @@ def incident_list(filters, limit: int, cursor: str | None) -> tuple[str, list]:
     return sql, params
 
 
-# Mapped only: one stray geocode outside the county would stretch the KDE grid to cover it.
-MAPPED_POINTS = """
-    SELECT lat, lon FROM incidents
-    WHERE location_quality = 'in_county' AND geocode_trusted
-"""
+def report_incidents(filters) -> tuple[str, list]:
+    # every match, not a page: the report counts them all
+    where, params = _conditions(replace(filters, mapped_only=True))
+    return COLUMNS + FROM_AND_JOINS + _where(where) + ORDER, params
 
-MAPPED_INCIDENTS_BETWEEN = """
-    SELECT lat, lon AS lng, occurred_at FROM incidents
-    WHERE location_quality = 'in_county' AND geocode_trusted
-      AND occurred_at >= %s AND occurred_at <= %s
-"""
+
+# Mapped only: one stray geocode outside the county would stretch the KDE grid to cover it.
+def mapped_points(filters, start=None, end=None) -> tuple[str, list]:
+    where, params = _conditions(replace(filters, mapped_only=True))
+    if start is not None:
+        where.append("i.occurred_at >= %s")
+        params.append(start)
+    if end is not None:
+        where.append("i.occurred_at <= %s")
+        params.append(end)
+    return "SELECT i.lat, i.lon FROM incidents i" + _where(where), params
+
+
+def mapped_incidents_between(filters, start, end) -> tuple[str, list]:
+    where, params = _conditions(replace(filters, mapped_only=True))
+    where.append("i.occurred_at >= %s AND i.occurred_at <= %s")
+    params.extend([start, end])
+    return "SELECT i.lat, i.lon AS lng, i.occurred_at FROM incidents i" + _where(where), params
