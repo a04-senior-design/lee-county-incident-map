@@ -3,11 +3,13 @@ import tempfile
 import warnings
 
 import numpy as np
-from flask import Blueprint, jsonify, request
-from ml.generate_gi_star_snapshots import GI_STAR_CELL_SIZE, load_land_polygon
+import pandas as pd
+from flask import Blueprint, current_app, jsonify, request
+from ml.generate_gi_star_snapshots import GI_STAR_CELL_SIZE, build_gi_star_snapshots, load_land_polygon
 from ml.gi_star.GiStarHeatMap import GiStarHeatMap
 
-from leecad_api.kde_routes import _png_to_base64, load_points
+from leecad_api import filters, queries
+from leecad_api.kde_routes import _parse_time_window_args, _png_to_base64, load_points
 
 bp = Blueprint("gi_star", __name__)
 
@@ -64,6 +66,57 @@ def gi_star_heatmap():
         "image": image_data,
         "bounds": bounds_dict,
         "legend": gi_star_obj.get_legend_data(),
+        "distance_band": distance_band,
+        "min_distance_band": MIN_DISTANCE_BAND,
+        "max_distance_band": MAX_DISTANCE_BAND,
+    })
+
+
+@bp.get("/api/v1/animation/gi-star-heatmap")
+def gi_star_heatmap_animation():
+    # all params are required
+    required = ["start_date", "end_date", "window_length", "time_step", "distance_band"]
+    missing = [name for name in required if not request.args.get(name)]
+    if missing:
+        return jsonify({"error": f"Missing required parameter(s): {', '.join(missing)}"}), 400
+
+    # distance_band must be a number; clamp it to the limits
+    try:
+        requested_distance_band = float(request.args.get("distance_band"))
+    except ValueError:
+        return jsonify({"error": "Invalid distance_band parameter"}), 400
+    distance_band = max(MIN_DISTANCE_BAND, min(MAX_DISTANCE_BAND, requested_distance_band))
+
+    # each request gets its own folder, so two users don't overwrite each other's frames
+    with tempfile.TemporaryDirectory() as output_dir:
+        try:
+            start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
+            with current_app.pool.connection() as conn:
+                incidents = conn.execute(*queries.mapped_incidents_between(
+                    filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
+                )).fetchall()
+            frames = build_gi_star_snapshots(
+                start_date=start_date,
+                end_date=end_date,
+                window_length=window_length,
+                time_step=time_step,
+                distance_band=distance_band,
+                land_polygon=LAND_POLYGON,
+                incidents=incidents,
+                output_dir=output_dir,
+            )
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        for frame in frames:
+            # keep the filename before the image is replaced with its base64 data
+            frame["image_filename"] = frame["image"]
+
+            if frame["image"] is not None:
+                frame["image"] = _png_to_base64(path=os.path.join(output_dir, frame["image"]))
+
+    return jsonify({
+        "frames": frames,
         "distance_band": distance_band,
         "min_distance_band": MIN_DISTANCE_BAND,
         "max_distance_band": MAX_DISTANCE_BAND,

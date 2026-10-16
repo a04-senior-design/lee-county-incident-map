@@ -469,6 +469,58 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/animation/gi-star-heatmap:
+    get:
+      summary: Gi* heatmap animation frames
+      description: |
+        Windows the mapped incidents like /animation/kde-heatmap and returns
+        one Gi* heatmap per window. All frames share one grid, sized from the
+        incidents in every window, so every frame has the same bounds. At
+        most 30 windows. Takes the same category, city, source and bbox
+        filters as /api/v1/incidents. Dates come only from start_date and
+        end_date, so days, from and to are refused.
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-01"
+        - name: end_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-29"
+        - name: window_length
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: time_step
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: distance_band
+          in: query
+          required: true
+          description: Gi* distance band in feet. Clamped to 500 to 10000.
+          schema: { type: number }
+          example: 2500
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
+      responses:
+        "200":
+          description: The frames, oldest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GiStarAnimation" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/auth/register:
     post:
       summary: Create an account
@@ -879,6 +931,30 @@ components:
         distance_band: { type: number }
         min_distance_band: { type: number }
         max_distance_band: { type: number }
+
+    GiStarAnimation:
+      type: object
+      properties:
+        distance_band: { type: number }
+        min_distance_band: { type: number }
+        max_distance_band: { type: number }
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string, example: "2026-09-01 00:00 - 2026-09-08 00:00" }
+              window_start: { type: string, format: date-time }
+              window_end: { type: string, format: date-time }
+              n_incidents: { type: integer }
+              image:
+                type: [string, "null"]
+                description: A PNG as a data URL. Null when the window has no incidents.
+              image_filename: { type: [string, "null"] }
+              bounds:
+                oneOf:
+                  - $ref: "#/components/schemas/Bounds"
+                  - type: "null"
 
     KdeAnimation:
       type: object
