@@ -79,7 +79,7 @@ function AppBar() {
             variant='span'
             sx={{ fontSize: '20px', fontWeight: 'bold', color: 'white' }}
           >
-            PAIM
+            LCIM
           </Typography>
         </Box>
 

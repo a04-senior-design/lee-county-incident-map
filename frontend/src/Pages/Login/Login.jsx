@@ -262,7 +262,7 @@ function Login() {
                       })
                   ]}
                 >
-                  PAIM
+                  LCIM
                 </Typography>
               </Box>
               <Typography

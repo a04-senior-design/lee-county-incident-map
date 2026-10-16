@@ -11,27 +11,80 @@
     html, body {
       height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #1a1a2e;
-      color: #eee;
+      background: var(--bg);
+      color: var(--text);
       display: flex;
       flex-direction: column;
     }
+
+    /* Palette matches the React frontend (MapPage.css):
+       bg #1a1a2e · bars rgba(15,15,30,.92) · controls #222240 / #444 · focus #6c8ebf ·
+       accent #8ab4f8 · panels #16162a / #333 · badges #2a2a4a */
+    :root {
+      --bg: #1a1a2e;
+      --bar-bg: rgba(15, 15, 30, 0.92);
+      --bar-border: rgba(255, 255, 255, 0.08);
+      --control-bg: #222240;
+      --control-border: #444;
+      --control-focus: #6c8ebf;
+      --ui-accent: #8ab4f8;
+      --panel-bg: #16162a;
+      --panel-border: #333;
+      --badge-bg: #2a2a4a;
+      --tooltip-bg: var(--tooltip-bg);
+      --text: #eee;
+      --text-strong: #fff;
+      --text-sub: #aaa;
+      --text-muted: #888;
+      --on-accent: #1a1a2e;
+      --scroll-thumb: #dcd0da;
+      color-scheme: dark;
+    }
+    /* light scheme: toggled with the button in the top bar (html.light) */
+    :root.light {
+      --bg: #f4f5fa;
+      --bar-bg: rgba(255, 255, 255, 0.92);
+      --bar-border: rgba(0, 0, 0, 0.1);
+      --control-bg: #fff;
+      --control-border: #ced4da;
+      --ui-accent: #1c5fd1;
+      --panel-bg: #fff;
+      --panel-border: #dee2e6;
+      --badge-bg: #e7efff;
+      --tooltip-bg: #fff;
+      --text: #212529;
+      --text-strong: #000;
+      --text-sub: #495057;
+      --text-muted: #6c757d;
+      --on-accent: #fff;
+      --scroll-thumb: #adb5bd;
+      color-scheme: light;
+    }
+    * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+    *::-webkit-scrollbar { width: 6px; }
+    *::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); border-radius: 3px; }
+    *::-webkit-scrollbar-thumb:hover { background-color: #bfc2df; }
+    *::-webkit-scrollbar-track { background-color: transparent; }
 
     /* ── Top bar ─────────────────────────────────────────────────────────── */
     #top-bar {
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      gap: 1.5rem;
+      justify-content: space-between;
+      gap: 1rem;
       padding: 0.6rem 1.2rem;
-      background: rgba(15, 15, 30, 0.95);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--bar-bg);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--bar-border);
+      position: relative;
+      z-index: 1000;
       flex-wrap: wrap;
     }
 
     #branding { line-height: 1.3; }
-    #branding strong { font-size: 1rem; color: #fff; }
-    #branding span   { display: block; font-size: 0.72rem; color: #888; }
+    #branding strong { font-size: 1rem; font-weight: 700; letter-spacing: 0.02em; color: var(--text-strong); }
+    #branding span   { display: block; font-size: 0.72rem; color: var(--text-muted); }
 
     /* ── Playback controls ───────────────────────────────────────────────── */
     #playback {
@@ -44,18 +97,18 @@
     #playback button {
       width: 2.1em;
       height: 2.1em;
-      border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.06);
-      color: #eee;
-      border-radius: 5px;
+      border: 1px solid var(--control-border);
+      background: var(--control-bg);
+      color: var(--text);
+      border-radius: 4px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.82rem;
     }
-    #playback button:hover { background: rgba(255,255,255,0.14); }
-    #scrub { flex: 1; max-width: 320px; accent-color: #E9C46A; cursor: pointer; }
+    #playback button:hover { border-color: var(--control-focus); }
+    #scrub { flex: 1; max-width: 320px; accent-color: var(--ui-accent); cursor: pointer; }
     #frame-label {
       font-size: 0.78rem;
-      color: #ccc;
+      color: var(--text-sub);
       white-space: nowrap;
       min-width: 160px;
     }
@@ -68,24 +121,37 @@
     }
     #speed-control span {
       font-size: 0.72rem;
-      color: #888;
+      color: var(--text-muted);
     }
     .speed-btn {
-      border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.06);
-      color: #ccc;
-      font-size: 0.72rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 5px;
+      border: 1px solid var(--control-border);
+      background: var(--control-bg);
+      color: var(--text);
+      font-size: 0.82rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
       cursor: pointer;
+      white-space: nowrap;
     }
-    .speed-btn:hover { background: rgba(255,255,255,0.14); }
+    .speed-btn:hover { border-color: var(--control-focus); }
     .speed-btn.active {
-      background: #E9C46A;
-      border-color: #E9C46A;
-      color: #1a1a2e;
+      border-color: var(--ui-accent);
+      color: var(--ui-accent);
       font-weight: 600;
     }
+
+    /* ── Theme toggle ─────────────────────────────────────────────────────── */
+    #theme-toggle {
+      border: 1px solid var(--control-border);
+      background: var(--control-bg);
+      color: var(--text);
+      font-size: 0.82rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #theme-toggle:hover { border-color: var(--control-focus); }
 
     /* ── Stats ────────────────────────────────────────────────────────────── */
     #stats {
@@ -93,15 +159,17 @@
       gap: 1rem;
       align-items: center;
       font-size: 0.8rem;
-      color: #aaa;
+      color: var(--text-sub);
     }
     .stat-pill {
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 4px;
-      padding: 0.2rem 0.55rem;
+      background: var(--badge-bg);
+      color: var(--ui-accent);
+      border-radius: 12px;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
       white-space: nowrap;
     }
-    .stat-pill span { color: #fff; font-weight: 600; }
+    .stat-pill span { color: var(--ui-accent); font-weight: 600; }
 
     /* ── Analysis radios ──────────────────────────────────────────────────── */
     #analysis-controls {
@@ -109,9 +177,9 @@
       flex-direction: column;
       gap: 0.15rem;
       font-size: 0.75rem;
-      color: #aaa;
+      color: var(--text-sub);
     }
-    .analysis-title { font-weight: 600; color: #fff; }
+    .analysis-title { font-weight: 600; color: var(--text-strong); }
     .analysis-option {
       display: flex;
       align-items: center;
@@ -119,11 +187,11 @@
       white-space: nowrap;
       cursor: pointer;
     }
-    /* option that can't be used yet (e.g. no DBSCAN run) */
+    /* option that can't be used yet (e.g. no DBSCAN frame files) */
     .analysis-option.unavailable { opacity: 0.5; cursor: not-allowed; }
 
     /* show only the current mode's fields */
-    /* time-window fields: used by Cluster Analysis and KDE (all points); KDE by cluster level reuses the DBSCAN run */
+    /* time-window fields: used by Cluster Analysis and KDE (all points); KDE by cluster level reuses the DBSCAN frames */
     #animation-controls:not([data-mode="clusters"]):not([data-mode="all-points"]) .window-field { display: none; }
     #animation-controls:not([data-mode="clusters"]) .clusters-field { display: none; }
     #animation-controls:not([data-mode="all-points"]) .all-points-field { display: none; }
@@ -137,9 +205,12 @@
       display: flex;
       align-items: flex-end;
       gap: 1rem;
-      padding: 0.5rem 1.2rem;
-      background: rgba(15, 15, 30, 0.85);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.6rem 1.2rem;
+      background: var(--bar-bg);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--bar-border);
+      position: relative;
+      z-index: 2000;
       flex-wrap: wrap;
     }
     .field-row {
@@ -148,26 +219,28 @@
       gap: 0.25rem;
     }
     .field-row label {
-      font-size: 0.7rem;
-      color: #aaa;
+      font-size: 0.82rem;
+      color: var(--text-sub);
     }
     .field-row input {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
-      color: #eee;
-      border-radius: 5px;
-      padding: 0.3rem 0.5rem;
-      font-size: 0.78rem;
+      background: var(--control-bg);
+      border: 1px solid var(--control-border);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.82rem;
       width: 130px;
+      outline: none;
     }
+    .field-row input:focus { border-color: var(--control-focus); }
     .field-row input[type="range"] {
       padding: 0;
       border: none;
       background: none;
-      accent-color: #E9C46A;
+      accent-color: var(--ui-accent);
       cursor: pointer;
     }
-    .field-row label span.bw-value { color: #fff; font-weight: 600; }
+    .field-row label span.bw-value { color: var(--ui-accent); font-weight: 600; }
     #kde-heatmap-level-sliders {
       display: flex;
       align-items: flex-end;
@@ -175,37 +248,87 @@
     }
     .bandwidth-hint {
       font-size: 0.7rem;
-      color: #888;
+      color: var(--text-muted);
       align-self: center;
     }
     #animation-apply {
-      border: 1px solid #E9C46A;
-      background: #E9C46A;
-      color: #1a1a2e;
-      font-size: 0.78rem;
+      border: 1px solid var(--ui-accent);
+      background: var(--ui-accent);
+      color: var(--on-accent);
+      font-size: 0.82rem;
       font-weight: 600;
-      padding: 0.4rem 0.9rem;
-      border-radius: 5px;
+      padding: 0.3rem 0.9rem;
+      border-radius: 4px;
       cursor: pointer;
     }
-    #animation-apply:hover { background: #d4b05a; }
+    #animation-apply:hover { filter: brightness(1.12); }
     #animation-apply:disabled { opacity: 0.6; cursor: wait; }
     #dbscan-reset {
-      border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.06);
-      color: #ccc;
-      font-size: 0.78rem;
-      padding: 0.4rem 0.8rem;
-      border-radius: 5px;
+      border: 1px solid var(--control-border);
+      background: var(--control-bg);
+      color: var(--text);
+      font-size: 0.82rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
       cursor: pointer;
     }
-    #dbscan-reset:hover { background: rgba(255,255,255,0.14); }
+    #dbscan-reset:hover { border-color: var(--control-focus); }
     #dbscan-reset:disabled { opacity: 0.6; cursor: wait; }
     #animation-error {
       font-size: 0.72rem;
       color: #E63946;
       align-self: center;
     }
+
+    /* ── Date range picker (mirrors the React DatePicker / Mantine DatePickerInput) ── */
+    #date-range-field { position: relative; }
+    #date-range-wrap { position: relative; width: 230px; }
+    #date-range-wrap input { width: 100%; padding-right: 1.8rem; cursor: pointer; }
+    #date-range-clear {
+      position: absolute; right: 0.3rem; top: 50%; transform: translateY(-50%);
+      border: none; background: none; color: var(--text-sub); cursor: pointer;
+      font-size: 1rem; line-height: 1; padding: 0.1rem 0.3rem; display: none;
+    }
+    #date-range-clear:hover { color: var(--text-strong); }
+    #date-range-wrap.has-value #date-range-clear { display: block; }
+    #date-popover {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 2000;
+      display: flex; background: #fff; color: #000;
+      border: 1px solid #dee2e6; border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); font-size: 0.85rem;
+    }
+    #date-popover.hidden { display: none; }
+    #date-presets {
+      display: flex; flex-direction: column; gap: 2px; padding: 0.5rem;
+      border-right: 1px solid #dee2e6; min-width: 120px;
+    }
+    #date-presets button {
+      border: none; background: none; color: #000; text-align: left;
+      padding: 0.35rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; white-space: nowrap;
+    }
+    #date-presets button:hover { background: #f1f3f5; }
+    #date-calendar { padding: 0.5rem; width: 252px; }
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; color: #000; font-weight: 500; }
+    .cal-header button {
+      border: none; background: none; color: #000; cursor: pointer;
+      width: 28px; height: 28px; border-radius: 4px; font-size: 0.9rem;
+    }
+    .cal-header button:hover:not(:disabled) { background: #f1f3f5; }
+    .cal-header button:disabled { color: #adb5bd; cursor: default; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+    .cal-dow { font-size: 0.72rem; color: #868e96; padding: 0.2rem 0; }
+    .cal-day {
+      border: none; background: none; color: #000; height: 32px; border-radius: 4px;
+      cursor: pointer; font-size: 0.85rem; padding: 0;
+    }
+    .cal-day:hover:not(:disabled) { background: #f1f3f5; }
+    .cal-day.outside { color: #adb5bd; }
+    .cal-day.in-range { background: #d0ebff; border-radius: 0; }
+    .cal-day.selected, .cal-day.selected:hover { background: #228be6; color: #fff; }
+    .cal-day.range-start { border-radius: 4px 0 0 4px; }
+    .cal-day.range-end { border-radius: 0 4px 4px 0; }
+    .cal-day.range-start.range-end { border-radius: 4px; }
+    .cal-day:disabled { color: #ced4da; cursor: default; }
 
     /* ── Cluster Analysis (DBSCAN) level toggles/sliders ──────────────────── */
     .level-block {
@@ -214,8 +337,8 @@
       gap: 0.3rem;
       padding: 0.45rem 0.65rem;
       border-left: 3px solid var(--accent);
-      background: rgba(255,255,255,0.03);
-      border-radius: 0 4px 4px 0;
+      background: var(--panel-bg);
+      border-radius: 0 6px 6px 0;
       min-width: 185px;
       transition: opacity 0.2s;
     }
@@ -226,7 +349,7 @@
 
     .level-header { display: flex; align-items: center; gap: 0.5rem; }
     .level-name   { font-size: 0.8rem; font-weight: 600; color: var(--accent); }
-    .level-hint   { font-size: 0.67rem; color: #555; }
+    .level-hint   { font-size: 0.67rem; color: var(--text-muted); }
 
     .toggle-label {
       position: relative;
@@ -240,7 +363,7 @@
     .toggle-track {
       position: absolute;
       inset: 0;
-      background: #444;
+      background: var(--control-border);
       border-radius: 17px;
       transition: background 0.2s;
     }
@@ -256,11 +379,11 @@
     .toggle-label input:checked + .toggle-track { background: var(--accent); }
     .toggle-label input:checked + .toggle-track::after { transform: translateX(13px); }
 
-    .level-slider-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: #666; }
+    .level-slider-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: var(--text-muted); }
     .level-slider     { width: 110px; accent-color: var(--accent); cursor: pointer; }
 
     .level-stats { display: flex; gap: 0.35rem; }
-    .level-stats .stat-pill { font-size: 0.7rem; padding: 0.1rem 0.4rem; color: #aaa; }
+    .level-stats .stat-pill { font-size: 0.7rem; padding: 0.1rem 0.4rem; color: var(--text-sub); }
 
     /* ── Map ──────────────────────────────────────────────────────────────── */
     #map-container { position: relative; flex: 1; display: flex; }
@@ -268,14 +391,44 @@
 
     /* ── Cluster legend ───────────────────────────────────────────────────── */
     .cluster-legend {
-      background: rgba(15, 15, 30, 0.9);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
       border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
       padding: 0.5rem 0.75rem;
       font-size: 0.75rem;
-      color: #eee;
+      color: var(--text);
       line-height: 1.8;
     }
+    .legend-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+      width: 100%; border: none; background: none; color: var(--text-strong); cursor: pointer;
+      font: inherit; font-weight: 600; padding: 0; line-height: 1.4;
+    }
+    .legend-toggle:hover { color: var(--ui-accent); }
+    .legend-chevron { font-size: 0.7rem; transition: transform 0.2s; }
+    .cluster-legend.collapsed .legend-chevron { transform: rotate(-90deg); }
+    /* scroll when there are too many clusters to fit beside the map controls */
+    .legend-body {
+      margin-top: 0.4rem;
+      max-height: min(60vh, 420px);
+      overflow-y: auto;
+    }
+    .cluster-legend.collapsed .legend-body { display: none; }
+    .cluster-legend.collapsed .legend-toggle + .legend-body { margin-top: 0; }
+    /* Leaflet tooltips/popups, same as the React popup overrides */
+    .leaflet-tooltip {
+      background: var(--tooltip-bg);
+      color: var(--ui-accent);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+    .leaflet-tooltip-top:before { border-top-color: var(--tooltip-bg); }
+    .leaflet-tooltip-bottom:before { border-bottom-color: var(--tooltip-bg); }
+    .leaflet-tooltip-left:before { border-left-color: var(--tooltip-bg); }
+    .leaflet-tooltip-right:before { border-right-color: var(--tooltip-bg); }
+
     .legend-swatch {
       display: inline-block;
       width: 12px;
@@ -285,13 +438,17 @@
       vertical-align: middle;
     }
   </style>
+  <script>
+    // apply the saved theme before first paint to avoid a flash
+    try { if (localStorage.getItem("lab-theme") === "light") document.documentElement.classList.add("light"); } catch (e) {}
+  </script>
 </head>
 <body>
 
 <div id="top-bar">
   <div id="branding">
-    <strong>Heatmap Animation Lab</strong>
-    <span>Clusters and KDE heat map over time — dev prototype</span>
+    <strong>Incidents Animation</strong>
+    <span>Clusters and KDE heat map over time</span>
   </div>
   <div id="analysis-controls">
     <div class="analysis-title">Analysis</div>
@@ -330,24 +487,28 @@
     <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
     <div class="stat-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
   </div>
+  <button id="theme-toggle" type="button" title="Switch light/dark theme"></button>
 </div>
 
 <div id="animation-controls" data-mode="all-points">
-  <div class="field-row window-field">
-    <label for="input-start-date">Start date</label>
-    <input id="input-start-date" type="date" value="2026-09-01" />
+  <div class="field-row window-field" id="date-range-field">
+    <label for="input-date-range">Date range</label>
+    <div id="date-range-wrap">
+      <input id="input-date-range" type="text" readonly placeholder="Pick dates range" autocomplete="off" />
+      <button id="date-range-clear" type="button" title="Clear" aria-label="Clear date range">&times;</button>
+    </div>
+    <div id="date-popover" class="hidden">
+      <div id="date-presets"></div>
+      <div id="date-calendar"></div>
+    </div>
   </div>
   <div class="field-row window-field">
-    <label for="input-end-date">End date</label>
-    <input id="input-end-date" type="date" value="2026-09-29" />
+    <label for="input-window-length">Window size <span style="color:#888">(e.g. 1D, 5D, 2W)</span></label>
+    <input id="input-window-length" type="text" value="5D" placeholder="required" />
   </div>
   <div class="field-row window-field">
-    <label for="input-window-length">Window size <span style="color:#555">(e.g. 1D, 7D, 2W)</span></label>
-    <input id="input-window-length" type="text" value="7D" placeholder="required" />
-  </div>
-  <div class="field-row window-field">
-    <label for="input-time-step">Time step <span style="color:#555">(e.g. 1D, 7D, 2W)</span></label>
-    <input id="input-time-step" type="text" value="7D" placeholder="required" />
+    <label for="input-time-step">Time step <span style="color:#888">(e.g. 1D, 5D, 2W)</span></label>
+    <input id="input-time-step" type="text" value="5D" placeholder="required" />
   </div>
 
   <!-- KDE heat map (all points): one bandwidth -->
@@ -433,37 +594,213 @@
   <div id="map"></div>
 </div>
 
-<!-- Leaflet is a classic script, so L is defined before the module below runs -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module">
+<script>
 (() => {
-  // Vite replaces import.meta.env.VITE_API_BASE_URL (set in .env); dev proxy forwards /api to the server
-  // Under Vite: VITE_API_BASE_URL ('/api/v1') goes through the dev proxy to leecountyincidentmap.com.
-  // Opened without Vite (no import.meta.env): call the deployed server directly.
-  const API_BASE = import.meta.env
-    ? (import.meta.env.VITE_API_BASE_URL || "/api/v1")
-    : "https://leecountyincidentmap.com/api/v1";
-
   const LEE_COUNTY_CENTER = [26.56, -81.87];
   const DEFAULT_ZOOM = 11;
   const BASE_INTERVAL_MS = 2000; // time per frame at 1x speed
+  // backend/api (leecad_api); this page must be served from one of its ALLOWED_ORIGINS
+  const API_BASE = "https://leecountyincidentmap.com/api/v1";
 
-  // run_id from the last Cluster Analysis Apply; the KDE-by-cluster routes need it (expires after 1 hour)
-  let dbscanRunId = null;
+  // Lee County boundary, copied from the React frontend (Map.jsx LEECOUNTY_BOUNDARY)
+  const LEE_COUNTY_BOUNDARY = [
+    [26.78980006125687, -82.272362941444],
+    [26.789845555613542, -82.26674734260132],
+    [26.78506785591573, -82.24039974363203],
+    [26.784682327821244, -82.23903842851749],
+    [26.78466547444208, -82.2389791674873],
+    [26.7820416567969, -82.22592358399687],
+    [26.782041344440042, -82.2232956474719],
+    [26.771383695762992, -82.20659552905133],
+    [26.771385640979, -82.20647976655594],
+    [26.771392588357518, -82.20606614853668],
+    [26.771432134382756, -82.20371036771571],
+    [26.771451667543054, -82.20254589924075],
+    [26.771455409378866, -82.20232270862869],
+    [26.770580132044987, -82.06111276257575],
+    [26.769557491947527, -81.56583524283978],
+    [26.422579371979108, -81.56212541999152],
+    [26.42121661767304, -81.65945294404435],
+    [26.317535087331482, -81.65801989377533],
+    [26.316233491651623, -81.81902174232401],
+    [26.330254811084547, -81.84588796417505],
+    [26.329835733418385, -82.2449563152756],
+    [26.419874753315746, -82.33457334444688],
+    [26.6450848069833, -82.42798337825371],
+    [26.736154829652275, -82.43157338143331],
+    [26.788130900846568, -82.46253412522209],
+    [26.78980006125687, -82.272362941444],
+  ];
+  const LEE_COUNTY_BOUNDS = L.latLngBounds(LEE_COUNTY_BOUNDARY);
 
-  // preferCanvas: cluster frames draw many circle markers
-  const map = L.map("map", {preferCanvas: true}).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
+  // preferCanvas: cluster frames draw many circle markers.
+  // maxBounds + viscosity 1 and minZoom keep the user inside Lee County, as in the React map.
+  const map = L.map("map", {
+    preferCanvas: true,
+    minZoom: 9.5,
+    maxBounds: LEE_COUNTY_BOUNDS,
+    maxBoundsViscosity: 1.0,
+  }).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   }).addTo(map);
 
+  // red county outline, and a dark mask over everything outside it (as in the React map)
+  L.polygon(LEE_COUNTY_BOUNDARY, {color: "red", weight: 3, fill: false, interactive: false}).addTo(map);
+  L.polygon(
+    [[[89, -179], [89, 179], [-89, 179], [-89, -179], [89, -179]], LEE_COUNTY_BOUNDARY],
+    {fillColor: "black", fillOpacity: 0.4, stroke: false, interactive: false}
+  ).addTo(map);
+
+  // ── Light / dark theme: html.light switches the CSS variables; choice is remembered ──
+  const themeToggle = document.getElementById("theme-toggle");
+  function syncThemeButton() {
+    const light = document.documentElement.classList.contains("light");
+    themeToggle.textContent = light ? "\u263E Dark" : "\u2600 Light";
+  }
+  themeToggle.addEventListener("click", () => {
+    const light = document.documentElement.classList.toggle("light");
+    try { localStorage.setItem("lab-theme", light ? "light" : "dark"); } catch (e) {}
+    syncThemeButton();
+  });
+  syncThemeButton();
+
+  // ── Date range picker (same behavior as the React DatePicker: range, presets, max today, clearable) ──
+  const pad = n => String(n).padStart(2, "0");
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = str => { const [y, m, d] = str.split("-").map(Number); return new Date(y, m - 1, d); };
+  const todayDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const todayStr = fmt(todayDate);
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  let dateRange = [null, null];                 // committed range (what Apply sends); empty until picked
+  let draft = [...dateRange];                    // range being picked in the popover
+  let viewMonth = parse(draft[0] || todayStr);
+  viewMonth.setDate(1);
+
+  const dateInput = document.getElementById("input-date-range");
+  const dateWrap = document.getElementById("date-range-wrap");
+  const datePopover = document.getElementById("date-popover");
+  const dateCalendar = document.getElementById("date-calendar");
+  const datePresets = document.getElementById("date-presets");
+
+  function shiftDays(n) { const d = new Date(todayDate); d.setDate(d.getDate() - n); return d; }
+  const DATE_PRESETS = [
+    {label: "Last two days", value: [fmt(shiftDays(2)), todayStr]},
+    {label: "Last 7 days",   value: [fmt(shiftDays(7)), todayStr]},
+    {label: "This month",    value: [fmt(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)), todayStr]},
+    {label: "Last month",    value: [
+      fmt(new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1)),
+      fmt(new Date(todayDate.getFullYear(), todayDate.getMonth(), 0))]},
+    {label: "Last year",     value: [
+      fmt(new Date(todayDate.getFullYear() - 1, 0, 1)),
+      fmt(new Date(todayDate.getFullYear() - 1, 11, 31))]},
+  ];
+
+  function updateDateInput() {
+    const [start, end] = draft;
+    dateInput.value = start ? `${start} – ${end || ""}` : "";
+    dateWrap.classList.toggle("has-value", Boolean(start || end));
+  }
+
+  // commit only a complete range, or a cleared one
+  function setDraft(value) {
+    draft = value;
+    if ((draft[0] && draft[1]) || (!draft[0] && !draft[1])) {
+      dateRange = [...draft];
+    }
+    updateDateInput();
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const year = viewMonth.getFullYear();
+    const month = viewMonth.getMonth();
+    const [start, end] = draft;
+    const nextDisabled = new Date(year, month + 1, 1) > todayDate;
+
+    let html = `<div class="cal-header">
+      <button type="button" data-nav="-1">&#9664;</button>
+      <span>${MONTHS[month]} ${year}</span>
+      <button type="button" data-nav="1" ${nextDisabled ? "disabled" : ""}>&#9654;</button>
+    </div><div class="cal-grid">`;
+    for (const dow of ["Su","Mo","Tu","We","Th","Fr","Sa"]) html += `<div class="cal-dow">${dow}</div>`;
+
+    const first = new Date(year, month, 1);
+    const gridStart = new Date(year, month, 1 - first.getDay());
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+      const str = fmt(d);
+      const cls = ["cal-day"];
+      if (d.getMonth() !== month) cls.push("outside");
+      if (start && end && str > start && str < end) cls.push("in-range");
+      if (str === start) cls.push("selected", "range-start");
+      if (str === end) cls.push("selected", "range-end");
+      html += `<button type="button" class="${cls.join(" ")}" data-date="${str}" ${d > todayDate ? "disabled" : ""}>${d.getDate()}</button>`;
+    }
+    dateCalendar.innerHTML = html + "</div>";
+  }
+
+  function pickDay(str) {
+    const [start, end] = draft;
+    if (!start || end) {
+      setDraft([str, null]);                      // start a new range
+    } else {
+      setDraft(str < start ? [str, start] : [start, str]);
+    }
+  }
+
+  function openDatePopover() { datePopover.classList.remove("hidden"); }
+  function closeDatePopover() {
+    datePopover.classList.add("hidden");
+    // an unfinished range falls back to the last committed one
+    if (draft[0] && !draft[1]) { draft = [...dateRange]; updateDateInput(); renderCalendar(); }
+  }
+
+  for (const preset of DATE_PRESETS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = preset.label;
+    btn.addEventListener("click", () => {
+      viewMonth = parse(preset.value[0]); viewMonth.setDate(1);
+      setDraft([...preset.value]);
+    });
+    datePresets.appendChild(btn);
+  }
+
+  dateInput.addEventListener("click", () => {
+    openDatePopover();
+  });
+  document.getElementById("date-range-clear").addEventListener("click", () => {
+    setDraft([null, null]);
+  });
+  dateCalendar.addEventListener("click", e => {
+    const nav = e.target.closest("[data-nav]");
+    if (nav) {
+      viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + Number(nav.dataset.nav), 1);
+      renderCalendar();
+      return;
+    }
+    const day = e.target.closest("[data-date]");
+    if (day && !day.disabled) pickDay(day.dataset.date);
+  });
+  // mousedown, not click: a day click re-renders the calendar, so by the time a document "click"
+  // handler ran, e.target was detached and looked like an outside click
+  document.addEventListener("mousedown", e => {
+    if (!document.getElementById("date-range-field").contains(e.target)) closeDatePopover();
+  });
+
+  updateDateInput();
+  renderCalendar();
+
   // read the time-window inputs (shared by Cluster Analysis and KDE all points);
   // returns the params, plus the labels of any blank fields
   function readWindowParams() {
     const params = {
-      start_date: document.getElementById("input-start-date").value,
-      end_date: document.getElementById("input-end-date").value,
+      start_date: dateRange[0] || "",
+      end_date: dateRange[1] || "",
       window_length: document.getElementById("input-window-length").value.trim(),
       time_step: document.getElementById("input-time-step").value.trim(),
     };
@@ -570,6 +907,7 @@
 
   let currentClusterLayer = null; // the cluster frame's L.layerGroup on the map, if any
   let clusterLegendControl = null;
+  let legendCollapsed = false; // kept across frames, since the legend is rebuilt for each one
 
   function levelChildrenGroup(levelName, geojson) {
     const st = LEVEL_STYLES[levelName];
@@ -624,7 +962,7 @@
             `<div><span class="legend-swatch" style="background:${f.properties.color}"></span>` +
             `Cluster ${f.properties.cluster_id} — ${f.properties.point_count} pts</div>`
           ).join("");
-        return `<div style="margin-bottom:0.4rem"><strong style="font-size:0.7rem;color:#aaa;text-transform:uppercase;letter-spacing:0.05em">${LEVEL_LABELS[levelName]}</strong>${rows}</div>`;
+        return `<div style="margin-bottom:0.4rem"><strong style="font-size:0.7rem;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.05em">${LEVEL_LABELS[levelName]}</strong>${rows}</div>`;
       })
       .join("");
 
@@ -633,7 +971,17 @@
     clusterLegendControl = L.control({ position: "bottomright" });
     clusterLegendControl.onAdd = () => {
       const div = L.DomUtil.create("div", "cluster-legend");
-      div.innerHTML = sections;
+      div.classList.toggle("collapsed", legendCollapsed);
+      div.innerHTML = `<button type="button" class="legend-toggle" aria-expanded="${!legendCollapsed}">
+        <span>Legend</span><span class="legend-chevron">&#9660;</span></button>
+        <div class="legend-body">${sections}</div>`;
+      div.querySelector(".legend-toggle").addEventListener("click", e => {
+        legendCollapsed = !legendCollapsed;
+        div.classList.toggle("collapsed", legendCollapsed);
+        e.currentTarget.setAttribute("aria-expanded", String(!legendCollapsed));
+      });
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
       return div;
     };
     clusterLegendControl.addTo(map);
@@ -694,7 +1042,7 @@
   const statBandwidth = document.getElementById("stat-bandwidth");
   const playBtn = document.getElementById('btn-play');
   // "clusters" (DBSCAN snapshots), "gistar-heatmap" (placeholder for now), or the two KDE heat map modes:
-  // "all-points" (time windows, one bandwidth) or "cluster-levels" (uses the last DBSCAN run_id)
+  // "all-points" (time windows, one bandwidth) or "cluster-levels" (DBSCAN frame files)
   let analysisMode = "all-points";
   const animationControls = document.getElementById("animation-controls");
   const modeRadios = document.querySelectorAll('input[name="analysis-mode"]');
@@ -730,18 +1078,20 @@
     });
   }
 
-  // the cluster-levels radio, and whether the last DBSCAN run can be used (checked on page load
-  // and after every Cluster Analysis Apply, since that creates a new run)
+  // the cluster-levels radio, and whether its DBSCAN frame files can be used (checked on page load
+  // and after every Cluster Analysis Apply, since that rewrites the files)
   const clusterLevelsRadio = document.querySelector('input[name="analysis-mode"][value="cluster-levels"]');
   const clusterLevelsLabel = clusterLevelsRadio.parentElement;
   let clusterLevelsAvailable = true;
+  // the DBSCAN run from the last Cluster Analysis Apply; the KDE cluster-level routes read its frame files
+  let dbscanRunId = null;
 
   // enable or disable the analysis radios and buttons (disabled while a request is running)
   function setControlsDisabled(disabled) {
     for (const radio of modeRadios) {
       radio.disabled = disabled;
     }
-    // the cluster-levels radio stays disabled while the DBSCAN run can't be used
+    // the cluster-levels radio stays disabled while its DBSCAN frame files can't be used
     if (!clusterLevelsAvailable) {
       clusterLevelsRadio.disabled = true;
     }
@@ -750,25 +1100,17 @@
     resetBtn.disabled = disabled;
   }
 
-  // ask the backend whether the DBSCAN run can be used; enable or disable the cluster-levels radio
+  // ask the backend whether the DBSCAN frame files can be used; enable or disable the cluster-levels radio
   async function checkDBSCANFrames() {
-    let status = "missing";
-
+    // no Cluster Analysis run yet, so there are no frame files to ask about
+    let dbscanStatus = "missing";
     if (dbscanRunId) {
-      try {
-        const query = new URLSearchParams({run_id: dbscanRunId});
-        const res = await fetch(`${API_BASE}/animation/kde-heatmap-dbscan/status?${query.toString()}`);
-        if (res.ok) {
-          status = (await res.json()).dbscan_status;
-        }
-      }
-      catch (err) {
-        console.error("DBSCAN status check failed", err);
-      }
+      const res = await fetch(`${API_BASE}/animation/kde-heatmap-dbscan/status?run_id=${dbscanRunId}`);
+      const body = await res.json();
+      dbscanStatus = body.dbscan_status;
     }
 
-    // the docs only list two failure values, so anything else counts as usable
-    clusterLevelsAvailable = (status !== "missing" && status !== "no_cluster_levels");
+    clusterLevelsAvailable = (dbscanStatus === "available");
     clusterLevelsRadio.disabled = !clusterLevelsAvailable;
     clusterLevelsLabel.classList.toggle("unavailable", !clusterLevelsAvailable);
 
@@ -776,11 +1118,11 @@
     if (clusterLevelsAvailable) {
       clusterLevelsLabel.title = "";
     }
-    else if (status === "no_cluster_levels") {
-      clusterLevelsLabel.title = "Frame 1 has no cluster levels (empty or all noise). Rerun Cluster Analysis with different settings.";
+    else if (dbscanStatus === "missing") {
+      clusterLevelsLabel.title = "No DBSCAN frame files found. Run Cluster Analysis first.";
     }
     else {
-      clusterLevelsLabel.title = "No DBSCAN run found, or it expired (runs last 1 hour). Run Cluster Analysis first.";
+      clusterLevelsLabel.title = "Frame 1 has no cluster levels (empty or all noise). Rerun Cluster Analysis with different settings.";
     }
   }
 
@@ -793,7 +1135,7 @@
     }
 
     // empty window: no image, just the label
-    if (frame.image) {
+    if (frame.image !== null) {
       // Leaflet wants [[south, west], [north, east]]
       const bounds = [
         [frame.bounds.south, frame.bounds.west],
@@ -912,10 +1254,7 @@
   // build the request url for the current analysis mode; returns {url} or {error} (stop before fetching)
   function buildApplyRequest() {
     if (analysisMode === "cluster-levels") {
-      if (!dbscanRunId) {
-        return {error: "Run Cluster Analysis first."};
-      }
-      // run_id plus one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
+      // one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
       const query = new URLSearchParams({run_id: dbscanRunId});
       const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
       for (const slider of sliders) {
@@ -974,10 +1313,9 @@
         errorLabel.textContent = body.error || (mode === "clusters"
           ? "Failed to load DBSCAN snapshots"
           : "Failed to load kde heat map snapshots");
-        // e.g. the run expired or the slider count no longer matches frame 1
+        // e.g. the DBSCAN files changed and the slider count no longer matches frame 1
         if (mode === "cluster-levels") {
           removeKDEHeatmapLevelSliders();
-          await checkDBSCANFrames(); // the run may have expired
         }
         return;
       }
@@ -997,8 +1335,8 @@
 
       // bandwidth(s) the displayed snapshots were built with
       if (mode === "clusters") {
-        // a new DBSCAN run was created: remember its id, drop the old KDE level sliders
-        // (the level count may have changed; next cluster-levels Apply uses defaults) and recheck availability
+        // this Apply made a new DBSCAN run: the KDE cluster-level count may have changed,
+        // so drop the old sliders (next cluster-levels Apply uses defaults) and recheck availability
         dbscanRunId = body.run_id;
         removeKDEHeatmapLevelSliders();
         await checkDBSCANFrames();
@@ -1016,8 +1354,9 @@
       }
     }
     catch (err) {
-      console.error("Apply failed", err);
-      errorLabel.textContent = "Request failed. Check the connection and try again.";
+      // the API is unreachable, or the browser blocked it because this page's origin isn't in ALLOWED_ORIGINS
+      errorLabel.textContent = `Could not reach the API at ${API_BASE} (page origin: ${location.origin})`;
+      console.error(err);
     }
     finally {
       // runs after every return or error, so the buttons and radios always come back
