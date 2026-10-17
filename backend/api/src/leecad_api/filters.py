@@ -97,6 +97,13 @@ def parse(args) -> Filters:
     )
 
 
+def parse_without_dates(args) -> Filters:
+    # for the KDE and DBSCAN routes, whose dates, if any, are start_date and end_date
+    if any(name in args for name in ("days", "from", "to")):
+        raise ValueError("days, from and to are not supported on this route")
+    return parse(args)
+
+
 def parse_limit(args) -> int:
     raw = args.get("limit")
     if raw is None:

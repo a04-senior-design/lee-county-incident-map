@@ -23,6 +23,12 @@ def test_frames_count_only_mapped_incidents_in_each_window(client):
     assert len(body["run_id"]) == 32
 
 
+def test_frames_take_the_same_filters_as_incidents(client):
+    body = run(client, "start_date=2026-06-10&end_date=2026-06-20&window_length=5D&time_step=5D"
+                       "&source=lee_county&category=VIOLENT")
+    assert [f["n_incidents"] for f in body["frames"]] == [1, 3]
+
+
 def test_the_animation_requires_a_window(client):
     response = client.get(f"{DBSCAN}?start_date=2026-06-10&end_date=2026-06-20")
     assert response.status_code == 400
@@ -65,6 +71,12 @@ def test_clusters_cover_only_mapped_incidents_in_the_range(client):
     assert body["frames"][0]["n_incidents"] == 8
     assert set(body["frames"][0]["levels"]) == {"street", "neighborhood", "district"}
     assert len(body["run_id"]) == 32
+
+
+def test_clusters_take_the_same_filters_as_incidents(client):
+    body = clusters(client, "start_date=2026-06-10&end_date=2026-06-20&city=FORT MYERS")
+    # 25-001, 25-006, T-001 and the three ties; North Fort Myers and Sanibel are left out
+    assert body["frames"][0]["n_incidents"] == 6
 
 
 def test_clusters_refuse_more_than_sixty_days(client):
