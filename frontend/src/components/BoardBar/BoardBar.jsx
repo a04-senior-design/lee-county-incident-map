@@ -8,7 +8,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import { useState } from 'react'
 import AnimationIcon from '@mui/icons-material/Animation'
 import { useAuth } from '../../Context/AuthContext'
-import RouteIcon from '@mui/icons-material/Route';
+import RouteIcon from '@mui/icons-material/Route'
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -25,7 +25,8 @@ function BoardBar({
   dateRange,
   routeOn,
   setRouteOn,
-  setSelectedId
+  setSelectedId,
+  isLoading
 }) {
   // const [activeBtn, setActiveBtn] = useState({
   //   search: false,
@@ -33,17 +34,19 @@ function BoardBar({
   //   heatMap: false,
   //   animation: false
   // })
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const [activeBtn, setActiveBtn] = useState(null)
+  const [reportBtn, setReportBtn] = useState(false)
   const handleActive = (e) => {
     const value = e.currentTarget.value
     setActiveBtn(value)
     console.log('value ', value)
   }
-
+  const API_URL = import.meta.env.VITE_API_BASE_URL
   const [reportLoading, setReportLoading] = useState(false)
 
   const handleReport = async () => {
+    setReportLoading(true)
     const [from, to] = dateRange
     const incidents = filteredListWithLocation.map((i) => ({
       nature: i.category,
@@ -55,16 +58,15 @@ function BoardBar({
 
     setReportLoading(true)
     try {
-      const res = await fetch('http://localhost:5001/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ incidents, start_date: from, end_date: to })
+      const res = await fetch(`${API_URL}/reports?from=${from}&to=${to}`, {
+        headers: { Authorization: `Bearer ${token}` }
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Server error ${res.status}`)
       }
       const blob = await res.blob()
+      console.log('res here', res)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -75,6 +77,7 @@ function BoardBar({
       alert(`Report generation failed: ${err.message}`)
     } finally {
       setReportLoading(false)
+      setReportBtn(false)
     }
   }
   return (
@@ -115,6 +118,7 @@ function BoardBar({
           setIsPulled={setIsPulled}
           incidentColors={incidentColors}
           analysisOn={analysisOn}
+          routeOn = {routeOn}
         />
         <Button
           variant={addressSearch ? 'contained' : 'text'}
@@ -182,9 +186,11 @@ function BoardBar({
           Animation
         </Button>
         <Button
-          disabled={user ? false : true}
-          variant={activeBtn === 'report' ? 'contained' : 'text'}
-          color={activeBtn === 'report' ? 'info' : 'primary'}
+          loading = {reportLoading}
+           loadingPosition="start"
+          disabled={user && !isLoading ? false : true}
+          variant={reportBtn ? 'contained' : 'text'}
+          color={reportBtn ? 'info' : 'primary'}
           value='report'
           sx={[
             (theme) =>
@@ -195,6 +201,7 @@ function BoardBar({
           ]}
           startIcon={<TextSnippetIcon />}
           onClick={(e) => {
+            setReportBtn(true)
             handleActive(e)
             handleReport()
           }}
@@ -203,9 +210,8 @@ function BoardBar({
         </Button>
         <Button
           disabled={user ? false : true}
-          variant={activeBtn === 'report' ? 'contained' : 'text'}
-          color={activeBtn === 'report' ? 'info' : 'primary'}
-          value='report'
+          variant={routeOn  ? 'contained' : 'text'}
+          color={routeOn ? 'warning' : 'primary'}
           sx={[
             (theme) =>
               theme.applyStyles('dark', {
@@ -218,6 +224,7 @@ function BoardBar({
             setRouteOn(!routeOn)
             setSelectedId(null)
             setAddressSearch(false)
+            setIsPulled(false)
           }}
         >
           Route Grader

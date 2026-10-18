@@ -47,7 +47,8 @@ function IntList({
   isPulled,
   setIsPulled,
   incidentColors,
-  analysisOn
+  analysisOn,
+  routeOn
 }) {
   const toggleDrawer = (newOpen) => () => {
     setIsPulled(newOpen)
@@ -143,7 +144,7 @@ function IntList({
             borderColor: 'rgba(255, 255, 255, 0.5)'
           })
         }
-        disabled={analysisOn ? true : false}
+        disabled={analysisOn || routeOn ? true : false}
       >
         Interactive List
       </Button>

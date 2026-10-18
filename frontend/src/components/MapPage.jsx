@@ -29,19 +29,23 @@ function MapPage() {
 
   // ── Constants ──────────────────────────────────────────────────────────────
   // Color palette keyed by incident nature (first word, lowercase)
-  const NATURE_COLORS = {
-    disturbance: '#e74c3c',
-    assault: '#c0392b',
-    theft: '#e67e22',
-    burglary: '#d35400',
-    traffic: '#3498db',
-    suspicious: '#9b59b6',
-    medical: '#1abc9c',
-    fire: '#e74c3c',
-    welfare: '#27ae60',
-    domestic: '#c0392b',
-    default: '#7f8c8d'
-  }
+  const CATEGORY_COLORS = {
+  VIOLENT: '#c0392b',
+  FIREARM: '#7b241c',
+  SEX_OFFENSE: '#8e44ad',
+  BURGLARY: '#d35400',
+  THEFT: '#e67e22',
+  VEHICLE: '#f1c40f',
+  FRAUD: '#16a085',
+  DRUGS: '#27ae60',
+  HARASSMENT: '#e84393',
+  DISTURBANCE: '#9fc513', // muted on purpose, it's 158k incidents
+  TRAFFIC: '#3498db',
+  DEATH: '#2c3e50',
+  ANIMAL: '#8d6e63',
+  HAZARD: '#00bcd4',
+  OTHER: '#7f8c8d'
+}
   const database = import.meta.env.VITE_API_BASE_URL
   // ── State ──────────────────────────────────────────────────────────────────
   const [daysAgo, setDaysAgo] = useState(3)
@@ -209,7 +213,7 @@ function MapPage() {
       ),
     [filteredList]
   )
-  //console.log(newListWithLocation)
+  console.log(filteredListWithLocation)
   //console.log('list with loc', filteredListWithLocation)
   //console.log('list without loc',filteredListWithoutLocation)
   //check
@@ -280,7 +284,7 @@ function MapPage() {
         setNoLocationMove={setNoLocationMove}
         isPulled={isPulled}
         setIsPulled={setIsPulled}
-        incidentColors={NATURE_COLORS}
+        incidentColors={CATEGORY_COLORS}
         SetAlertContent={SetAlertContent}
         analysisOn={analysisOn}
         setAnalysisOn={setAnalysisOn}
@@ -289,6 +293,7 @@ function MapPage() {
         setSelectedId={setSelectedId}
         routeOn = {routeOn}
         setRouteOn = {setRouteOn}
+        isLoading = {isLoading}
       />
 
       <Box
@@ -420,6 +425,7 @@ function MapPage() {
               setIsLoading={setIsLoading}
               routeOn={routeOn}
               setRouteOn={setRouteOn}
+              incidentColors = {CATEGORY_COLORS}
             />
           </Box>
         </Paper>

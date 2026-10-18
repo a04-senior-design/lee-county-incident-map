@@ -74,7 +74,8 @@ const CLUSTER_STATUS_NOTES = {
 const EMPTY_LEVELS = { district: null, neighborhood: null, street: null }
 const ALL_VISIBLE = { district: true, neighborhood: true, street: true }
 const DEFAULT_LEVEL_SLIDERS = { district: 50, neighborhood: 50, street: 50 }
-
+// Outside the component so it survives the legend being rebuilt on every data change
+let legendCollapsed = false
 // ---------- pure helpers (same names as before) ----------
 function levelToParams(level, sliderVal) {
   const t = sliderVal / 100
@@ -147,7 +148,7 @@ function renderLevelLayer(level, geojson) {
   return group
 }
 
-// Returns the legend HTML string (the effect puts it on the map)
+// Returns the legend rows as an HTML string (the effect wraps it in the collapsible control)
 function buildClusterLegend(levelData, levelVisible) {
   return LEVEL_DRAW_ORDER.filter(
     (level) => levelData[level] && levelVisible[level]
@@ -168,9 +169,9 @@ function buildClusterLegend(levelData, levelVisible) {
         .join('')
 
       return (
-        `<div style="margin-bottom:0.4rem;width: 150px  ">` +
-        `<div style=" position: sticky; top: 0; background: rgba(15, 15, 30, 1); width: 100%"><strong style="font-size:0.7rem;color:#aaa;text-transform:uppercase;letter-spacing:0.05em; ">` +
-        `${LEVEL_LABELS[level]}</strong></div>${rows}</div>`
+        `<div class="legend-section">` +
+        `<strong class="legend-section-title">${LEVEL_LABELS[level]}</strong>` +
+        `${rows}</div>`
       )
     })
     .join('')
@@ -199,6 +200,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   const [status, setStatusState] = useState(null) // 'loading' | 'ready' | 'error'
   const [dbscanError, setDbscanError] = useState('')
 
+  //GI-Star
+  const [GISData, setGISData] = useState(null) // last KDE response
+
+  const [distanceBand, setDistanceBand] = useState(2500) // was `sliders` / `valueLabels`
+  const distanceBandTimeBound = useRef(null)
+  //REF
   const applyRef = useRef(null)
   const debounceTimerRef = useRef(null)
   const clustersLoadedRef = useRef(false)
@@ -450,6 +457,104 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       </>
     )
   }
+  //GIStar---------------------------------------------------------------
+  async function fetchGIStar(value = distanceBand) {
+    setIsLoading(true)
+    try {
+      const res = await fetch(
+        `${API}/gi-star-heatmap?start_date=${startDate}&end_date=${endDate}&distance_band=${value}`
+      )
+      if (!res.ok) throw new Error('something wrong with gistar')
+      const data = await res.json()
+      console.log(data)
+      setGISData(data)
+      setDistanceBand(data.distance_band)
+    } catch (error) {
+      console.log(error.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  function build_GI_Sliders() {
+    return (
+      <>
+        <Box sx={{ display: 'flex', flexDirection: 'column', width: '300px' }}>
+          <Typography>Distance Band: {Math.round(distanceBand)}</Typography>
+
+          <Slider
+            aria-label='Small steps'
+            valueLabelDisplay='auto'
+            type='range'
+            id={`distance band`}
+            className='bandwidth-slider'
+            min={GISData?.min_distance_band}
+            max={GISData?.max_distance_band}
+            step={1}
+            value={distanceBand}
+            onChange={(_, value) => handleDistanceBand(value)}
+          />
+        </Box>
+      </>
+    )
+  }
+  function handleDistanceBand(value) {
+    const newValue = value
+    setDistanceBand(newValue)
+    clearTimeout(distanceBandTimeBound.current)
+    distanceBandTimeBound.current = setTimeout(() => {
+      fetchGIStar(newValue)
+    }, 400)
+  }
+  function renderGIStar(data) {
+    const b = data.bounds
+    const imageBounds = [
+      [b.south, b.west],
+      [b.north, b.east]
+    ]
+
+    const overlayLayer = L.imageOverlay(data.image, imageBounds, {
+      opacity: 0.8
+    })
+
+    const legend = data.legend
+    const gradientCss = `linear-gradient(to right, ${legend.colors.join(', ')})`
+
+    const tickLabels = legend.ticks
+      .map((t) => `<span>${Number(t.toPrecision(2))}</span>`)
+      .join('')
+
+    const legendControl = L.control({ position: 'bottomright' })
+
+    legendControl.onAdd = () => {
+      const div = L.DomUtil.create('div', 'legend')
+
+      div.innerHTML = `
+          <div class="legend-caption">${legend.caption}</div>
+          <div class="legend-gradient" style="background: ${gradientCss};"></div>
+          <div class="legend-ticks">${tickLabels}</div>
+        `
+
+      return div
+    }
+
+    overlayLayer.addTo(map)
+    legendControl.addTo(map)
+
+    return () => {
+      map.removeLayer(overlayLayer)
+      legendControl.remove()
+    }
+  }
+  useEffect(() => {
+    if (!active || mode !== 'gistar-heatmap') return
+    fetchGIStar()
+  }, [active, mode, startDate, endDate])
+
+  useEffect(() => {
+    if (!active || mode !== 'gistar-heatmap' || !GISData) return
+    return renderGIStar(GISData)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, active, mode, GISData])
 
   useEffect(() => () => clearTimeout(debounceTimerRef.current), [])
 
@@ -548,6 +653,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   }, [map, active, mode, levelData, levelVisible])
 
   // cluster legend control
+  // cluster legend control
   useEffect(() => {
     if (!active || mode !== 'clusters') return
 
@@ -558,7 +664,18 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     clusterLegendControl.onAdd = () => {
       const div = L.DomUtil.create('div', 'cluster-legend')
-      div.innerHTML = sections
+      div.classList.toggle('collapsed', legendCollapsed)
+
+      div.innerHTML =
+        `<button type="button" class="legend-toggle" aria-expanded="${!legendCollapsed}">` +
+        `<span>Legend</span><span class="legend-chevron">&#9660;</span></button>` +
+        `<div class="legend-body">${sections}</div>`
+
+      div.querySelector('.legend-toggle').addEventListener('click', (e) => {
+        legendCollapsed = !legendCollapsed
+        div.classList.toggle('collapsed', legendCollapsed)
+        e.currentTarget.setAttribute('aria-expanded', String(!legendCollapsed))
+      })
 
       L.DomEvent.disableScrollPropagation(div)
       L.DomEvent.disableClickPropagation(div)
@@ -645,8 +762,16 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
             })
         ]}
       >
-        <FormControl>
-          <FormLabel>Cluster and Heat Map Lab</FormLabel>
+        <FormControl
+          sx={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4
+          }}
+        >
+          <FormLabel>Cluster and Heat Map Lab: </FormLabel>
+
           <RadioGroup
             row
             aria-labelledby='analysis-radio-label'
@@ -658,7 +783,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
               <FormControlLabel
                 key={i}
                 value={`kde-${i}`}
-                control={<Radio />}
+                control={<Radio size='small' />}
                 label={label}
                 // "Includes cluster analysis" (set 1) is disabled until there is a usable cluster run
                 disabled={
@@ -669,12 +794,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
             <FormControlLabel
               value='clusters'
-              control={<Radio />}
+              control={<Radio size='small' />}
               label='Cluster Analysis'
             />
             <FormControlLabel
               value='gistar-heatmap'
-              control={<Radio />}
+              control={<Radio size='small' />}
               label='Getis-Ord Gi* Heat Map'
             />
           </RadioGroup>
@@ -734,21 +859,27 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
             >
               {LEVEL_UI_ORDER.map((level) => (
                 <Card
-                  sx={{
-                    width: '350px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    borderLeft: () =>
-                      level === 'street'
-                        ? '5px solid #d32f2f'
-                        : level === 'neighborhood'
-                          ? '5px solid #29b6f6'
-                          : '5px solid #66bb6a',
+                  sx={[
+                    {
+                      width: '350px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      borderLeft: () =>
+                        level === 'street'
+                          ? '5px solid #d32f2f'
+                          : level === 'neighborhood'
+                            ? '5px solid #29b6f6'
+                            : '5px solid #66bb6a',
 
-                    gap: 1,
-                    padding: '8px'
-                  }}
-                  elevation={3}
+                      gap: 1,
+                      padding: '8px'
+                    },
+                    (theme) =>
+                      theme.applyStyles('dark', {
+                        background: 'rgba(43, 40, 56, 0.95)'
+                      })
+                  ]}
+                  elevation={5}
                   key={level}
                   className={`level-block${levelVisible[level] ? '' : ' level-off'}`}
                   id={`level-block-${level}`}
@@ -776,10 +907,9 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                       }
                     />
 
-                    <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography
-                        variant='h6'
-                        sx={{ fontWeight: 600 }}
+                        sx={{ fontWeight: 600, fontSize: '20px' }}
                         color={
                           level === 'street'
                             ? 'error'
@@ -901,7 +1031,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                 )}
 
                 <Box>
-                  <Typography color='text'>
+                  <Typography color='text' sx={{ fontWeight: 600 }}>
                     {' '}
                     Total points: {totalPts ?? '—'}
                   </Typography>
@@ -912,7 +1042,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
         </Box>
         <div id='bandwidth-controls'>{buildSliders()}</div>
 
-        <div id='gistar-controls'></div>
+        <div id='gistar-controls'>{build_GI_Sliders()}</div>
       </Box>
     </>
   )

@@ -91,6 +91,7 @@ const LEECOUNTY_BOUNDARY = [
 ]
 const leeCountyPoints = LEECOUNTY_BOUNDARY[0]
 const LEECOUNTY_BOUNDS = L.latLngBounds(leeCountyPoints)
+const LEECOUNTY_MAX_BOUNDS = LEECOUNTY_BOUNDS.pad(0.8)
 //let render = 0
 function AutoResize() {
   const map = useMap()
@@ -131,7 +132,8 @@ function Map({
   isLoading,
   setIsLoading,
   routeOn,
-  setRouteOn
+  setRouteOn,
+  incidentColors
 }) {
   const exitRoute = useCallback(() => setRouteOn(false), [])
   //render++
@@ -151,7 +153,7 @@ function Map({
   const [searchWay, setSearchWay] = useState('click') //set between click or type in search box
   useEffect(() => {
     if (!routeOn) {
-      setSearchWay('searchBox')
+      setSearchWay('click')
       setRoutePoints(null)
     }
   }, [routeOn])
@@ -662,14 +664,15 @@ function Map({
               if (searchWay === 'click') {
                 setSearchWay('searchBox')
                 setRoutePoints(null)
+                showAlert('success', 'Now you can use the search box')
+              } else {
+                setSearchWay('click')
+                setRoutePoints(null)
+
                 showAlert(
                   'success',
                   'Now you can click on the map to set routes'
                 )
-              } else {
-                setSearchWay('click')
-                setRoutePoints(null)
-                showAlert('success', 'Now you can use the search box')
               }
             }}
           >
@@ -678,7 +681,7 @@ function Map({
           <Button
             color='warning'
             sx={{
-              width: '100px'
+              width: '200px'
             }}
             variant='contained'
             onClick={() => {
@@ -687,7 +690,7 @@ function Map({
               setRoutePoints(null)
             }}
           >
-            Reset
+            Delete both text box
           </Button>
         </Box>
       )}
@@ -695,25 +698,27 @@ function Map({
         preferCanvas
         center={countyCenter}
         zoom={9.5}
-        minZoom={9.5}
+        minZoom={9}
+        zoomSnap={0.25}
+        zoomDelta={0.25}
         scrollWheelZoom={true}
         zoomControl={false}
         style={{ height: '100%', width: '100%' }}
-        maxBounds={LEECOUNTY_BOUNDS}
-        maxBoundsViscosity={1.0}
+        maxBounds={LEECOUNTY_MAX_BOUNDS}
+        maxBoundsViscosity={0.6}
       >
-        <TileLayer
-          url={`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${tileProvider}`}
+        {/* <TileLayer
+          url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${tileProvider}`}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           updateWhenZooming={false}
           keepBuffer={4}
-        />
-        {/* <TileLayer
+        /> */}
+        <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
           updateWhenZooming={false}
           keepBuffer={4}
-        /> */}
+        />
         {/*create a custom hook to move the map when user click on the item */}
         <MoveMap selectedLocation={locationMove} markerRef={markerRef} />
         {/* <SearchAddress
@@ -754,6 +759,7 @@ function Map({
           onExit={exitRoute}
           pair={routePoints}
           type={searchWay}
+          incidentColors ={incidentColors}
         />
         <Analysis
           active={analysisOn}

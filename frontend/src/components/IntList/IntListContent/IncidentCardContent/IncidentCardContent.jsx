@@ -18,7 +18,7 @@ function IncidentCardContent({
 }) {
   const [targetCard, setTargetCard] = useState(null)
   const pickColor = (incident) => {
-    const key = (incident.nature || '').toLowerCase()
+    const key = (incident.category || '')
     for (const color in incidentColors) {
       if (key.includes(color)) return incidentColors[color]
     }

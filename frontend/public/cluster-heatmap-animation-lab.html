@@ -187,17 +187,16 @@
       white-space: nowrap;
       cursor: pointer;
     }
-    /* option that can't be used yet (e.g. no DBSCAN frame files) */
+    /* option that can't be used yet (e.g. no Cluster Analysis run) */
     .analysis-option.unavailable { opacity: 0.5; cursor: not-allowed; }
 
     /* show only the current mode's fields */
-    /* time-window fields: used by Cluster Analysis and KDE (all points); KDE by cluster level reuses the DBSCAN frames */
-    #animation-controls:not([data-mode="clusters"]):not([data-mode="all-points"]) .window-field { display: none; }
+    /* time-window fields: used by Cluster Analysis, KDE (all points) and Gi*; KDE by cluster level reuses the Cluster Analysis run */
+    #animation-controls:not([data-mode="clusters"]):not([data-mode="all-points"]):not([data-mode="gistar-heatmap"]) .window-field { display: none; }
     #animation-controls:not([data-mode="clusters"]) .clusters-field { display: none; }
     #animation-controls:not([data-mode="all-points"]) .all-points-field { display: none; }
     #animation-controls:not([data-mode="cluster-levels"]) .cluster-levels-field { display: none; }
-    /* placeholder mode (Gi*): no controls yet, so hide the whole bar */
-    #animation-controls[data-mode="gistar-heatmap"] { display: none; }
+    #animation-controls:not([data-mode="gistar-heatmap"]) .gistar-field { display: none; }
 
     /* ── Animation windowing controls ─────────────────────────────────────── */
     #animation-controls {
@@ -240,7 +239,7 @@
       accent-color: var(--ui-accent);
       cursor: pointer;
     }
-    .field-row label span.bw-value { color: var(--ui-accent); font-weight: 600; }
+    .field-row label span.slider-value { color: var(--ui-accent); font-weight: 600; }
     #kde-heatmap-level-sliders {
       display: flex;
       align-items: flex-end;
@@ -448,7 +447,7 @@
 <div id="top-bar">
   <div id="branding">
     <strong>Incidents Animation</strong>
-    <span>Clusters and KDE heat map over time</span>
+    <span>Clusters, KDE heat map and Gi* heat map over time</span>
   </div>
   <div id="analysis-controls">
     <div class="analysis-title">Analysis</div>
@@ -485,7 +484,8 @@
   </div>
   <div id="stats">
     <div class="stat-pill">Frame: <span id="stat-frame">&mdash;</span></div>
-    <div class="stat-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
+    <div class="stat-pill" id="bandwidth-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
+    <div class="stat-pill" id="distance-band-pill" hidden>Distance band: <span id="stat-distance-band">&mdash;</span></div>
   </div>
   <button id="theme-toggle" type="button" title="Switch light/dark theme"></button>
 </div>
@@ -513,8 +513,14 @@
 
   <!-- KDE heat map (all points): one bandwidth -->
   <div class="field-row all-points-field">
-    <label for="input-bandwidth">Bandwidth: <span class="bw-value" id="bandwidth-value">1500</span> ft</label>
+    <label for="input-bandwidth">Bandwidth: <span class="slider-value" id="bandwidth-value">1500</span> ft</label>
     <input id="input-bandwidth" type="range" min="500" max="10000" step="100" value="1500" />
+  </div>
+
+  <!-- Getis-Ord Gi* heat map: one distance band -->
+  <div class="field-row gistar-field">
+    <label for="input-distance-band">Distance band: <span class="slider-value" id="distance-band-value">2500</span> ft</label>
+    <input id="input-distance-band" type="range" min="500" max="10000" step="100" value="2500" />
   </div>
 
   <!-- KDE heat map (by cluster density level): one bandwidth per level, built after Apply -->
@@ -795,7 +801,7 @@
   updateDateInput();
   renderCalendar();
 
-  // read the time-window inputs (shared by Cluster Analysis and KDE all points);
+  // read the time-window inputs (shared by Cluster Analysis, KDE all points, and Gi*);
   // returns the params, plus the labels of any blank fields
   function readWindowParams() {
     const params = {
@@ -829,25 +835,32 @@
     bandwidthValue.textContent = bandwidthInput.value;
   });
 
-  const levelSlidersContainer = document.getElementById("kde-heatmap-level-sliders");
-  const levelHint = document.getElementById("kde-heatmap-level-hint");
+  // show the distance band value next to its label as the slider moves
+  const distanceBandInput = document.getElementById("input-distance-band");
+  const distanceBandValue = document.getElementById("distance-band-value");
+  distanceBandInput.addEventListener("input", () => {
+    distanceBandValue.textContent = distanceBandInput.value;
+  });
+
+  const kdeLevelSlidersContainer = document.getElementById("kde-heatmap-level-sliders");
+  const kdeLevelHint = document.getElementById("kde-heatmap-level-hint");
 
   // build one slider per cluster level; level 0 (loosest / least-dense) first
   function buildKDEHeatmapLevelSliders(bandwidths, minBandwidth, maxBandwidth) {
-    levelSlidersContainer.innerHTML = "";
+    kdeLevelSlidersContainer.innerHTML = "";
 
     for (let i = 0; i < bandwidths.length; i++) {
       const row = document.createElement("div");
       row.className = "field-row";
       row.innerHTML = `
-        <label for="input-level-bandwidth-${i}">Level ${i} bandwidth: <span class="bw-value">${bandwidths[i]}</span> ft</label>
+        <label for="input-level-bandwidth-${i}">Level ${i} bandwidth: <span class="slider-value">${bandwidths[i]}</span> ft</label>
         <input id="input-level-bandwidth-${i}" class="level-bandwidth" type="range"
           min="${minBandwidth}" max="${maxBandwidth}" step="100" value="${bandwidths[i]}" />
       `;
-      levelSlidersContainer.appendChild(row);
+      kdeLevelSlidersContainer.appendChild(row);
     }
 
-    const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
+    const sliders = kdeLevelSlidersContainer.querySelectorAll(".level-bandwidth");
     for (let i = 0; i < sliders.length; i++) {
       sliders[i].addEventListener("input", () => {
         let value = parseFloat(sliders[i].value);
@@ -864,7 +877,7 @@
         }
 
         sliders[i].value = value;
-        sliders[i].previousElementSibling.querySelector(".bw-value").textContent = value;
+        sliders[i].previousElementSibling.querySelector(".slider-value").textContent = value;
       });
     }
 
@@ -873,13 +886,13 @@
     for (let i = 0; i < bandwidths.length; i++) {
       levelNames.push(`Level ${i}`);
     }
-    levelHint.textContent = `Constraint: ${levelNames.join(" >= ")}`;
+    kdeLevelHint.textContent = `Constraint: ${levelNames.join(" >= ")}`;
   }
 
   // remove the sliders, so the next Apply sends no bandwidths and gets the defaults
   function removeKDEHeatmapLevelSliders() {
-    levelSlidersContainer.innerHTML = "";
-    levelHint.textContent = "Click Apply to load frame 1's cluster levels.";
+    kdeLevelSlidersContainer.innerHTML = "";
+    kdeLevelHint.textContent = "Click Apply to load frame 1's cluster levels.";
   }
 
 
@@ -1024,13 +1037,13 @@
   });
 
 
-  let currentKDEHeatmapOverlay = null; // the kde heat map image on the map, if any
+  let currentHeatmapOverlay = null; // the KDE or Gi* heat map image on the map, if any
 
   const applyBtn = document.getElementById("animation-apply");
   const resetBtn = document.getElementById("dbscan-reset");
   const errorLabel = document.getElementById("animation-error");
   // playback state
-  let frames = []; // frames from the last Apply (cluster snapshots or kde heat map frames)
+  let frames = []; // frames from the last Apply (cluster snapshots, or KDE or Gi* heat map frames)
   let frameIndex = 0; // frame currently shown
   let playing = false; // true while the animation is running
   let timer = null; // the interval that advances frames
@@ -1040,9 +1053,13 @@
   const frameLabel = document.getElementById("frame-label");
   const statFrame = document.getElementById("stat-frame");
   const statBandwidth = document.getElementById("stat-bandwidth");
+  const statDistanceBand = document.getElementById("stat-distance-band");
+  // the Bandwidth pill shows in the KDE modes, the Distance band pill in Gi* mode, and neither in Cluster Analysis
+  const bandwidthPill = document.getElementById("bandwidth-pill");
+  const distanceBandPill = document.getElementById("distance-band-pill");
   const playBtn = document.getElementById('btn-play');
-  // "clusters" (DBSCAN snapshots), "gistar-heatmap" (placeholder for now), or the two KDE heat map modes:
-  // "all-points" (time windows, one bandwidth) or "cluster-levels" (DBSCAN frame files)
+  // "clusters" (DBSCAN snapshots), "gistar-heatmap" (Gi* heat map, time windows, one distance band),
+  // or the two KDE heat map modes: "all-points" (time windows, one bandwidth) or "cluster-levels" (the Cluster Analysis run)
   let analysisMode = "all-points";
   const animationControls = document.getElementById("animation-controls");
   const modeRadios = document.querySelectorAll('input[name="analysis-mode"]');
@@ -1057,10 +1074,11 @@
     frameLabel.textContent = "—";
     statFrame.textContent = "—";
     statBandwidth.textContent = "—";
+    statDistanceBand.textContent = "—";
 
-    if (currentKDEHeatmapOverlay) {
-      map.removeLayer(currentKDEHeatmapOverlay);
-      currentKDEHeatmapOverlay = null;
+    if (currentHeatmapOverlay) {
+      map.removeLayer(currentHeatmapOverlay);
+      currentHeatmapOverlay = null;
     }
     clearClusterLayer();
     updateClusterLevelStats(null);
@@ -1071,6 +1089,20 @@
     radio.addEventListener("change", () => {
       analysisMode = radio.value;
       animationControls.dataset.mode = analysisMode;
+      // show the pill for the current mode's slider parameter (Cluster Analysis has none)
+      if (analysisMode === "clusters") {
+        bandwidthPill.hidden = true;
+        distanceBandPill.hidden = true;
+      }
+      else if (analysisMode === "gistar-heatmap") {
+        bandwidthPill.hidden = true;
+        distanceBandPill.hidden = false;
+      }
+      else {
+        // the two KDE modes
+        bandwidthPill.hidden = false;
+        distanceBandPill.hidden = true;
+      }
       clearAnimation();
       errorLabel.textContent = "";
       // the controls bar's height changed (or it was hidden), so Leaflet re-measures the map
@@ -1078,12 +1110,12 @@
     });
   }
 
-  // the cluster-levels radio, and whether its DBSCAN frame files can be used (checked on page load
-  // and after every Cluster Analysis Apply, since that rewrites the files)
+  // the cluster-levels radio, and whether its Cluster Analysis run can be used (checked on page load
+  // and after every Cluster Analysis Apply, since that makes a new run)
   const clusterLevelsRadio = document.querySelector('input[name="analysis-mode"][value="cluster-levels"]');
   const clusterLevelsLabel = clusterLevelsRadio.parentElement;
   let clusterLevelsAvailable = true;
-  // the DBSCAN run from the last Cluster Analysis Apply; the KDE cluster-level routes read its frame files
+  // the DBSCAN run from the last Cluster Analysis Apply; the KDE cluster-level routes use its results
   let dbscanRunId = null;
 
   // enable or disable the analysis radios and buttons (disabled while a request is running)
@@ -1091,7 +1123,7 @@
     for (const radio of modeRadios) {
       radio.disabled = disabled;
     }
-    // the cluster-levels radio stays disabled while its DBSCAN frame files can't be used
+    // the cluster-levels radio stays disabled while the Cluster Analysis run can't be used
     if (!clusterLevelsAvailable) {
       clusterLevelsRadio.disabled = true;
     }
@@ -1100,9 +1132,9 @@
     resetBtn.disabled = disabled;
   }
 
-  // ask the backend whether the DBSCAN frame files can be used; enable or disable the cluster-levels radio
-  async function checkDBSCANFrames() {
-    // no Cluster Analysis run yet, so there are no frame files to ask about
+  // ask the backend whether the Cluster Analysis run can be used; enable or disable the cluster-levels radio
+  async function checkDBSCANRun() {
+    // no Cluster Analysis run yet, so there's nothing to ask about
     let dbscanStatus = "missing";
     if (dbscanRunId) {
       const res = await fetch(`${API_BASE}/animation/kde-heatmap-dbscan/status?run_id=${dbscanRunId}`);
@@ -1119,19 +1151,19 @@
       clusterLevelsLabel.title = "";
     }
     else if (dbscanStatus === "missing") {
-      clusterLevelsLabel.title = "No DBSCAN frame files found. Run Cluster Analysis first.";
+      clusterLevelsLabel.title = "No Cluster Analysis results found (none run yet, or they expired). Run Cluster Analysis first.";
     }
     else {
       clusterLevelsLabel.title = "Frame 1 has no cluster levels (empty or all noise). Rerun Cluster Analysis with different settings.";
     }
   }
 
-  // draw a kde heat map frame: its heat map (if any) and label
-  function renderKDEHeatmapFrame(frame) {
+  // draw a KDE or Gi* heat map frame: its heat map (if any) and label
+  function renderHeatmapFrame(frame) {
     // remove the previous frame's overlay
-    if (currentKDEHeatmapOverlay) {
-      map.removeLayer(currentKDEHeatmapOverlay);
-      currentKDEHeatmapOverlay = null;
+    if (currentHeatmapOverlay) {
+      map.removeLayer(currentHeatmapOverlay);
+      currentHeatmapOverlay = null;
     }
 
     // empty window: no image, just the label
@@ -1141,7 +1173,7 @@
         [frame.bounds.south, frame.bounds.west],
         [frame.bounds.north, frame.bounds.east],
       ];
-      currentKDEHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
+      currentHeatmapOverlay = L.imageOverlay(frame.image, bounds, {opacity: 0.8}).addTo(map);
     }
 
     // add the frame's note, if any (e.g. empty or all-noise frame)
@@ -1175,7 +1207,7 @@
       renderClusterFrame(frames[i]);
     }
     else {
-      renderKDEHeatmapFrame(frames[i]);
+      renderHeatmapFrame(frames[i]);
     }
     scrub.value = i;
     statFrame.textContent = `${i + 1} / ${frames.length}`;
@@ -1256,14 +1288,14 @@
     if (analysisMode === "cluster-levels") {
       // one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
       const query = new URLSearchParams({run_id: dbscanRunId});
-      const sliders = levelSlidersContainer.querySelectorAll(".level-bandwidth");
+      const sliders = kdeLevelSlidersContainer.querySelectorAll(".level-bandwidth");
       for (const slider of sliders) {
         query.append("bandwidth", slider.value);
       }
       return {url: `${API_BASE}/animation/kde-heatmap-dbscan?${query.toString()}`};
     }
 
-    // Cluster Analysis and KDE all points: the time-window fields are required
+    // Cluster Analysis, KDE all points, and Gi*: the time-window fields are required
     const {params, missing} = readWindowParams();
     if (missing.length > 0) {
       return {error: `Enter a ${missing.join(", ")}.`};
@@ -1284,6 +1316,13 @@
       return {url: `${API_BASE}/animation/dbscan?${new URLSearchParams(params).toString()}`};
     }
 
+    if (analysisMode === "gistar-heatmap") {
+      // Gi*: one distance band from its slider
+      params.distance_band = distanceBandInput.value;
+      return {url: `${API_BASE}/animation/gi-star-heatmap?${new URLSearchParams(params).toString()}`};
+    }
+
+    // KDE all points: one bandwidth from its slider
     params.bandwidth = bandwidthInput.value;
     return {url: `${API_BASE}/animation/kde-heatmap?${new URLSearchParams(params).toString()}`};
   }
@@ -1310,10 +1349,16 @@
       const body = await res.json();
 
       if (!res.ok) {
-        errorLabel.textContent = body.error || (mode === "clusters"
-          ? "Failed to load DBSCAN snapshots"
-          : "Failed to load kde heat map snapshots");
-        // e.g. the DBSCAN files changed and the slider count no longer matches frame 1
+        // the backend's message if it sent one, otherwise a general one for this mode
+        let fallbackMessage = "Failed to load kde heat map snapshots";
+        if (mode === "clusters") {
+          fallbackMessage = "Failed to load DBSCAN snapshots";
+        }
+        else if (mode === "gistar-heatmap") {
+          fallbackMessage = "Failed to load Gi* heat map snapshots";
+        }
+        errorLabel.textContent = body.error || fallbackMessage;
+        // e.g. the Cluster Analysis run changed and the slider count no longer matches frame 1
         if (mode === "cluster-levels") {
           removeKDEHeatmapLevelSliders();
         }
@@ -1333,20 +1378,27 @@
         frameLabel.textContent = "No frames in this date range";
       }
 
-      // bandwidth(s) the displayed snapshots were built with
+      // the parameter value(s) the displayed snapshots were built with
       if (mode === "clusters") {
         // this Apply made a new DBSCAN run: the KDE cluster-level count may have changed,
         // so drop the old sliders (next cluster-levels Apply uses defaults) and recheck availability
         dbscanRunId = body.run_id;
         removeKDEHeatmapLevelSliders();
-        await checkDBSCANFrames();
+        await checkDBSCANRun();
       }
       else if (mode === "cluster-levels") {
         statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
         // rebuild the sliders at the bandwidths the backend used (defaults on the first Apply)
         buildKDEHeatmapLevelSliders(body.bandwidths, body.min_bandwidth, body.max_bandwidth);
       }
+      else if (mode === "gistar-heatmap") {
+        statDistanceBand.textContent = `${body.distance_band} ft`;
+        // take the slider range from the backend
+        distanceBandInput.min = body.min_distance_band;
+        distanceBandInput.max = body.max_distance_band;
+      }
       else {
+        // KDE all points
         statBandwidth.textContent = `${body.bandwidth} ft`;
         // take the slider range from the backend
         bandwidthInput.min = body.min_bandwidth;
@@ -1367,7 +1419,7 @@
   applyBtn.addEventListener("click", applyAnimation);
 
   // Cluster Analysis reset: level toggles back on and sliders to the middle, then back to the
-  // blank "Click Apply" state. The date/window fields are shared with KDE (all points), so they're kept.
+  // blank "Click Apply" state. The date/window fields are shared with KDE (all points) and Gi*, so they're kept.
   resetBtn.addEventListener("click", () => {
     document.querySelectorAll(".level-toggle").forEach(checkbox => {
       checkbox.checked = true;
@@ -1379,7 +1431,7 @@
     clearAnimation();
   });
 
-  checkDBSCANFrames();
+  checkDBSCANRun();
 })();
 </script>
 </body>
