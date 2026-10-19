@@ -22,7 +22,8 @@ import MessageIcon from '@mui/icons-material/Message'
 import Link from '@mui/material/Link'
 import { useAuth } from '../../Context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-function AppBar() {
+import AppNoti from '../AppNoti/AppNoti'
+function AppBar({ setAccountPop, accountPop, setIsPulled }) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState(null)
@@ -84,7 +85,6 @@ function AppBar() {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          
           <Button
             sx={[
               { color: 'white' },
@@ -125,20 +125,7 @@ function AppBar() {
       </Box>
       {user ? (
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {/* <Tooltip title='Notification'>
-            <IconButton
-              sx={{
-                '.MuiSvgIcon-root': {
-                  width: 30,
-                  height: 30
-                }
-              }}
-            >
-              <Badge badgeContent={2} color='error'>
-                <NotificationsNoneIcon sx={{ color: 'white' }} />
-              </Badge>
-            </IconButton>
-          </Tooltip> */}
+          <AppNoti />
 
           <Box sx={{ ml: 1.5, cursor: 'pointer' }}>
             <Avatar
@@ -162,8 +149,13 @@ function AppBar() {
                 }
               }}
             >
-           
-              <MenuItem onClick={handleClose}>
+              <MenuItem
+                onClick={() => {
+                  setAccountPop(true)
+                  handleClose()
+                  setIsPulled(false)
+                }}
+              >
                 <ManageAccountsIcon sx={{ marginRight: 1 }} />
                 My account
               </MenuItem>
@@ -180,7 +172,10 @@ function AppBar() {
           </Box>
         </Box>
       ) : (
-        <Link sx={{ cursor: 'pointer', color:'white', fontWeight: 600 }} onClick={() => navigate('/login')}>
+        <Link
+          sx={{ cursor: 'pointer', color: 'white', fontWeight: 600 }}
+          onClick={() => navigate('/login')}
+        >
           {' '}
           Sign in/ Sign up
         </Link>

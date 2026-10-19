@@ -9,6 +9,7 @@ import { useState } from 'react'
 import AnimationIcon from '@mui/icons-material/Animation'
 import { useAuth } from '../../Context/AuthContext'
 import RouteIcon from '@mui/icons-material/Route'
+import AddAlertIcon from '@mui/icons-material/AddAlert';
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -26,7 +27,8 @@ function BoardBar({
   routeOn,
   setRouteOn,
   setSelectedId,
-  isLoading
+  isLoading,
+  accountPop
 }) {
   // const [activeBtn, setActiveBtn] = useState({
   //   search: false,
@@ -118,7 +120,7 @@ function BoardBar({
           setIsPulled={setIsPulled}
           incidentColors={incidentColors}
           analysisOn={analysisOn}
-          routeOn = {routeOn}
+          routeOn={routeOn}
         />
         <Button
           variant={addressSearch ? 'contained' : 'text'}
@@ -130,7 +132,7 @@ function BoardBar({
               }),
             { padding: '8px 16px' }
           ]}
-          startIcon={<TravelExploreIcon />}
+          startIcon={<AddAlertIcon />}
           onClick={() => {
             setAddressSearch(!addressSearch)
             setSelectedId(null)
@@ -138,7 +140,7 @@ function BoardBar({
           }}
           disabled={analysisOn ? true : false}
         >
-          Adress Search
+          Notification
         </Button>
         <Button
           disabled={user ? false : true}
@@ -186,8 +188,8 @@ function BoardBar({
           Animation
         </Button>
         <Button
-          loading = {reportLoading}
-           loadingPosition="start"
+          loading={reportLoading}
+          loadingPosition='start'
           disabled={user && !isLoading ? false : true}
           variant={reportBtn ? 'contained' : 'text'}
           color={reportBtn ? 'info' : 'primary'}
@@ -210,7 +212,7 @@ function BoardBar({
         </Button>
         <Button
           disabled={user ? false : true}
-          variant={routeOn  ? 'contained' : 'text'}
+          variant={routeOn ? 'contained' : 'text'}
           color={routeOn ? 'warning' : 'primary'}
           sx={[
             (theme) =>

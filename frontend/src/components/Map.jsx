@@ -26,6 +26,7 @@ import LinearProgress from '@mui/material/LinearProgress'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import RouteGrader from './RouteSafety/RouteGrader.jsx'
+import AreaForm from './AreaForm/AreaForm.jsx'
 let iconCache = {}
 //create a custom hook to move the map when user click on the item
 function MoveMap({ selectedLocation, markerRef = null }) {
@@ -372,97 +373,33 @@ function Map({
           sx={{
             position: 'absolute',
             zIndex: 1000,
-            top: '100px',
-            width: '100vw',
+            top: '50px',
+            left: 0,
+            right: 0,
             display: 'flex',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            pointerEvents: 'none'
           }}
         >
           <Box
             sx={{
               display: 'flex',
               justifyContent: 'center',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              pointerEvents: 'auto'
             }}
           >
-            <TextField
-              autoComplete='off'
-              id='filterList'
-              type='text'
-              placeholder='Enter Address'
-              variant='outlined'
-              size='md'
-              onChange={searching}
-              value={addressType}
-              sx={[
-                {
-                  width: '350px',
-                  backgroundColor: 'white',
-                  borderRadius: '8px',
-                  color: 'black',
-                  '& .MuiInputBase-input': {
-                    color: 'black'
-                  },
-                  //For the outlined of the button and textfield things
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    border: 'none'
-                  },
-
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    border: 'none'
-                  },
-
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    border: 'none'
-                  }
-                },
-                (theme) =>
-                  theme.applyStyles('light', {
-                    borderColor: theme.palette.grey[900]
-                  }),
-                (theme) =>
-                  theme.applyStyles('dark', {
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'none'
-                    }
-                  })
-              ]}
+            <AreaForm
+              searching={searching}
+              addressType={addressType}
+              addressList={addressList}
+              checkBound={checkBound}
+              setAddressList = {setAddressList}
+              setAddressType = {setAddressType}
+              showAlert ={showAlert}
+              addressSearch = {addressSearch}
+              setAddressSearch = {setAddressSearch}
             />
-            <List sx={{ p: '3px 0' }}>
-              {addressType.length !== 0 &&
-                addressList?.map((address, index) => (
-                  <>
-                    <ListItem
-                      key={index}
-                      sx={{
-                        backgroundColor: 'white',
-                        width: '350px',
-                        p: 0
-                      }}
-                    >
-                      <ListItemButton
-                        onClick={() => {
-                          setAddressType('')
-                          setAddressList(null)
-                          checkBound([address.center])
-                        }}
-                      >
-                        <ListItemText
-                          primary={address.place_name}
-                          sx={{
-                            color: 'black'
-                          }}
-                          slotProps={{
-                            textOverflow: 'ellipsis',
-                            overflow: 'hidden'
-                          }}
-                        />
-                      </ListItemButton>
-                    </ListItem>
-                    <Divider component='li' />
-                  </>
-                ))}
-            </List>
           </Box>
         </Box>
       )}
@@ -759,7 +696,7 @@ function Map({
           onExit={exitRoute}
           pair={routePoints}
           type={searchWay}
-          incidentColors ={incidentColors}
+          incidentColors={incidentColors}
         />
         <Analysis
           active={analysisOn}
