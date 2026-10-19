@@ -192,7 +192,7 @@ function AreaForm({
             currentPicked={currentPicked}
           />
         </Box>
-        <Box>
+        {/* <Box>
           <FormLabel id='radio-noti-time-group-label'>Time</FormLabel>
           <RadioGroup
             row
@@ -216,7 +216,7 @@ function AreaForm({
               label='monthly'
             />
           </RadioGroup>
-        </Box>
+        </Box> */}
         <Box>
           <FormLabel id='radio-noti-distance-group-label'>
             Distance (miles)
