@@ -2,13 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMap, useMapEvents, Polyline, CircleMarker } from 'react-leaflet'
 import L from 'leaflet'
 import { gradeRoute, scoreColor, scoreLabel } from './routeGrader'
-import Card from '@mui/material/Card'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import TimelineIcon from '@mui/icons-material/Timeline'
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled'
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk'
+
 const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
+const WALK_KMH = 5
 
 async function fetchDrivingRoutes(a, b, signal) {
   const url =
@@ -19,7 +23,6 @@ async function fetchDrivingRoutes(a, b, signal) {
   if (!res.ok) throw new Error(`Directions error ${res.status}`)
 
   const data = await res.json()
-  console.log('routes from Mapbox:', data.routes?.length)
   return (data.routes ?? []).map((route) => ({
     // Mapbox returns [lng, lat]; the grader wants {lat, lng}
     points: route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
@@ -34,15 +37,21 @@ export default function RouteGrader({
   onExit,
   pair,
   type,
-  incidentColors
+  incidentColors,
+  onModeChange
 }) {
   const map = useMap()
   const panelRef = useRef(null)
-  const [waypoints, setWaypoints] = useState([]) // max 2: start, end
-  const [routes, setRoutes] = useState([])
+  const [mode, setMode] = useState('trace') // 'trace' | 'drive'
+  const [waypoints, setWaypoints] = useState([]) // trace: unlimited, drive: max 2
+  const [driveRoutes, setDriveRoutes] = useState([])
   const [selected, setSelected] = useState(0)
   const [status, setStatus] = useState('')
 
+  const isTrace = mode === 'trace'
+  useEffect(() => {
+    onModeChange?.(mode)
+  }, [mode, onModeChange])
   useEffect(() => {
     if (panelRef.current) {
       L.DomEvent.disableClickPropagation(panelRef.current)
@@ -53,7 +62,7 @@ export default function RouteGrader({
   useEffect(() => {
     if (!active) {
       setWaypoints([])
-      setRoutes([])
+      setDriveRoutes([])
       setStatus('')
       return
     }
@@ -66,31 +75,45 @@ export default function RouteGrader({
     }
   }, [active, map, onExit])
 
+  // Switching modes starts fresh
+  useEffect(() => {
+    setWaypoints([])
+    setDriveRoutes([])
+    setSelected(0)
+    setStatus('')
+  }, [mode])
+
+  const addPoint = (p) =>
+    setWaypoints((w) => {
+      if (isTrace) return [...w, p]
+      return w.length >= 2 ? [p] : [...w, p] // drive: 3rd click starts over
+    })
+
   useMapEvents({
     click(e) {
       if (!active) return
-      if (type === 'searchBox') return
-      const p = { lat: e.latlng.lat, lng: e.latlng.lng }
-      // 3rd click starts a fresh route
-      setWaypoints((w) => (w.length >= 2 ? [p] : [...w, p]))
+      if (!isTrace && type === 'searchBox') return
+      addPoint({ lat: e.latlng.lat, lng: e.latlng.lng })
     }
   })
+
   useEffect(() => {
-    if (!pair) return
-    const p = { lat: pair[0], lng: pair[1] }
-    setWaypoints((prev) => (prev.length >= 2 ? [p] : [...prev, p]))
-  }, [pair])
-  // Fetch the road route when both points exist
+  if (!pair || isTrace) return
+  addPoint({ lat: pair[0], lng: pair[1] })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [pair])
+
+  // Drive mode only: fetch the road route when both points exist
   useEffect(() => {
-    if (!active || waypoints.length < 2) {
-      setRoutes([])
+    if (!active || isTrace || waypoints.length < 2) {
+      setDriveRoutes([])
       return
     }
     const ctrl = new AbortController()
     setStatus('Finding route…')
     fetchDrivingRoutes(waypoints[0], waypoints[1], ctrl.signal)
       .then((r) => {
-        setRoutes(r)
+        setDriveRoutes(r)
         setSelected(0)
         setStatus(r.length ? '' : 'No route found')
       })
@@ -98,10 +121,29 @@ export default function RouteGrader({
         if (err.name !== 'AbortError') setStatus('Could not get route')
       })
     return () => ctrl.abort()
-  }, [waypoints, active])
+  }, [waypoints, active, isTrace])
+
+  // Trace mode: the route is just the clicked points, built locally
+  const traceRoutes = useMemo(() => {
+    if (!isTrace || waypoints.length < 2) return []
+    let meters = 0
+    for (let i = 1; i < waypoints.length; i++) {
+      meters += map.distance(waypoints[i - 1], waypoints[i])
+    }
+    const km = meters / 1000
+    return [
+      {
+        points: waypoints,
+        distanceKm: km,
+        minutes: Math.max(1, Math.round((km / WALK_KMH) * 60))
+      }
+    ]
+  }, [isTrace, waypoints, map])
+
+  const routes = isTrace ? traceRoutes : driveRoutes
 
   const grades = useMemo(
-    () => routes?.map((route) => gradeRoute(route.points, incidents)),
+    () => routes.map((route) => gradeRoute(route.points, incidents)),
     [routes, incidents]
   )
 
@@ -110,13 +152,15 @@ export default function RouteGrader({
   const color = grade ? scoreColor(grade.score) : '#8ab4f8'
   const route = routes[selected]
   const pickColor = (incident) => {
-    const key = (incident.category || '')
+    const key = incident.category || ''
     for (const color in incidentColors) {
       if (key.includes(color)) return incidentColors[color]
     }
-
     return incidentColors.default
   }
+
+  const lastIdx = waypoints.length - 1
+
   return (
     <>
       {routes.map(
@@ -142,19 +186,27 @@ export default function RouteGrader({
         />
       )}
 
-      {waypoints.map((p, i) => (
-        <CircleMarker
-          key={i}
-          center={[p.lat, p.lng]}
-          radius={7}
-          interactive={false}
-          pathOptions={{
-            color: '#000',
-            fillColor: i === 0 ? '#27ae60' : '#c53ce7',
-            fillOpacity: 1
-          }}
-        />
-      ))}
+      {/* Trace mode: draw the in-progress line before it's gradable */}
+      {isTrace && waypoints.length === 1 && null}
+
+      {waypoints.map((p, i) => {
+        const isStart = i === 0
+        const isEnd = i === lastIdx && lastIdx > 0
+        return (
+          <CircleMarker
+            key={i}
+            center={[p.lat, p.lng]}
+            radius={isStart || isEnd ? 7 : 4}
+            interactive={false}
+            pathOptions={{
+              color: '#000',
+              weight: isStart || isEnd ? 3 : 1,
+              fillColor: isStart ? '#27ae60' : isEnd ? '#c53ce7' : '#8ab4f8',
+              fillOpacity: 1
+            }}
+          />
+        )
+      })}
 
       {grade?.contributors.map(({ inc }) => (
         <CircleMarker
@@ -178,7 +230,7 @@ export default function RouteGrader({
             color: '#000',
             padding: 2,
             borderRadius: 3,
-            width: 350,
+            width: 370,
             cursor: 'default',
             border: '2px solid ',
             borderColor: 'rgba(212, 202, 191, 0.92)',
@@ -206,7 +258,32 @@ export default function RouteGrader({
         >
           Route Safety Grade
         </Typography>
-        {routes.length > 1 && (
+
+        {/* Mode toggle */}
+        <ToggleButtonGroup
+          value={mode}
+          exclusive
+          fullWidth
+          size='small'
+          color='success'
+          onChange={(_, v) => v && setMode(v)}
+          sx={[
+            { mt: 1.5 },
+            (theme) =>
+              theme.applyStyles('dark', {
+                '& .MuiToggleButton-root': { color: '#e0e0e0' }
+              })
+          ]}
+        >
+          <ToggleButton value='trace' sx={{ gap: 1, fontWeight: 600 }}>
+            <DirectionsWalkIcon fontSize='small' /> Trace
+          </ToggleButton>
+          <ToggleButton value='drive' sx={{ gap: 1, fontWeight: 600 }}>
+            <DirectionsCarFilledIcon fontSize='small' /> Drive
+          </ToggleButton>
+        </ToggleButtonGroup>
+
+        {!isTrace && routes.length > 1 && (
           <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 2 }}>
             {routes.map((r, i) => (
               <Button
@@ -228,9 +305,10 @@ export default function RouteGrader({
             ))}
           </Box>
         )}
+
         <Box
           sx={[
-            {},
+            { mt: 1 },
             (theme) =>
               theme.applyStyles('dark', {
                 color: 'white'
@@ -240,12 +318,21 @@ export default function RouteGrader({
           {status && <Typography sx={{ fontSize: 16 }}>{status}</Typography>}
           {!status && waypoints.length === 0 && (
             <Typography variant='h6' sx={{ fontWeight: 500 }}>
-              Click a start point on the map.
+              {isTrace
+                ? 'Click the map to start tracing your route.'
+                : 'Click a start point on the map.'}
             </Typography>
           )}
           {!status && waypoints.length === 1 && (
             <Typography variant='h6' sx={{ fontWeight: 500 }}>
-              Now click the end point.
+              {isTrace
+                ? 'Keep clicking to add points along your route.'
+                : 'Now click the end point.'}
+            </Typography>
+          )}
+          {!status && isTrace && waypoints.length >= 2 && (
+            <Typography sx={{ fontSize: 13, opacity: 0.8 }}>
+              {waypoints.length} points · keep clicking to extend the route.
             </Typography>
           )}
         </Box>
@@ -303,15 +390,13 @@ export default function RouteGrader({
                 variant='h6'
                 sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
               >
-                <DirectionsCarFilledIcon />
-                {route.minutes} mins drive
+                {isTrace ? <DirectionsWalkIcon /> : <DirectionsCarFilledIcon />}
+                {route.minutes} mins {isTrace ? 'walk' : 'drive'}
               </Typography>
             </Box>
             <Box
               sx={[
-                {
-                  textAlign: 'center'
-                },
+                { textAlign: 'center' },
                 (theme) =>
                   theme.applyStyles('dark', {
                     color: '#e0e0e0'
@@ -320,19 +405,14 @@ export default function RouteGrader({
             >
               <Typography
                 variant='span'
-                sx={{
-                  textAlign: 'center',
-                  fontSize: 20,
-                  fontWeight: 700,
-                  color
-                }}
+                sx={{ fontSize: 20, fontWeight: 700, color }}
               >
                 {grade.contributors.length}{' '}
               </Typography>
               <Typography
                 variant='span'
                 sx={[
-                  { textAlign: 'center', color: '#424242', fontSize: 14 },
+                  { color: '#424242', fontSize: 14 },
                   (theme) =>
                     theme.applyStyles('dark', {
                       color: '#e0e0e0'
@@ -353,7 +433,7 @@ export default function RouteGrader({
                   })
               ]}
             >
-              Biggest Fators:
+              Biggest Factors:
             </Typography>
             <Box
               component='ul'
@@ -361,9 +441,7 @@ export default function RouteGrader({
                 {
                   mt: 1,
                   fontSize: 12,
-                  '& li': {
-                    listStyle: 'none'
-                  }
+                  '& li': { listStyle: 'none' }
                 },
                 (theme) =>
                   theme.applyStyles('dark', {
@@ -383,7 +461,7 @@ export default function RouteGrader({
                       justifyContent: 'space-between'
                     }}
                   >
-                    <Box sx={{display:'flex', alignItems:'center', gap:1}}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box
                         sx={{
                           bgcolor: () => pickColor(inc),

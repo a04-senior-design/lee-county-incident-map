@@ -27,6 +27,7 @@ import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import RouteGrader from './RouteSafety/RouteGrader.jsx'
 import AreaForm from './AreaForm/AreaForm.jsx'
+
 let iconCache = {}
 //create a custom hook to move the map when user click on the item
 function MoveMap({ selectedLocation, markerRef = null }) {
@@ -146,6 +147,7 @@ function Map({
   const [addressList, setAddressList] = useState(null)
   const timer = useRef(null)
   //route---------------------------------------------
+  const [gradeMode, setGradeMode] = useState('trace')
   const [startRoute, setStartRoute] = useState('')
   const [startRouteList, setStartRouteList] = useState(null)
   const [endRoute, setEndRoute] = useState('')
@@ -244,6 +246,7 @@ function Map({
     } else {
       setIsInside(false)
       //generate alert
+      setAddressType('')
       SetAlertContent((prev) => ({
         ...prev,
         open: true,
@@ -394,16 +397,16 @@ function Map({
               addressType={addressType}
               addressList={addressList}
               checkBound={checkBound}
-              setAddressList = {setAddressList}
-              setAddressType = {setAddressType}
-              showAlert ={showAlert}
-              addressSearch = {addressSearch}
-              setAddressSearch = {setAddressSearch}
+              setAddressList={setAddressList}
+              setAddressType={setAddressType}
+              showAlert={showAlert}
+              addressSearch={addressSearch}
+              setAddressSearch={setAddressSearch}
             />
           </Box>
         </Box>
       )}
-      {routeOn === true && (
+      {routeOn === true && gradeMode === 'drive'  && (
         <Box
           sx={{
             position: 'absolute',
@@ -697,6 +700,7 @@ function Map({
           pair={routePoints}
           type={searchWay}
           incidentColors={incidentColors}
+          onModeChange={setGradeMode}
         />
         <Analysis
           active={analysisOn}
@@ -753,7 +757,7 @@ function Map({
                 </span>
               </h4>
               <h4 className='popup-content-normal'>{`Disposition: ${selectedIncident.source === 'lee_county_traffic' ? selectedIncident.status : selectedIncident.source === 'lee_county' ? selectedIncident.disposition : 'N/A'}`}</h4>
-              <h4 className='popup-content-normal'>{`Date: ${selectedIncident.occurred_at}`}</h4>
+              <h4 className='popup-content-normal'>{`Date: ${selectedIncident.occurred_at.split('T')[0]} / ${selectedIncident.occurred_at.split('T')[1].slice(0, 8)}`}</h4>
             </div>
           </Popup>
         )}

@@ -23,7 +23,7 @@ import Link from '@mui/material/Link'
 import { useAuth } from '../../Context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import AppNoti from '../AppNoti/AppNoti'
-function AppBar({ setAccountPop, accountPop, setIsPulled }) {
+function AppBar({ setAccountPop, accountPop, setIsPulled, CATEGORY_COLORS }) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState(null)
@@ -125,7 +125,7 @@ function AppBar({ setAccountPop, accountPop, setIsPulled }) {
       </Box>
       {user ? (
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <AppNoti />
+          <AppNoti CATEGORY_COLORS={CATEGORY_COLORS} />
 
           <Box sx={{ ml: 1.5, cursor: 'pointer' }}>
             <Avatar

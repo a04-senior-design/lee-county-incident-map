@@ -57,8 +57,9 @@ body {
   cursor: not-allowed;
 }
 .analysis-note {
-  font-size: 0.68rem;
+  font-size: 14px;
   color: #e9c46a;
+  font-weight: 600;
 }
 
 /* secondary bar: mode-dependent controls, slightly lighter to read as a sub-bar */

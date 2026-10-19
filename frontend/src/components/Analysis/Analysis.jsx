@@ -64,7 +64,8 @@ const LEVEL_PRESETS = {
 }
 
 const CLUSTER_STATUS_NOTES = {
-  // missing: 'Run cluster analysis first.',
+  missing:
+    '*Run cluster analysis first to unlock KDE(By cluster density level)',
   no_cluster_levels:
     'Last cluster run found only noise. Try larger epsilon values in Cluster Analysis.',
   all_noise:
@@ -764,10 +765,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       >
         <FormControl
           sx={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4
+            
           }}
         >
           <FormLabel>Cluster and Heat Map Lab: </FormLabel>
@@ -936,7 +934,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                       Sparse
                     </Typography>
                     <Slider
-                    sx={{width:'60%'}}
+                      sx={{ width: '60%' }}
                       valueLabelDisplay='auto'
                       aria-label='Default'
                       id={`slider-${level}`}
@@ -1043,7 +1041,10 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                 )}
 
                 <Box>
-                  <Typography color='text' sx={{ fontWeight: 600,fontSize: '12px' }}>
+                  <Typography
+                    color='text'
+                    sx={{ fontWeight: 600, fontSize: '12px' }}
+                  >
                     {' '}
                     Total points: {totalPts ?? '—'}
                   </Typography>

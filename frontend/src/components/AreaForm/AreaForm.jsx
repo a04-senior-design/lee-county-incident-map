@@ -15,7 +15,9 @@ import ListItemText from '@mui/material/ListItemText'
 import Button from '@mui/material/Button'
 import { useState } from 'react'
 import { useAuth } from '../../Context/AuthContext'
+import CategoryNoti from '../AreaForm/Category-noti/CategoryNoti'
 const url = import.meta.env.VITE_API_BASE_URL
+
 function AreaForm({
   searching,
   addressType,
@@ -27,7 +29,12 @@ function AreaForm({
   addressSearch,
   setAddressSearch
 }) {
+  const [submitLoading, setSubmitLoading] = useState(false)
   const { token } = useAuth()
+  // for incident types-------------------
+  const [types, setTypes] = useState([])
+  const [currentPicked, setCurrentPicked] = useState([])
+  // form-------------------------
   const [noti, setNoti] = useState({
     name: '',
     lat: null,
@@ -43,7 +50,11 @@ function AreaForm({
   const handleSubmit = async (e) => {
     e.preventDefault()
     console.log(noti)
-    if (!noti.lat || !noti.lon) return
+    if (!noti.lat || !noti.lon || !noti.name || types.length === 0) {
+      showAlert('error', 'Please fill out the form')
+      return
+    }
+    setSubmitLoading(true)
     try {
       const res = await fetch(`${url}/users/me/areas`, {
         method: 'POST',
@@ -56,7 +67,7 @@ function AreaForm({
           lat: noti.lat,
           lon: noti.lon,
           radius_mi: noti.radius_mi,
-          categories: ['BURGLARY', 'THEFT'],
+          categories: types,
           alerts_enabled: true
         })
       })
@@ -69,8 +80,12 @@ function AreaForm({
         radius_mi: 5
       })
       setAddressType('')
+      setTypes([])
+      setCurrentPicked([])
     } catch (error) {
       console.log(error.message)
+    } finally {
+      setSubmitLoading(false)
     }
   }
   return (
@@ -78,8 +93,8 @@ function AreaForm({
       <Box
         sx={[
           {
-            height: '400px',
             background: 'white',
+            width: '400px',
             p: 2,
             borderRadius: '16px',
             display: 'flex',
@@ -102,6 +117,11 @@ function AreaForm({
         >
           {' '}
           <TextField
+            sx={[
+              {
+                width: '350px'
+              }
+            ]}
             autoComplete='off'
             value={noti.name}
             id='filled-basic'
@@ -165,6 +185,12 @@ function AreaForm({
                 ))}
             </List>
           </Box>
+          <CategoryNoti
+            url={url}
+            setTypes={setTypes}
+            setCurrentPicked={setCurrentPicked}
+            currentPicked={currentPicked}
+          />
         </Box>
         <Box>
           <FormLabel id='radio-noti-time-group-label'>Time</FormLabel>
@@ -223,10 +249,19 @@ function AreaForm({
           </Box>
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-          <Button variant='contained' color='error' onClick={() => setAddressSearch(!addressSearch)}>
+          <Button
+            variant='contained'
+            color='error'
+            onClick={() => setAddressSearch(!addressSearch)}
+          >
             Cancel
           </Button>
-          <Button variant='contained' type='submit'>
+          <Button
+            variant='contained'
+            type='submit'
+            loading={submitLoading}
+            loadingPosition='start'
+          >
             Save
           </Button>
         </Box>

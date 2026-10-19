@@ -272,9 +272,18 @@ function MapPage() {
         position: 'relative'
       }}
     >
-      <MyAccountPop accountPop={accountPop} setAccountPop={setAccountPop} CATEGORY_COLORS ={CATEGORY_COLORS}/>
+      <MyAccountPop
+        accountPop={accountPop}
+        setAccountPop={setAccountPop}
+        CATEGORY_COLORS={CATEGORY_COLORS}
+      />
       {/* App bar */}
-      <AppBar accountPop={accountPop} setAccountPop={setAccountPop} setIsPulled = {setIsPulled}/>
+      <AppBar
+        accountPop={accountPop}
+        setAccountPop={setAccountPop}
+        setIsPulled={setIsPulled}
+        CATEGORY_COLORS={CATEGORY_COLORS}
+      />
       {/* Board bar */}
       <BoardBar
         filteredListWithLocation={filteredListWithLocation}
@@ -296,7 +305,7 @@ function MapPage() {
         routeOn={routeOn}
         setRouteOn={setRouteOn}
         isLoading={isLoading}
-        accountPop ={accountPop}
+        accountPop={accountPop}
       />
 
       <Box

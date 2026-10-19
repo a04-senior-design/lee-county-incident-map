@@ -135,8 +135,8 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
               {user?.email}
             </Typography>
           </Box>
-          <Box sx={{ width: '100%' }}>
-            <Typography variant='h6'> Notification list: </Typography>
+          <Typography variant='h6'> Notification list: </Typography>
+          <Box sx={{ width: '100%', height: '500px', overflow: 'auto', p: 1 }}>
             {notiList?.map((item) => (
               <Card
                 elevation={3}
@@ -147,7 +147,6 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                       transform: 'scale(1.02)'
                     },
                     width: '95%',
-                    height: '150px',
                     flexShrink: 0,
                     mt: '10px',
                     transition: '0.3s'
@@ -182,7 +181,13 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                     >
                       {item.name}
                     </Typography>
-                    <Button onClick={() => handleDelete(item.id)}>
+                    <Button
+                      onClick={() => {
+                        if (window.confirm(`Delete "${item.name}"?`)) {
+                          handleDelete(item.id)
+                        }
+                      }}
+                    >
                       <DeleteOutlineIcon color='error' />
                     </Button>
                   </Box>
@@ -240,7 +245,7 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                     >
                       {`Categories:  `}
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                       {item.categories.map((c) => (
                         <Typography
                           variant='h7'
