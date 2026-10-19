@@ -190,7 +190,6 @@ function AppNoti({ CATEGORY_COLORS }) {
                   </Box>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Typography
-                      variant='span'
                       sx={[
                         {
                           fontWeight: 500,

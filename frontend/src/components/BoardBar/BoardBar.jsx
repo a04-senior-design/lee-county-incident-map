@@ -138,7 +138,7 @@ function BoardBar({
             setSelectedId(null)
             setRouteOn(false)
           }}
-          disabled={analysisOn ? true : false}
+          disabled={analysisOn || !user ? true : false}
         >
           Notification
         </Button>
