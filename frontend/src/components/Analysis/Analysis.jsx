@@ -64,7 +64,7 @@ const LEVEL_PRESETS = {
 }
 
 const CLUSTER_STATUS_NOTES = {
-  missing: 'Run cluster analysis first.',
+  // missing: 'Run cluster analysis first.',
   no_cluster_levels:
     'Last cluster run found only noise. Try larger epsilon values in Cluster Analysis.',
   all_noise:
@@ -861,7 +861,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                 <Card
                   sx={[
                     {
-                      width: '350px',
+                      width: '300px',
                       display: 'flex',
                       flexDirection: 'column',
                       borderLeft: () =>
@@ -871,8 +871,8 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                             ? '5px solid #29b6f6'
                             : '5px solid #66bb6a',
 
-                      gap: 1,
-                      padding: '8px'
+                      padding: '8px',
+                      gap: 0
                     },
                     (theme) =>
                       theme.applyStyles('dark', {
@@ -894,6 +894,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                     }}
                   >
                     <Switch
+                      size='small'
                       color={
                         level === 'street'
                           ? 'error'
@@ -909,7 +910,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography
-                        sx={{ fontWeight: 600, fontSize: '20px' }}
+                        sx={{ fontWeight: 600, fontSize: '16px' }}
                         color={
                           level === 'street'
                             ? 'error'
@@ -920,7 +921,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                       >
                         {LEVEL_LABELS[level]}
                       </Typography>
-                      <Typography sx={{ fontSize: '14px' }} color='text'>
+                      <Typography sx={{ fontSize: '12px' }} color='text'>
                         {LEVEL_HINTS[level]}
                       </Typography>
                     </Box>
@@ -928,13 +929,14 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography
-                      sx={{ fontSize: '14px', fontWeight: 500 }}
+                      sx={{ fontSize: '12px', fontWeight: 500 }}
                       color='text'
                     >
                       {' '}
                       Sparse
                     </Typography>
                     <Slider
+                    sx={{width:'60%'}}
                       valueLabelDisplay='auto'
                       aria-label='Default'
                       id={`slider-${level}`}
@@ -961,7 +963,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                     />
 
                     <Typography
-                      sx={{ fontSize: '14px', fontWeight: 500 }}
+                      sx={{ fontSize: '12px', fontWeight: 500 }}
                       color='text'
                     >
                       {' '}
@@ -980,7 +982,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                       sx={[
                         {
                           backgroundColor: (theme) => theme.palette.grey[800],
-                          padding: '8px 16px',
+                          padding: '4px 8px',
                           borderRadius: '4px'
                         },
                         (theme) =>
@@ -989,7 +991,10 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                           })
                       ]}
                     >
-                      <Typography color='primary' sx={{ fontWeight: 600 }}>
+                      <Typography
+                        color='primary'
+                        sx={{ fontWeight: 600, fontSize: '12px' }}
+                      >
                         Clusters:{' '}
                         {levelData[level]?.metadata?.n_clusters ?? '—'}
                       </Typography>
@@ -998,7 +1003,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                       sx={[
                         {
                           backgroundColor: (theme) => theme.palette.grey[800],
-                          padding: '8px 16px',
+                          padding: '4px 8px',
                           borderRadius: '4px'
                         },
                         (theme) =>
@@ -1007,7 +1012,10 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                           })
                       ]}
                     >
-                      <Typography color='primary' sx={{ fontWeight: 600 }}>
+                      <Typography
+                        color='primary'
+                        sx={{ fontWeight: 600, fontSize: '12px' }}
+                      >
                         Noise: {levelData[level]?.metadata?.n_noise ?? '—'}
                       </Typography>
                     </Box>
@@ -1019,8 +1027,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                   variant='contained'
                   onClick={handleDbscanReset}
                   color='warning'
+                  sx={{ width: '100px' }}
                 >
-                  <Typography variant='h6'> Reset</Typography>
+                  <Typography sx={{ fontWeight: 600, fontSize: '12px' }}>
+                    {' '}
+                    Reset
+                  </Typography>
                 </Button>
 
                 {/* shown now: the server rejects ranges over 60 days and says so here */}
@@ -1031,7 +1043,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                 )}
 
                 <Box>
-                  <Typography color='text' sx={{ fontWeight: 600 }}>
+                  <Typography color='text' sx={{ fontWeight: 600,fontSize: '12px' }}>
                     {' '}
                     Total points: {totalPts ?? '—'}
                   </Typography>
