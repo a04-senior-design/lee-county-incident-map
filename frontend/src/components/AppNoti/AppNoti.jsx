@@ -16,7 +16,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 const url = import.meta.env.VITE_API_BASE_URL
-const timeSend = 5 * 60 * 1000
+const timeSend = 3 * 60 * 1000
 
 function AppNoti({ CATEGORY_COLORS }) {
   const { token } = useAuth()
