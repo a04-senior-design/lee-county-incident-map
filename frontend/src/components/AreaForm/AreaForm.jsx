@@ -83,7 +83,8 @@ function AreaForm({
       setTypes([])
       setCurrentPicked([])
     } catch (error) {
-      console.log(error.message)
+      showAlert('error',`Failed storage: Your session has expired. Please refresh the page.`)
+       
     } finally {
       setSubmitLoading(false)
     }

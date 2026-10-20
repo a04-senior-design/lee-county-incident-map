@@ -9,7 +9,7 @@ import { useState } from 'react'
 import AnimationIcon from '@mui/icons-material/Animation'
 import { useAuth } from '../../Context/AuthContext'
 import RouteIcon from '@mui/icons-material/Route'
-import AddAlertIcon from '@mui/icons-material/AddAlert';
+import AddAlertIcon from '@mui/icons-material/AddAlert'
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -28,7 +28,8 @@ function BoardBar({
   setRouteOn,
   setSelectedId,
   isLoading,
-  accountPop
+  accountPop,
+  SetAlertContent
 }) {
   // const [activeBtn, setActiveBtn] = useState({
   //   search: false,
@@ -63,6 +64,14 @@ function BoardBar({
       const res = await fetch(`${API_URL}/reports?from=${from}&to=${to}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
+      if (res.status === 401 || res.status === 403) {
+        SetAlertContent((prev) => ({
+          ...prev,
+          open: true,
+          severity: 'error',
+          content: 'Your session has expired. Please refresh the page.'
+        }))
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Server error ${res.status}`)
@@ -76,7 +85,13 @@ function BoardBar({
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      alert(`Report generation failed: ${err.message}`)
+      SetAlertContent((prev) => ({
+        ...prev,
+        open: true,
+        severity: 'error',
+        content: `Report generation failed: Your session has expired. Please refresh the page.`
+      }))
+      // alert(`Report generation failed: Your session has expired. Please refresh the page.`)
     } finally {
       setReportLoading(false)
       setReportBtn(false)
@@ -121,7 +136,7 @@ function BoardBar({
           incidentColors={incidentColors}
           analysisOn={analysisOn}
           routeOn={routeOn}
-          setSelectedId = {setSelectedId}
+          setSelectedId={setSelectedId}
         />
         <Button
           variant={addressSearch ? 'contained' : 'text'}
