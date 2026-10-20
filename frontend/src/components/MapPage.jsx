@@ -130,7 +130,7 @@ function MapPage() {
           all = all.concat(page.incidents)
           cursor = page.next_cursor
           count++
-        } while (count < 20)
+        } while (count < 10)
         setIsLoading(false)
         setAllIncidents(all)
         setSelectedNatures(
@@ -408,6 +408,7 @@ function MapPage() {
               onNatureChange={onNatureChange}
               dateRange={dateRange}
               setDateRange={setDateRange}
+              isLoading={isLoading}
             />
           </Box>
           <Box

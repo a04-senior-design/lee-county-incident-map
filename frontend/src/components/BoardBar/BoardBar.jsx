@@ -121,6 +121,7 @@ function BoardBar({
           incidentColors={incidentColors}
           analysisOn={analysisOn}
           routeOn={routeOn}
+          setSelectedId = {setSelectedId}
         />
         <Button
           variant={addressSearch ? 'contained' : 'text'}

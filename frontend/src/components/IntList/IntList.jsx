@@ -48,7 +48,8 @@ function IntList({
   setIsPulled,
   incidentColors,
   analysisOn,
-  routeOn
+  routeOn,
+  setSelectedId
 }) {
   const toggleDrawer = (newOpen) => () => {
     setIsPulled(newOpen)
@@ -137,6 +138,7 @@ function IntList({
         startIcon={<KeyboardDoubleArrowRightIcon />}
         onClick={() => {
           setIsPulled(!isPulled)
+          setSelectedId(null)
         }}
         sx={(theme) =>
           theme.applyStyles('dark', {

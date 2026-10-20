@@ -8,6 +8,8 @@ import ModeStandbyIcon from '@mui/icons-material/ModeStandby'
 import Checkbox from '@mui/material/Checkbox'
 import Divider from '@mui/material/Divider'
 import DatePicker from '../DatePicker/DatePicker'
+import CircularProgress from '@mui/material/CircularProgress'
+
 function MapInfoBar({
   selectedNatures,
   setSelectedNatures,
@@ -17,7 +19,8 @@ function MapInfoBar({
   natures,
   onNatureChange,
   dateRange,
-  setDateRange
+  setDateRange,
+  isLoading
 }) {
   const [anchorEl, setAnchorEl] = useState(null)
   const open = Boolean(anchorEl)
@@ -55,16 +58,25 @@ function MapInfoBar({
           bgcolor: '#1976d2',
           '& .MuiSvgIcon-fontSizeMedium': {
             color: 'white'
+          },
+          '& .MuiCircularProgress-root': {
+            color: 'white'
           }
         }}
-        icon={<ModeStandbyIcon />}
+        icon={
+          isLoading ? (
+            <CircularProgress size={22} />
+          ) : (
+            <ModeStandbyIcon />
+          )
+        }
         label={
           filteredListWithLocation.length !== 0
             ? `${filteredListWithLocation.length}/${filteredListWithLocation.length + filteredListWithoutLocation.length}  incidents`
             : '- incidents'
         }
       />
-     
+
       <Box
         sx={{
           width: '500px',
