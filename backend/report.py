@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 from staticmap import StaticMap, CircleMarker
-
+from reportlab.platypus import KeepTogether
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -23,17 +23,23 @@ _BLUE  = "#2563eb"
 _LIGHT = colors.HexColor("#f0f4f8")
 _RULE  = colors.HexColor("#ddd")
 
+# keyed on the category codes from /api/v1/incident-types, in lowercase
 _NATURE_COLORS = {
-    "disturbance": "#e74c3c",
-    "assault":     "#c0392b",
-    "theft":       "#e67e22",
-    "burglary":    "#d35400",
-    "traffic":     "#3498db",
-    "suspicious":  "#9b59b6",
-    "medical":     "#1abc9c",
-    "fire":        "#e74c3c",
-    "welfare":     "#27ae60",
-    "domestic":    "#c0392b",
+    "violent":     "#d62728",
+    "firearm":     "#8c1c13",
+    "sex_offense": "#9467bd",
+    "burglary":    "#ff7f0e",
+    "theft":       "#e6a817",
+    "vehicle":     "#bcbd22",
+    "fraud":       "#17becf",
+    "drugs":       "#2ca02c",
+    "harassment":  "#e377c2",
+    "disturbance": "#1f77b4",
+    "traffic":     "#6baed6",
+    "death":       "#2d2d2d",
+    "animal":      "#8c564b",
+    "hazard":      "#ffd700",
+    "other":       "#7f8c8d",
 }
 
 
@@ -47,7 +53,7 @@ def _incident_color(nature):
 def _map_snapshot(incidents, bounds):
     """Download OSM tiles and plot incident dots; returns a PNG BytesIO or None."""
     try:
-        m = StaticMap(750, 450)
+        m = StaticMap(750, 450, tile_request_timeout=10)
 
         lat_c = (bounds["north"] + bounds["south"]) / 2
         lng_c = (bounds["east"]  + bounds["west"])  / 2
@@ -211,10 +217,8 @@ def _weekday_chart(incidents):
     return buf
 
 
-def _line_chart(incidents, days):
-    """Line chart — daily incident counts over the selected period."""
-    end = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    start = end - datetime.timedelta(days=days)
+def _line_chart(incidents, start_date, end_date):
+    num_days = (end_date - start_date).days
 
     bucket = Counter()
     for inc in incidents:
@@ -222,7 +226,7 @@ def _line_chart(incidents, days):
         if d:
             bucket[d.date()] += 1
 
-    all_dates = [start.date() + datetime.timedelta(days=i) for i in range(days + 1)]
+    all_dates = [start_date + datetime.timedelta(days=i) for i in range(num_days + 1)]
     all_vals  = [bucket.get(d, 0) for d in all_dates]
 
     fig, ax = plt.subplots(figsize=(7, 2.6))
@@ -238,7 +242,7 @@ def _line_chart(incidents, days):
     ax.spines["right"].set_visible(False)
     ax.tick_params(labelsize=7)
 
-    locator = mdates.DayLocator() if days <= 14 else mdates.WeekdayLocator()
+    locator = mdates.DayLocator() if num_days <= 14 else mdates.WeekdayLocator()
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
     fig.autofmt_xdate(rotation=30)
@@ -251,7 +255,7 @@ def _line_chart(incidents, days):
     return buf
 
 
-def generate_pdf(incidents, bounds, days):
+def generate_pdf(incidents, bounds, start_date, end_date):
     """Assemble and return a BytesIO PDF for the given filtered incidents."""
     buf = io.BytesIO()
     styles = getSampleStyleSheet()
@@ -288,8 +292,7 @@ def generate_pdf(incidents, bounds, days):
         city = (inc.get("city") or "").strip()
         city_counts[city if city else "Unknown"] += 1
     most_common  = nature_counts.most_common(1)[0][0].title() if nature_counts else "N/A"
-    days_label   = f"Last {days} day{'s' if days != 1 else ''}"
-
+    days_label   = f"{start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
     story = []
 
     # Title block
@@ -315,9 +318,19 @@ def generate_pdf(incidents, bounds, days):
 
     # Summary stats
     story.append(Paragraph("Summary", h2_s))
+    cell_s = ParagraphStyle(
+    "RCell", parent=styles["Normal"],
+    fontName="Helvetica-Bold", fontSize=11, leading=13,
+    textColor=_NAVY, alignment=1,  # 1 = centered
+)
     stat_data = [
         ["Total Incidents", "Most Common Type", "Period", "Data Source"],
-        [str(len(incidents)), most_common, days_label, "LCSO Public Log"],
+        [
+        Paragraph(str(len(incidents)), cell_s),
+        Paragraph(most_common, cell_s),
+        Paragraph(days_label, cell_s),
+        Paragraph("LCSO Public Log", cell_s),
+    ],
     ]
     stat_tbl = Table(stat_data, colWidths=[1.5*inch, 2*inch, 1.3*inch, 1.9*inch])
     stat_tbl.setStyle(TableStyle([
@@ -339,19 +352,27 @@ def generate_pdf(incidents, bounds, days):
     story.append(Spacer(1, 0.1 * inch))
 
     # Bar chart
-    story.append(Paragraph("Incidents by Type", h2_s))
-    story.append(Image(_bar_chart(nature_counts), width=6.5*inch, height=3.4*inch))
+    story.append(KeepTogether([
+    Paragraph("Incidents by Type", h2_s),
+    Image(_bar_chart(nature_counts), width=6.5*inch, height=3.4*inch),
+    ]))
     story.append(Spacer(1, 0.05 * inch))
 
     # City chart
     if city_counts:
-        story.append(Paragraph("Incidents by City", h2_s))
-        story.append(Image(_city_chart(city_counts), width=6.5*inch, height=3.0*inch))
+        story.append(KeepTogether([
+            Paragraph("Incidents by City", h2_s),
+            Image(_city_chart(city_counts), width=6.5*inch, height=3.0*inch),
+            ]))
+        
         story.append(Spacer(1, 0.05 * inch))
 
     # Line chart
-    story.append(Paragraph("Daily Incident Trend", h2_s))
-    story.append(Image(_line_chart(incidents, days), width=6.5*inch, height=2.5*inch))
+    story.append(KeepTogether([
+                Paragraph("Daily Incident Trend", h2_s),
+                Image(_line_chart(incidents, start_date, end_date), width=6.5*inch, height=2.5*inch),
+                ]))
+    
     story.append(Spacer(1, 0.1 * inch))
 
     # Hour-of-day / day-of-week charts, side by side
