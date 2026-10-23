@@ -150,14 +150,31 @@ paths:
 
   /api/v1/kde-heatmap:
     get:
-      summary: KDE heatmap of every mapped incident
+      summary: KDE heatmap of the mapped incidents
       description: |
-        One heatmap image over all incidents with a trusted coordinate inside
-        Lee County. With cluster_set=1 it uses the cluster levels from a
-        /api/v1/clusters run instead, one bandwidth per level, so it needs
-        that run's run_id. dbscan_status says whether the run's results can
-        be used, and is missing without a run_id.
+        One heatmap image over the incidents with a trusted coordinate inside
+        Lee County. start_date and end_date are read as UTC, like the other
+        KDE and DBSCAN routes, and without them every incident is used. Takes
+        the same category, city, source and bbox filters as /api/v1/incidents;
+        days, from and to are refused. With
+        cluster_set=1 it uses the cluster levels from a /api/v1/clusters run
+        instead, one bandwidth per level, so it needs that run's run_id; the
+        filters are ignored then, so pass them to /api/v1/clusters.
+        dbscan_status says whether the run's results can be used, and is
+        missing without a run_id.
       parameters:
+        - name: start_date
+          in: query
+          description: Defaults to the earliest incident.
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: Defaults to the latest incident.
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: bandwidth
           in: query
           description: |
@@ -195,7 +212,14 @@ paths:
         window, which is cut off at end_date and includes it. Each frame has
         its own bounds, but all frames share one color scale, so a color
         means the same density in every frame. At most 30 windows.
+        Takes the same category, city, source and bbox filters as
+        /api/v1/incidents. Dates come only from start_date and end_date, so
+        days, from and to are refused.
       parameters:
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: start_date
           in: query
           required: true
@@ -242,7 +266,14 @@ paths:
         capped at 60, because DBSCAN memory grows with the square of the
         number of incidents. Each incident's cluster level is kept for an
         hour under the returned run_id, for /api/v1/kde-heatmap?cluster_set=1.
+        Takes the same category, city, source and bbox filters as
+        /api/v1/incidents. Dates come only from start_date and end_date, so
+        days, from and to are refused.
       parameters:
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: start_date
           in: query
           description: Defaults to 30 days before end_date.
@@ -299,7 +330,14 @@ paths:
         DBSCAN at each enabled level in every window. Each frame's cluster
         levels are kept for an hour under the returned run_id, which the
         KDE-with-clusters routes need. At most 30 windows.
+        Takes the same category, city, source and bbox filters as
+        /api/v1/incidents. Dates come only from start_date and end_date, so
+        days, from and to are refused.
       parameters:
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
         - name: start_date
           in: query
           required: true
@@ -391,6 +429,95 @@ paths:
                 type: object
                 properties:
                   dbscan_status: { type: string, enum: [missing, no_cluster_levels, available] }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/gi-star-heatmap:
+    get:
+      summary: Getis-Ord Gi* heatmap of the mapped incidents
+      description: |
+        Counts the incidents in a grid of 2500 ft cells and colors each cell
+        by its Gi* z-score: how much more (or less) busy it and its
+        neighbors are than the county as a whole. Cells whose center is in
+        the water are left out unless they hold an incident. Dates and
+        filters work as on /api/v1/kde-heatmap.
+      parameters:
+        - name: start_date
+          in: query
+          description: Read as UTC. Defaults to the earliest incident.
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: Read as UTC. Defaults to the latest incident.
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
+        - name: distance_band
+          in: query
+          description: |
+            How far, in feet, from a cell's center its neighbors can be.
+            Clamped to 500 to 10000. Defaults to 2500.
+          schema: { type: number, default: 2500 }
+      responses:
+        "200":
+          description: The heatmap.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GiStarHeatmap" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/animation/gi-star-heatmap:
+    get:
+      summary: Gi* heatmap animation frames
+      description: |
+        Windows the mapped incidents like /animation/kde-heatmap and returns
+        one Gi* heatmap per window. All frames share one grid, sized from the
+        incidents in every window, so every frame has the same bounds. At
+        most 30 windows. Takes the same category, city, source and bbox
+        filters as /api/v1/incidents. Dates come only from start_date and
+        end_date, so days, from and to are refused.
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-01"
+        - name: end_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: "2026-09-29"
+        - name: window_length
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: time_step
+          in: query
+          required: true
+          description: A pandas offset such as 1D, 7D or 2W.
+          schema: { type: string }
+          example: 7D
+        - name: distance_band
+          in: query
+          required: true
+          description: Gi* distance band in feet. Clamped to 500 to 10000.
+          schema: { type: number }
+          example: 2500
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
+      responses:
+        "200":
+          description: The frames, oldest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GiStarAnimation" }
         "400":
           $ref: "#/components/responses/BadRequest"
 
@@ -511,6 +638,199 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /api/v1/users/me/areas:
+    get:
+      summary: Your saved areas
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: Oldest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  areas:
+                    type: array
+                    items: { $ref: "#/components/schemas/SavedArea" }
+        "401":
+          $ref: "#/components/responses/SignIn"
+    post:
+      summary: Save an area
+      description: |
+        A circle you get alerts for. At most 10 per account. Saving your
+        first area starts your alerts, so only incidents mapped after that
+        show up in /api/v1/users/me/alerts.
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SavedAreaFields"
+                - required: [name, lat, lon, radius_mi]
+      responses:
+        "201":
+          description: The saved area.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedArea" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+        "409":
+          description: You already have 10 saved areas.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/users/me/areas/{area_id}:
+    parameters:
+      - name: area_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      summary: Change a saved area
+      description: Only the fields you send change.
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SavedAreaFields" }
+      responses:
+        "200":
+          description: The area after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedArea" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+        "404":
+          $ref: "#/components/responses/NoSuchArea"
+    delete:
+      summary: Delete a saved area
+      security:
+        - accessToken: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/SignIn"
+        "404":
+          $ref: "#/components/responses/NoSuchArea"
+
+  /api/v1/users/me/alerts:
+    get:
+      summary: New incidents in your saved areas
+      description: |
+        Incidents mapped since you last marked alerts seen, inside any of your
+        areas with alerts on and in that area's categories. Only incidents
+        that happened in the last 30 days count, so an old incident mapped
+        late doesn't alert. Oldest first, at most 100. Reading does not mark
+        them seen, so the bell can poll this; when the user opens the bell,
+        send the cursor to /api/v1/users/me/alerts/seen. If has_more is true,
+        mark these seen and call again for the rest.
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: Your new alerts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Incident"
+                        - type: object
+                          properties:
+                            areas:
+                              type: array
+                              items: { type: string }
+                              description: The names of your areas the incident is in.
+                  cursor:
+                    type: [string, "null"]
+                    description: Marks these alerts seen. Null when there are none.
+                  has_more: { type: boolean }
+        "401":
+          $ref: "#/components/responses/SignIn"
+
+  /api/v1/users/me/alerts/seen:
+    post:
+      summary: Mark alerts seen
+      description: |
+        Everything up to the cursor stops being an alert. A cursor older than
+        what you have already marked seen changes nothing.
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cursor]
+              properties:
+                cursor: { type: string, description: The cursor from /api/v1/users/me/alerts. }
+      responses:
+        "204":
+          description: Marked seen.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+
+  /api/v1/reports:
+    get:
+      summary: PDF report of the mapped incidents
+      description: |
+        A PDF with a map of the incidents, summary numbers, and charts by
+        category, city, day, hour and weekday. Takes the same filters as
+        /api/v1/incidents, but needs both from and to, and covers at most 366
+        days counting both ends. Only incidents with a trusted coordinate
+        inside Lee County are included, as on the map. Times are Eastern.
+      security:
+        - accessToken: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Start date, inclusive, read as Eastern time.
+          schema: { type: string, format: date }
+          example: "2026-09-01"
+        - name: to
+          in: query
+          required: true
+          description: End date, inclusive, read as Eastern time.
+          schema: { type: string, format: date }
+          example: "2026-09-30"
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/city"
+        - $ref: "#/components/parameters/source"
+        - $ref: "#/components/parameters/bbox"
+      responses:
+        "200":
+          description: The report, as a download named lee-county-report-FROM_to_TO.pdf.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/SignIn"
+
 components:
   securitySchemes:
     accessToken:
@@ -600,7 +920,17 @@ components:
 
   responses:
     BadRequest:
-      description: A query parameter was invalid. The message says which one.
+      description: A query parameter or body field was invalid. The message says which one.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    SignIn:
+      description: No access token, or one that is not valid.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NoSuchArea:
+      description: No area with that id belongs to you.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -787,6 +1117,75 @@ components:
         cluster_set: { type: integer }
         cluster_set_labels: { type: array, items: { type: string } }
         dbscan_status: { type: string, enum: [missing, all_noise, available] }
+
+    GiStarHeatmap:
+      type: object
+      properties:
+        image: { type: string, description: A PNG as a data URL. }
+        bounds: { $ref: "#/components/schemas/Bounds" }
+        legend:
+          type: object
+          properties:
+            colors: { type: array, items: { type: string } }
+            vmin: { type: number }
+            vmax: { type: number }
+            ticks: { type: array, items: { type: number } }
+            caption: { type: string, example: Gi* z-score }
+        distance_band: { type: number }
+        min_distance_band: { type: number }
+        max_distance_band: { type: number }
+
+    GiStarAnimation:
+      type: object
+      properties:
+        distance_band: { type: number }
+        min_distance_band: { type: number }
+        max_distance_band: { type: number }
+        frames:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string, example: "2026-09-01 00:00 - 2026-09-08 00:00" }
+              window_start: { type: string, format: date-time }
+              window_end: { type: string, format: date-time }
+              n_incidents: { type: integer }
+              image:
+                type: [string, "null"]
+                description: A PNG as a data URL. Null when the window has no incidents.
+              image_filename: { type: [string, "null"] }
+              bounds:
+                oneOf:
+                  - $ref: "#/components/schemas/Bounds"
+                  - type: "null"
+
+    SavedAreaFields:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100, example: Home }
+        lat:
+          type: number
+          minimum: 26.2
+          maximum: 27.0
+          description: The center. Must be in or near Lee County.
+          example: 26.64
+        lon: { type: number, minimum: -82.4, maximum: -81.4, example: -81.87 }
+        radius_mi: { type: number, minimum: 0.1, maximum: 10, example: 0.5 }
+        categories:
+          type: array
+          items: { type: string }
+          description: Codes from /api/v1/incident-types. Empty means every category.
+          example: [BURGLARY, THEFT]
+        alerts_enabled: { type: boolean, default: true }
+
+    SavedArea:
+      allOf:
+        - $ref: "#/components/schemas/SavedAreaFields"
+        - type: object
+          properties:
+            id: { type: integer }
+            created_at: { type: string, format: date-time }
 
     KdeAnimation:
       type: object

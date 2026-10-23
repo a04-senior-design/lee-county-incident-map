@@ -218,9 +218,3 @@ __marimo__/
 .streamlit/secrets.toml
 
 .DS_store
-.vercel
-
-
-# tif 
-backend/density_wgs84.tif
-backend/density_src.tif

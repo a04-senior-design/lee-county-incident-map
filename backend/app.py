@@ -1,25 +1,21 @@
 import os
 import base64
-import datetime
 
 import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
-from flask import Flask, jsonify, request, send_from_directory, send_file
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from cache import get_incidents  # noqa: E402 — imported after env load
-from report import generate_pdf  # noqa: E402
 from ml.dbscan import run_clusters, load_csv_incidents, cluster_levels  # noqa: E402
 from ml.animation import kde as kde_animation  # noqa: E402
 from ml.animation import dbscan as dbscan_animation  # noqa: E402
-# CHANGED: renamed from build_snapshots / build_snapshots_from_points (animation version)
 from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points  # noqa: E402
-# NEW: kde heatmap animation
 from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots, build_kde_heatmap_snapshots_from_dbscan, count_first_frame_levels, get_dbscan_frames_status, KDE_SNAPSHOT_DIR  # noqa: E402
 from ml.kde import KDEHeatMap  # noqa: E402
 
@@ -30,15 +26,14 @@ DEFAULT_BANDWIDTH = 1500
 DEFAULT_CLUSTER_SET = 0
 # labels for the KDE heat map's cluster set radios; index = cluster_set
 CLUSTER_SET_LABELS = [
-    "KDE Heat Map (all points)",
+    "KDE Heat Map (all points)", 
     "KDE Heat Map (by cluster density level)",
 ]
 
 CSV_PATH = os.path.join(
-    os.path.dirname(__file__),
+    os.path.dirname(__file__), 
     "..", "data", "late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv"
 )
-
 
 def load_points() -> np.ndarray:
     """
@@ -47,7 +42,7 @@ def load_points() -> np.ndarray:
     """
 
     incidents_df = pd.read_csv(CSV_PATH).dropna(subset=["lat", "lon"])
-
+    
     latitude = incidents_df["lat"].to_numpy()
     longitude = incidents_df["lon"].to_numpy()
 
@@ -56,7 +51,7 @@ def load_points() -> np.ndarray:
     easting, northing = transformer.transform(longitude, latitude)
 
     points = np.column_stack([easting, northing])
-
+    
     return points, latitude, longitude
 
 
@@ -86,14 +81,12 @@ def _parse_dbscan_level_overrides(args) -> dict:
     return level_configs
 
 
-# NEW (animation): helper used by the kde heatmap routes
 def _png_to_base64(path):
     with open(path, "rb") as f:
         image_b64 = base64.b64encode(f.read()).decode("utf-8")
     return f"data:image/png;base64,{image_b64}"
 
 
-# NEW (animation): shared time-window parsing
 def _parse_time_window_args(args):
     """Read the time-windowing query params shared by the animation routes.
 
@@ -105,8 +98,8 @@ def _parse_time_window_args(args):
     Raises ValueError if window_length or time_step isn't a valid offset
     (e.g. "abc"), so call it inside the route's try/except ValueError.
     """
-    start_date = args.get("start_date") or None
-    end_date = args.get("end_date") or None
+    start_date = args.get("start_date") or None 
+    end_date = args.get("end_date") or None 
 
     window_length = args.get("window_length")
     if window_length:
@@ -118,48 +111,9 @@ def _parse_time_window_args(args):
     if time_step:
         time_step = to_offset(time_step)
     else:
-        time_step = None
+        time_step = None 
 
     return start_date, end_date, window_length, time_step
-
-
-# ---------------------------------------------------------------------------
-# Existing routes from the working (React) file
-# ---------------------------------------------------------------------------
-@app.route("/api/analysis", methods=["POST"])
-def analysis():
-    global CURRENT_INCIDENTS
-
-    try:
-        filtered_data = request.get_json()
-
-        if not filtered_data:
-            return jsonify({
-                "success": False,
-                "error": "No incident data received"
-            }), 400
-
-        CURRENT_INCIDENTS = pd.DataFrame(filtered_data)
-
-        print("\n========== FRONTEND DATA ==========")
-        print(f"Number of records: {len(CURRENT_INCIDENTS)}")
-        print(CURRENT_INCIDENTS.head())
-
-        print("\n========== COLUMNS ==========")
-        print(CURRENT_INCIDENTS.columns.tolist())
-
-        return jsonify({
-            "success": True,
-            "count": len(CURRENT_INCIDENTS)
-        })
-
-    except Exception as e:
-        print("ERROR:", e, flush=True)
-
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
 
 
 @app.route("/cluster-lab")
@@ -176,16 +130,19 @@ def clusters():
         key == "levels" or key.endswith("_eps")
         for key in request.args
     )
-
+    
     data_points, _, _ = load_points()
+    # easting = data_points_with_noise[:, 0]
+    # northing = data_points_with_noise[:, 1]
 
     # no level params -> serve the precomputed snapshots, otherwise recompute on demand
     if not any([start_date, end_date, has_level_overrides]):
         return jsonify({"frames": dbscan_animation.load_snapshots()})
 
+    data_points, _, _ = load_points()
+
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        # CHANGED: build_snapshots_from_points -> build_dbscan_snapshots_from_points
         frames = build_dbscan_snapshots_from_points(
             points=data_points,
             level_configs=level_configs,
@@ -195,36 +152,18 @@ def clusters():
 
     return jsonify({"frames": frames})
 
-
-# @app.route("/api/clusters/multi")
-# def clusters_multi():
-#     data = load_csv_incidents()
-#
-#     all_results = {}
-#     for level, settings in cluster_levels.items():
-#         result = run_clusters(incidents=data, eps=settings["epsilon"], min_pts=settings["min_pts"], cluster_color=settings.get("color"))
-#         all_results[level] = result
-#
-#     return jsonify(all_results)
-
-
-# ---------------------------------------------------------------------------
-# Animation page routes
-# ---------------------------------------------------------------------------
 @app.route("/animation-lab")
 def animation_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
     return send_from_directory(frontend_dir, "animation-lab.html")
 
 
-# NEW
 @app.route("/heatmap-animation-lab")
 def heatmap_animation_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
     return send_from_directory(frontend_dir, "heatmap-animation-lab.html")
 
 
-# NEW
 @app.route("/cluster-heatmap-animation-lab")
 def cluster_heatmap_animation_lab():
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -236,9 +175,6 @@ def animation_kde_asset(filename):
     return send_from_directory(kde_animation.PNG_DIR, filename)
 
 
-# ---------------------------------------------------------------------------
-# Animation API routes
-# ---------------------------------------------------------------------------
 @app.route("/api/animation/kde")
 def animation_kde():
     frames = [
@@ -265,7 +201,6 @@ def animation_dbscan():
 
     try:
         level_configs = _parse_dbscan_level_overrides(request.args)
-        # CHANGED: build_snapshots -> build_dbscan_snapshots
         frames = build_dbscan_snapshots(
             start_date=start_date,
             end_date=end_date,
@@ -279,7 +214,143 @@ def animation_dbscan():
     return jsonify({"frames": frames})
 
 
-# NEW
+@app.route("/api/incidents")
+def incidents():
+    data = get_incidents()
+    return jsonify(data)
+
+
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/cluster-heatmap-lab")
+def cluster_heatmap_lab():
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+    return send_from_directory(frontend_dir, "cluster-heatmap-lab.html")
+    
+
+@app.route("/api/kde-heatmap")
+def kde_heatmap():
+
+    try:
+        requested_bandwidths = [float(bw) for bw in request.args.getlist("bandwidth")]
+    except ValueError:
+        return jsonify({"error": "Invalid bandwidth parameter"}), 400  
+
+    try:
+        cluster_set = int(request.args.get("cluster_set", DEFAULT_CLUSTER_SET))
+    except ValueError:
+        return jsonify({"error": "Invalid cluster_set parameter"}), 400  
+
+    # guard: cluster_set must match one of the radio button options
+    if not 0 <= cluster_set < len(CLUSTER_SET_LABELS):
+        return jsonify({
+            "error": f"cluster_set must be between 0 and {len(CLUSTER_SET_LABELS) - 1}"
+        }), 400
+
+    # status of cluster-lab's DBSCAN results: "missing", "all_noise", or "available"
+    dbscan_df = None 
+    if not os.path.exists("userID_dbscan.csv"):
+        dbscan_status = "missing"
+    else:
+        dbscan_df = pd.read_csv("userID_dbscan.csv")
+        if (dbscan_df["cluster_density_level"] == -1).all():
+            dbscan_status = "all_noise"
+        else:
+            dbscan_status = "available"
+
+    # guard: cluster analysis requires the DBSCAN results written by cluster-lab
+    if cluster_set == 1 and dbscan_status == "missing":
+        return jsonify({
+            "error": "No cluster analysis results found. Run cluster analysis in cluster-lab first.",
+            "dbscan_status": dbscan_status,
+        }), 400
+    
+    # cluster analysis selected: use DBSCAN results from cluster-lab; otherwise use all points as one level
+    if cluster_set == 1:
+        data_points_with_noise = dbscan_df[["easting", "northing"]].to_numpy()
+        dbscan_cluster_levels = dbscan_df["cluster_density_level"].to_numpy()
+    else:
+        data_points_with_noise, _, _ = load_points()
+        dbscan_cluster_levels = np.zeros(len(data_points_with_noise), dtype=int)
+
+    easting = data_points_with_noise[:, 0]
+    northing = data_points_with_noise[:, 1]
+
+    # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
+    padding = 100
+    x_min = np.min(easting) - padding
+    x_max = np.max(easting) + padding
+    y_min = np.min(northing) - padding
+    y_max = np.max(northing) + padding
+    increment = 300
+
+    # one bandwidth per non-noise cluster level, ordered by ascending level (0, 1, 2) - least dense to most dense
+    unique_cluster_levels = np.unique(dbscan_cluster_levels)
+    num_clusters = np.count_nonzero(unique_cluster_levels != -1)
+
+    # guard: DBSCAN classified every point as noise, so there is nothing for the KDE to fit
+    if num_clusters == 0:
+        return jsonify({
+            "error": "Cluster analysis classified every point as noise. Try larger epsilon values in cluster-lab.",
+            "dbscan_status": dbscan_status,
+        }), 400
+
+    if requested_bandwidths:
+        # guard: the frontend must send exactly one bandwidth per non-noise cluster level
+        if len(requested_bandwidths) != num_clusters:
+            return jsonify({
+                "error": f"Expected {num_clusters} bandwidths, got {len(requested_bandwidths)}. Reload the page."
+            }), 400
+        # guard: bandwidths must be non-increasing (level 0 >= level 1 >= level 2)
+        for i in range(len(requested_bandwidths) - 1):
+            if requested_bandwidths[i] < requested_bandwidths[i + 1]:
+                return jsonify({
+                    "error": f"Bandwidths must be non-increasing: level {i} ({requested_bandwidths[i]}) "
+                    f"< level {i + 1} ({requested_bandwidths[i + 1]})."
+                    }), 400
+        # clamp each slider value to the shared limits
+        bandwidths = [max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, bw)) for bw in requested_bandwidths]
+    else:
+        # initial page load: no values sent, so use the shared default for every level
+        bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
+    
+
+    # instantiate a KDEHeatMap object
+    kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=OUTPUT_DIR)
+    # generate the heat map overlay PNG image file
+    bounds = kde_obj.generate_heatmap_image()
+
+    # file path for image being sent to frontend
+    img_path = os.path.join(OUTPUT_DIR, "density_overlay.png")
+    image_data = _png_to_base64(path=img_path)
+
+    bounds_dict = {
+        "west": bounds.left,
+        "south": bounds.bottom,
+        "east": bounds.right,
+        "north": bounds.top,
+    }
+
+    legend_data = kde_obj.get_legend_data()
+
+    result = {
+        "image": image_data, 
+        "bounds": bounds_dict, 
+        "legend": legend_data,
+        "bandwidths": bandwidths,
+        "min_bandwidth": MIN_BANDWIDTH,
+        "max_bandwidth": MAX_BANDWIDTH,
+        "cluster_set": cluster_set,
+        "cluster_set_labels": CLUSTER_SET_LABELS,
+        "dbscan_status": dbscan_status,
+    }
+
+    return jsonify(result)
+
+
 @app.route("/api/animation/kde-heatmap")
 def kde_heatmap_animation():
     # all params are required
@@ -315,7 +386,7 @@ def kde_heatmap_animation():
     for frame in frames:
         # keep the filename before the image is replaced with its base64 data
         frame["image_filename"] = frame["image"]
-
+        
         if frame["image"] is not None:
             img_path = os.path.join(KDE_SNAPSHOT_DIR, frame["image"])
             frame["image"] = _png_to_base64(path=img_path)
@@ -328,7 +399,6 @@ def kde_heatmap_animation():
     })
 
 
-# NEW
 @app.route("/api/animation/kde-heatmap-dbscan")
 def kde_heatmap_dbscan_animation():
     # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500&bandwidth=800
@@ -379,9 +449,8 @@ def kde_heatmap_dbscan_animation():
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
     })
+    
 
-
-# NEW
 @app.route("/api/animation/kde-heatmap-dbscan/status")
 def kde_heatmap_dbscan_status():
     # whether the cluster-levels option can be used: "missing", "no_cluster_levels" or "available"
@@ -389,173 +458,13 @@ def kde_heatmap_dbscan_status():
     return jsonify({"dbscan_status": dbscan_status})
 
 
-# ---------------------------------------------------------------------------
-# Remaining routes from the working (React) file
-# ---------------------------------------------------------------------------
-@app.route("/api/incidents")
-def incidents():
-    data = get_incidents()
-    return jsonify(data)
-
-
-@app.route("/api/health")
-def health():
-    return jsonify({"status": "ok"})
-
-
-@app.route("/cluster-heatmap-lab")
-def cluster_heatmap_lab():
-    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-    return send_from_directory(frontend_dir, "cluster-heatmap-lab.html")
-
-
-@app.route("/api/kde-heatmap")
-def kde_heatmap():
-
-    try:
-        requested_bandwidths = [float(bw) for bw in request.args.getlist("bandwidth")]
-    except ValueError:
-        return jsonify({"error": "Invalid bandwidth parameter"}), 400
-
-    try:
-        cluster_set = int(request.args.get("cluster_set", DEFAULT_CLUSTER_SET))
-    except ValueError:
-        return jsonify({"error": "Invalid cluster_set parameter"}), 400
-
-    # guard: cluster_set must match one of the radio button options
-    if not 0 <= cluster_set < len(CLUSTER_SET_LABELS):
-        return jsonify({
-            "error": f"cluster_set must be between 0 and {len(CLUSTER_SET_LABELS) - 1}"
-        }), 400
-
-    # status of cluster-lab's DBSCAN results: "missing", "all_noise", or "available"
-    dbscan_df = None
-    if not os.path.exists("userID_dbscan.csv"):
-        dbscan_status = "missing"
-    else:
-        dbscan_df = pd.read_csv("userID_dbscan.csv")
-        if (dbscan_df["cluster_density_level"] == -1).all():
-            dbscan_status = "all_noise"
-        else:
-            dbscan_status = "available"
-
-    # guard: cluster analysis requires the DBSCAN results written by cluster-lab
-    if cluster_set == 1 and dbscan_status == "missing":
-        return jsonify({
-            "error": "No cluster analysis results found. Run cluster analysis in cluster-lab first.",
-            "dbscan_status": dbscan_status,
-        }), 400
-
-    # cluster analysis selected: use DBSCAN results from cluster-lab; otherwise use all points as one level
-    if cluster_set == 1:
-        data_points_with_noise = dbscan_df[["easting", "northing"]].to_numpy()
-        dbscan_cluster_levels = dbscan_df["cluster_density_level"].to_numpy()
-    else:
-        data_points_with_noise, _, _ = load_points()
-        dbscan_cluster_levels = np.zeros(len(data_points_with_noise), dtype=int)
-
-    easting = data_points_with_noise[:, 0]
-    northing = data_points_with_noise[:, 1]
-
-    # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
-    padding = 100
-    x_min = np.min(easting) - padding
-    x_max = np.max(easting) + padding
-    y_min = np.min(northing) - padding
-    y_max = np.max(northing) + padding
-    increment = 300
-
-    # one bandwidth per non-noise cluster level, ordered by ascending level (0, 1, 2) - least dense to most dense
-    unique_cluster_levels = np.unique(dbscan_cluster_levels)
-    num_clusters = np.count_nonzero(unique_cluster_levels != -1)
-
-    # guard: DBSCAN classified every point as noise, so there is nothing for the KDE to fit
-    if num_clusters == 0:
-        return jsonify({
-            "error": "Cluster analysis classified every point as noise. Try larger epsilon values in cluster-lab.",
-            "dbscan_status": dbscan_status,
-        }), 400
-
-    if requested_bandwidths:
-        # guard: the frontend must send exactly one bandwidth per non-noise cluster level
-        if len(requested_bandwidths) != num_clusters:
-            return jsonify({
-                "error": f"Expected {num_clusters} bandwidths, got {len(requested_bandwidths)}. Reload the page."
-            }), 400
-        # guard: bandwidths must be non-increasing (level 0 >= level 1 >= level 2)
-        for i in range(len(requested_bandwidths) - 1):
-            if requested_bandwidths[i] < requested_bandwidths[i + 1]:
-                return jsonify({
-                    "error": f"Bandwidths must be non-increasing: level {i} ({requested_bandwidths[i]}) "
-                    f"< level {i + 1} ({requested_bandwidths[i + 1]})."
-                    }), 400
-        # clamp each slider value to the shared limits
-        bandwidths = [max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, bw)) for bw in requested_bandwidths]
-    else:
-        # initial page load: no values sent, so use the shared default for every level
-        bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
-
-    # instantiate a KDEHeatMap object
-    kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=OUTPUT_DIR)
-    # generate the heat map overlay PNG image file
-    bounds = kde_obj.generate_heatmap_image()
-
-    # file path for image being sent to frontend
-    img_path = os.path.join(OUTPUT_DIR, "density_overlay.png")
-    image_data = _png_to_base64(path=img_path)
-
-    bounds_dict = {
-        "west": bounds.left,
-        "south": bounds.bottom,
-        "east": bounds.right,
-        "north": bounds.top,
-    }
-
-    legend_data = kde_obj.get_legend_data()
-
-    result = {
-        "image": image_data,
-        "bounds": bounds_dict,
-        "legend": legend_data,
-        "bandwidths": bandwidths,
-        "min_bandwidth": MIN_BANDWIDTH,
-        "max_bandwidth": MAX_BANDWIDTH,
-        "cluster_set": cluster_set,
-        "cluster_set_labels": CLUSTER_SET_LABELS,
-        "dbscan_status": dbscan_status,
-    }
-
-    return jsonify(result)
-
-
-# report----------------------
-@app.route("/api/report", methods=["POST"])
-def generate_report():
-    # TODO: require JWT before generating reports for registered users
-    body = request.get_json(force=True, silent=True) or {}
-    incidents = body.get("incidents", [])
-    if not incidents:
-        return jsonify({"error": "No incidents to report"}), 400
-
-    try:
-        start_date = datetime.date.fromisoformat(body["start_date"])
-        end_date   = datetime.date.fromisoformat(body["end_date"])
-    except (KeyError, ValueError):
-        return jsonify({"error": "start_date and end_date (YYYY-MM-DD) are required"}), 400
-
-    lats = [float(i["lat"]) for i in incidents]
-    lngs = [float(i["lng"]) for i in incidents]
-    pad = 0.01
-    bounds = {
-        "north": max(lats) + pad, "south": min(lats) - pad,
-        "east":  max(lngs) + pad, "west":  min(lngs) - pad,
-    }
-
-    pdf_buf = generate_pdf(incidents, bounds, start_date, end_date)
-    return send_file(pdf_buf, mimetype="application/pdf", as_attachment=True,
-                     download_name=f"lee-county-report-{datetime.date.today()}.pdf")
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
+
+
+
+
+
 
