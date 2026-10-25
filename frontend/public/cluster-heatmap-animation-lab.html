@@ -153,6 +153,21 @@
     }
     #theme-toggle:hover { border-color: var(--control-focus); }
 
+    /* ── Back to homepage (the React map at "/") ──────────────────────────── */
+    #back-home {
+      border: 1px solid var(--control-border);
+      background: var(--control-bg);
+      color: var(--text);
+      font-size: 0.82rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    #back-home:hover { border-color: var(--control-focus); }
+    #top-actions { display: flex; align-items: center; gap: 0.5rem; }
+
     /* ── Stats ────────────────────────────────────────────────────────────── */
     #stats {
       display: flex;
@@ -487,7 +502,10 @@
     <div class="stat-pill" id="bandwidth-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
     <div class="stat-pill" id="distance-band-pill" hidden>Distance band: <span id="stat-distance-band">&mdash;</span></div>
   </div>
-  <button id="theme-toggle" type="button" title="Switch light/dark theme"></button>
+  <div id="top-actions">
+    <a id="back-home" href="/" title="Back to the main map">&larr; Back to Homepage</a>
+    <button id="theme-toggle" type="button" title="Switch light/dark theme"></button>
+  </div>
 </div>
 
 <div id="animation-controls" data-mode="all-points">
@@ -603,7 +621,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (() => {
-  const LEE_COUNTY_CENTER = [26.56, -81.87];
+  const LEE_COUNTY_CENTER = [26.56, -82];
   const DEFAULT_ZOOM = 11;
   const BASE_INTERVAL_MS = 2000; // time per frame at 1x speed
   // backend/api (leecad_api); this page must be served from one of its ALLOWED_ORIGINS
@@ -639,14 +657,20 @@
     [26.78980006125687, -82.272362941444],
   ];
   const LEE_COUNTY_BOUNDS = L.latLngBounds(LEE_COUNTY_BOUNDARY);
+  // pan limit: the county bounds plus a margin, so incidents and heat map overlays at the edges can be centered and viewed
+  const MAP_PAN_BOUNDS = LEE_COUNTY_BOUNDS.pad(0.25);
 
   // preferCanvas: cluster frames draw many circle markers.
-  // maxBounds + viscosity 1 and minZoom keep the user inside Lee County, as in the React map.
+  // maxBounds + viscosity 1 and minZoom keep the user near Lee County (slightly padded so edges are viewable).
   const map = L.map("map", {
     preferCanvas: true,
     minZoom: 9.5,
-    maxBounds: LEE_COUNTY_BOUNDS,
+    maxBounds: MAP_PAN_BOUNDS,
     maxBoundsViscosity: 1.0,
+    // finer zoom: fractional zoom levels, and smaller steps for the +/- buttons and mouse wheel
+    zoomSnap: 0.25,
+    zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 30,
   }).setView(LEE_COUNTY_CENTER, DEFAULT_ZOOM);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
