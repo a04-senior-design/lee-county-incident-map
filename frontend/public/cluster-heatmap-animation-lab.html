@@ -89,8 +89,9 @@
     /* ── Playback controls ───────────────────────────────────────────────── */
     #playback {
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.25rem;
       flex: 1;
       min-width: 260px;
     }
@@ -105,12 +106,18 @@
       font-size: 0.82rem;
     }
     #playback button:hover { border-color: var(--control-focus); }
+    #playback-row { display: flex; align-items: center; gap: 0.5rem; }
     #scrub { flex: 1; max-width: 320px; accent-color: var(--ui-accent); cursor: pointer; }
+    /* width: 0 + min-width: 100% keeps long dates from widening the top bar; the text is cut off with "…" instead */
     #frame-label {
+      display: block;
+      width: 0;
+      min-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-size: 0.78rem;
       color: var(--text-sub);
       white-space: nowrap;
-      min-width: 160px;
     }
 
     /* ── Speed control ────────────────────────────────────────────────────── */
@@ -166,7 +173,7 @@
       text-decoration: none;
     }
     #back-home:hover { border-color: var(--control-focus); }
-    #top-actions { display: flex; align-items: center; gap: 0.5rem; }
+    #top-left { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; }
 
     /* ── Stats ────────────────────────────────────────────────────────────── */
     #stats {
@@ -460,9 +467,12 @@
 <body>
 
 <div id="top-bar">
-  <div id="branding">
-    <strong>Incidents Animation</strong>
-    <span>Clusters, KDE heat map and Gi* heat map over time</span>
+  <div id="top-left">
+    <a id="back-home" href="/" title="Back to the main map">&larr; Back to Homepage</a>
+    <div id="branding">
+      <strong>Incidents Animation</strong>
+      <span>Clusters, KDE heat map and Gi* heat map over time</span>
+    </div>
   </div>
   <div id="analysis-controls">
     <div class="analysis-title">Analysis</div>
@@ -484,10 +494,12 @@
     </label>
   </div>
   <div id="playback">
-    <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
-    <button id="btn-play" title="Play/pause">&#9654;</button>
-    <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
-    <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+    <div id="playback-row">
+      <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
+      <button id="btn-play" title="Play/pause">&#9654;</button>
+      <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
+      <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+    </div>
     <span id="frame-label">&mdash;</span>
   </div>
   <div id="speed-control">
@@ -502,10 +514,7 @@
     <div class="stat-pill" id="bandwidth-pill">Bandwidth: <span id="stat-bandwidth">&mdash;</span></div>
     <div class="stat-pill" id="distance-band-pill" hidden>Distance band: <span id="stat-distance-band">&mdash;</span></div>
   </div>
-  <div id="top-actions">
-    <a id="back-home" href="/" title="Back to the main map">&larr; Back to Homepage</a>
-    <button id="theme-toggle" type="button" title="Switch light/dark theme"></button>
-  </div>
+  <button id="theme-toggle" type="button" title="Switch light/dark theme"></button>
 </div>
 
 <div id="animation-controls" data-mode="all-points">
