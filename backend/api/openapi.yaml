@@ -161,7 +161,8 @@ paths:
         instead, one bandwidth per level, so it needs that run's run_id; the
         filters are ignored then, so pass them to /api/v1/clusters.
         dbscan_status says whether the run's results can be used, and is
-        missing without a run_id.
+        missing without a run_id. The response is kept for an hour under the
+        run_id it returns, for /api/v1/reports?kde_run=.
       parameters:
         - name: start_date
           in: query
@@ -265,7 +266,8 @@ paths:
         range, read as UTC. The range defaults to the last 30 days and is
         capped at 60, because DBSCAN memory grows with the square of the
         number of incidents. Each incident's cluster level is kept for an
-        hour under the returned run_id, for /api/v1/kde-heatmap?cluster_set=1.
+        hour under the returned run_id, for /api/v1/kde-heatmap?cluster_set=1,
+        and so is the response, for /api/v1/reports?dbscan_run=.
         Takes the same category, city, source and bbox filters as
         /api/v1/incidents. Dates come only from start_date and end_date, so
         days, from and to are refused.
@@ -308,6 +310,15 @@ paths:
                 type: object
                 properties:
                   run_id: { type: string }
+                  level_configs:
+                    type: object
+                    description: The settings each enabled level ran with.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        epsilon: { type: number, description: DBSCAN radius in feet. }
+                        min_pts: { type: integer }
+                        color: { type: string }
                   frames:
                     type: array
                     items:
@@ -440,7 +451,8 @@ paths:
         by its Gi* z-score: how much more (or less) busy it and its
         neighbors are than the county as a whole. Cells whose center is in
         the water are left out unless they hold an incident. Dates and
-        filters work as on /api/v1/kde-heatmap.
+        filters work as on /api/v1/kde-heatmap. The response is kept for an
+        hour under the run_id it returns, for /api/v1/reports?gi_star_run=.
       parameters:
         - name: start_date
           in: query
@@ -801,6 +813,13 @@ paths:
         /api/v1/incidents, but needs both from and to, and covers at most 366
         days counting both ends. Only incidents with a trusted coordinate
         inside Lee County are included, as on the map. Times are Eastern.
+
+        kde_run, gi_star_run and dbscan_run add the heatmaps and clusters
+        the user made on the map, by the run_id each route returned. A run
+        not sent is left out of the report. A run is refused if it expired
+        (after an hour), is a different analysis, or was made with other
+        dates or filters: its start_date and end_date must equal from and
+        to, and its category, city, source and bbox must equal the report's.
       security:
         - accessToken: []
       parameters:
@@ -820,6 +839,18 @@ paths:
         - $ref: "#/components/parameters/city"
         - $ref: "#/components/parameters/source"
         - $ref: "#/components/parameters/bbox"
+        - name: kde_run
+          in: query
+          description: The run_id from /api/v1/kde-heatmap.
+          schema: { type: string }
+        - name: gi_star_run
+          in: query
+          description: The run_id from /api/v1/gi-star-heatmap.
+          schema: { type: string }
+        - name: dbscan_run
+          in: query
+          description: The run_id from /api/v1/clusters.
+          schema: { type: string }
       responses:
         "200":
           description: The report, as a download named lee-county-report-FROM_to_TO.pdf.
@@ -1117,6 +1148,9 @@ components:
         cluster_set: { type: integer }
         cluster_set_labels: { type: array, items: { type: string } }
         dbscan_status: { type: string, enum: [missing, all_noise, available] }
+        run_id:
+          type: string
+          description: This heatmap's own run, for /api/v1/reports?kde_run=. Not the run_id sent in.
 
     GiStarHeatmap:
       type: object
@@ -1134,6 +1168,7 @@ components:
         distance_band: { type: number }
         min_distance_band: { type: number }
         max_distance_band: { type: number }
+        run_id: { type: string, description: "For /api/v1/reports?gi_star_run=." }
 
     GiStarAnimation:
       type: object
