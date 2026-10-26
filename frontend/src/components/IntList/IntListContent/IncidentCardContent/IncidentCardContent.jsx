@@ -18,7 +18,7 @@ function IncidentCardContent({
 }) {
   const [targetCard, setTargetCard] = useState(null)
   const pickColor = (incident) => {
-    const key = (incident.category || '')
+    const key = incident.category || ''
     for (const color in incidentColors) {
       if (key.includes(color)) return incidentColors[color]
     }
@@ -30,222 +30,124 @@ function IncidentCardContent({
   }
   return (
     <>
-     <Virtuoso
-      style={{ height: '100%', width: '100%' }}
-      data={incidentList}
-      computeItemKey={(index, incident) =>
-        incident.source_incident_id ?? incident.id ?? index
-      }
-      itemContent={(index, incident) => (
-        <Box sx={{ display: 'flex', justifyContent: 'center', pb: 2 }}>
-          <Card
-          elevation={3}
-          key={index}
-          sx={[
-            {
-              '&:hover':{
-                transform:'scale(1.02)'
-              },
-              width: '95%',
-              height: '180px',
-              flexShrink: 0,
-              transform:
-                targetCard === incident.id
-                  ? 'translateX(10px) scale(1.04)'
-                  : 'none',
-              transition: '0.3s'
-            },
-            (theme) =>
-              theme.applyStyles('light', {
-                backgroundColor: '#ffffff'
-              })
-          ]}
-        >
-          <CardMedia
-            sx={{ height: 20, bgcolor: () => pickColor(incident) }}
-            title='incident color'
-          />
-          <CardContent sx={{ padding: '16px 16px 5px' }}>
-            <Typography
-              gutterBottom
-              variant='h5'
-              component='div'
-              sx={{
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden'
-              }}
-            >
-              {incident.address}
-            </Typography>
-            <Typography
-              gutterBottom
-              variant='body2'
-              component='div'
-              sx={{
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden'
-              }}
-            >
-              {incident.city}
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Typography
-                variant='h7'
-                sx={[
-                  {
-                    fontWeight: 700,
-                    color: (theme) => theme.palette.warning.dark
-                  },
-                  (theme) =>
-                    theme.applyStyles('dark', {
-                      color: 'warning.main'
-                    })
-                ]}
-              >
-                {incident.nature}
-              </Typography>
-              <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                {`${incident.occurred_at.split('T')[0]}`}
-              </Typography>
-            </Box>
-          </CardContent>
-          <CardActions>
-            <Button size='small'>Share</Button>
-            <Button
-              endIcon={<ArrowOutwardIcon sx={{}} />}
-              size='small'
+      <Virtuoso
+        style={{ height: '100%', width: '100%' }}
+        data={incidentList}
+        computeItemKey={(index, incident) =>
+          incident.source_incident_id ?? incident.id ?? index
+        }
+        itemContent={(index, incident) => (
+          <Box sx={{ display: 'flex', justifyContent: 'center', pb: 2 }}>
+            <Card
+              elevation={3}
+              key={index}
               onClick={() => {
                 if (latlon === 1) {
                   getLocation(incident.lat, incident.lon)
                   getIncidentID(incident.source_incident_id)
-                } else {
-                  setNoLocationMove({
-                    address: incident.address,
-                    trigger: Date.now()
-                  })
                 }
               }}
-            >
-              {latlon === 1 ? 'Go to Map' : 'Search on map'}
-            </Button>
-          </CardActions>
-        </Card>
-        </Box>
-      )}
-    />
-      {/* {incidentList?.map((incident,index) => (
-        <Card
-          elevation={2}
-          key={index}
-          sx={[
-            {
-              width: '95%',
-              height: '180px',
-              flexShrink: 0,
-              transform:
-                targetCard === incident.id
-                  ? 'translateX(10px) scale(1.04)'
-                  : 'none',
-              transition: '0.3s'
-            },
-            (theme) =>
-              theme.applyStyles('light', {
-                backgroundColor: '#fafafa'
-              })
-          ]}
-          onClick={() => selectCard(incident.id)}
-        >
-          <CardMedia
-            sx={{ height: 20, bgcolor: () => pickColor(incident) }}
-            title='incident color'
-          />
-          <CardContent sx={{ padding: '16px 16px 5px' }}>
-            <Typography
-              gutterBottom
-              variant='h5'
-              component='div'
-              sx={{
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden'
-              }}
-            >
-              {incident.address}
-            </Typography>
-            <Typography
-              gutterBottom
-              variant='body2'
-              component='div'
-              sx={{
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden'
-              }}
-            >
-              {incident.city}
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <Typography
-                variant='h7'
-                sx={[
-                  {
-                    fontWeight: 700,
-                    color: (theme) => theme.palette.warning.dark
+              sx={[
+                {
+                  '&:hover': {
+                    transform: 'scale(1.02)'
                   },
-                  (theme) =>
-                    theme.applyStyles('dark', {
-                      color: 'warning.main'
-                    })
-                ]}
-              >
-                {incident.nature}
-              </Typography>
-              <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                {`${incident.occurred_at.split('T')[0]}`}
-              </Typography>
-            </Box>
-          </CardContent>
-          <CardActions>
-            <Button size='small'>Share</Button>
-            <Button
-              endIcon={<ArrowOutwardIcon sx={{}} />}
-              size='small'
-              onClick={() => {
-                if (latlon === 1) {
-                  getLocation(incident.lat, incident.lon)
-                  getIncidentID(incident.source_incident_id)
-                } else {
-                  setNoLocationMove({
-                    address: incident.address,
-                    trigger: Date.now()
+                  cursor: 'pointer',
+                  width: '95%',
+                  flexShrink: 0,
+                  transform:
+                    targetCard === incident.id
+                      ? 'translateX(10px) scale(1.04)'
+                      : 'none',
+                  transition: '0.3s'
+                },
+                (theme) =>
+                  theme.applyStyles('light', {
+                    backgroundColor: '#ffffff'
                   })
-                }
-              }}
+              ]}
             >
-              {latlon === 1 ? 'Go to Map' : 'Search on map'}
-            </Button>
-          </CardActions>
-        </Card>
-      ))} */}
-
-
+              <CardMedia
+                sx={{ height: 20, bgcolor: () => pickColor(incident) }}
+                title='incident color'
+              />
+              <CardContent sx={{ padding: '16px 16px 5px' }}>
+                <Typography
+                  gutterBottom
+                  variant='h5'
+                  component='div'
+                  sx={{
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {incident.address}
+                </Typography>
+                <Typography
+                  gutterBottom
+                  variant='body2'
+                  component='div'
+                  sx={{
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {incident.city}
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <Typography
+                    variant='h7'
+                    sx={[
+                      {
+                        fontWeight: 700,
+                        color: (theme) => theme.palette.warning.dark
+                      },
+                      (theme) =>
+                        theme.applyStyles('dark', {
+                          color: 'warning.main'
+                        })
+                    ]}
+                  >
+                    {incident.nature}
+                  </Typography>
+                  <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                    {`${incident.occurred_at.split('T')[0]}`}
+                  </Typography>
+                </Box>
+              </CardContent>
+              {/* <CardActions>
+                <Button size='small'>Share</Button>
+                <Button
+                  endIcon={<ArrowOutwardIcon sx={{}} />}
+                  size='small'
+                  onClick={() => {
+                    if (latlon === 1) {
+                      getLocation(incident.lat, incident.lon)
+                      getIncidentID(incident.source_incident_id)
+                    } else {
+                      setNoLocationMove({
+                        address: incident.address,
+                        trigger: Date.now()
+                      })
+                    }
+                  }}
+                >
+                  {latlon === 1 ? 'Go to Map' : 'Search on map'}
+                </Button>
+              </CardActions> */}
+            </Card>
+          </Box>
+        )}
+      />
     </>
   )
 }
-//.split(' ')[0].split('-').reverse().join('-')
-
 export default IncidentCardContent

@@ -51,13 +51,7 @@ function BoardBar({
   const handleReport = async () => {
     setReportLoading(true)
     const [from, to] = dateRange
-    const incidents = filteredListWithLocation.map((i) => ({
-      nature: i.category,
-      city: i.city, // still need to confirm this field name
-      lat: i.lat,
-      lng: i.lon,
-      occuredDate: i.occurred_at
-    }))
+    
 
     setReportLoading(true)
     try {
