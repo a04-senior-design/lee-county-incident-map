@@ -69,7 +69,6 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
         sx={[
           {
             width: 'clamp(380px, 40vw, 600px)',
-            height: '60vh',
             background: 'white',
             borderRadius: '16px',
             p: 1,

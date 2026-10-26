@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import './MapPage.css'
 import Map from './Map'
 import AppBar from './AppBar/AppBar'
@@ -71,6 +71,62 @@ function MapPage() {
     severity: '',
     content: ''
   })
+  //── Report ───────────────────────────────────────────────────────────
+  const [drawArea, setDrawArea] = useState(false)
+  const [areaBounds, setAreaBounds] = useState(null)
+  const bbox = areaBounds ? areaBounds.toBBoxString() : null
+
+  const { token } = useAuth()
+  const API_URL = import.meta.env.VITE_API_BASE_URL
+  const [reportLoading, setReportLoading] = useState(false)
+  const handleReport = async (useArea = true) => {
+    const [from, to] = dateRange
+    setReportLoading(true)
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams({ from, to })
+      if (useArea && bbox) params.append('bbox', bbox)
+
+      const res = await fetch(`${database}/reports?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.status === 401 || res.status === 403) {
+        SetAlertContent((prev) => ({
+          ...prev,
+          open: true,
+          severity: 'error',
+          content: 'Your session has expired. Please refresh the page.'
+        }))
+        return
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Server error ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `lee-county-report-${from}_to_${to}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      SetAlertContent((prev) => ({
+        ...prev,
+        open: true,
+        severity: 'error',
+        content: `Report generation failed: ${err.message}`
+      }))
+    } finally {
+      setReportLoading(false)
+      setAreaBounds(null)
+      setDrawArea(false)
+      setIsLoading(false)
+    }
+  }
+  const onAreaDrawn = useCallback((b) => {
+    setAreaBounds(b)
+  }, [])
   //── Overlay ───────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false)
   const [accountPop, setAccountPop] = useState(false)
@@ -306,7 +362,9 @@ function MapPage() {
         setRouteOn={setRouteOn}
         isLoading={isLoading}
         accountPop={accountPop}
-        
+        setDrawArea={setDrawArea}
+        handleReport={handleReport}
+        reportLoading={reportLoading}
       />
 
       <Box
@@ -439,6 +497,13 @@ function MapPage() {
               routeOn={routeOn}
               setRouteOn={setRouteOn}
               incidentColors={CATEGORY_COLORS}
+              drawArea={drawArea}
+              areaBounds={areaBounds}
+              onAreaDrawn={onAreaDrawn}
+              setDrawArea={setDrawArea}
+              handleReport={handleReport}
+              reportLoading={reportLoading}
+              setAreaBounds={setAreaBounds}
             />
           </Box>
         </Paper>
