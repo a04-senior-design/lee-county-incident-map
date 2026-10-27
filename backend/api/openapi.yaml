@@ -211,7 +211,8 @@ paths:
         window_start to window_end, excluding window_end, except the last
         window, which is cut off at end_date and includes it. Each frame has
         its own bounds, but all frames share one color scale, so a color
-        means the same density in every frame. At most 30 windows.
+        means the same density in every frame, and one legend fits them
+        all. At most 30 windows.
         Takes the same category, city, source and bbox filters as
         /api/v1/incidents. Dates come only from start_date and end_date, so
         days, from and to are refused.
@@ -392,7 +393,8 @@ paths:
       description: |
         One heatmap per frame of a DBSCAN run, with one bandwidth per cluster
         level. Frame 1's levels set how many bandwidths are expected. Noise
-        points are left out.
+        points are left out. All frames share one color scale, so a color
+        means the same density in every frame, and one legend fits them all.
       parameters:
         - $ref: "#/components/parameters/run_id"
         - name: bandwidth
@@ -1187,9 +1189,20 @@ components:
             id: { type: integer }
             created_at: { type: string, format: date-time }
 
+    KdeLegend:
+      type: object
+      description: The color scale shared by every frame, from the last frame with a heatmap.
+      properties:
+        colors: { type: array, items: { type: string, example: "#0000ff" } }
+        vmin: { type: number }
+        vmax: { type: number }
+        ticks: { type: array, items: { type: number } }
+        caption: { type: [string, "null"] }
+
     KdeAnimation:
       type: object
       properties:
+        legend: { $ref: "#/components/schemas/KdeLegend" }
         bandwidth: { type: number }
         min_bandwidth: { type: number }
         max_bandwidth: { type: number }
@@ -1232,6 +1245,7 @@ components:
     KdeDbscanAnimation:
       type: object
       properties:
+        legend: { $ref: "#/components/schemas/KdeLegend" }
         bandwidths: { type: array, items: { type: number } }
         min_bandwidth: { type: number }
         max_bandwidth: { type: number }

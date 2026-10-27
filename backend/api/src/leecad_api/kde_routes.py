@@ -247,7 +247,7 @@ def kde_heatmap_animation():
                 incidents = conn.execute(*queries.mapped_incidents_between(
                     filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
                 )).fetchall()
-            frames = build_kde_heatmap_snapshots(
+            frames, legend = build_kde_heatmap_snapshots(
                 start_date=start_date,
                 end_date=end_date,
                 window_length=window_length,
@@ -269,6 +269,7 @@ def kde_heatmap_animation():
 
     return jsonify({
         "frames": frames,
+        "legend": legend,
         "bandwidth": bandwidth,
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
