@@ -180,9 +180,16 @@ function buildClusterLegend(levelData, levelVisible) {
 
 // startDate / endDate: optional 'YYYY-MM-DD' strings for /clusters.
 // Leave them out and the server uses the last 30 days. The server caps a range at 60 days.
-const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
+const Analysis = ({
+  active,
+  startDate,
+  endDate,
+  setIsLoading,
+  areaBounds,
+  drawArea
+}) => {
   const map = useMap()
-
+  const bbox = areaBounds ? areaBounds.toBBoxString() : null
   //Mode --------------
   const [mode, setMode] = useState('kde-heatmap')
   const [currentClusterSet, setCurrentClusterSet] = useState(0)
@@ -207,6 +214,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   const [distanceBand, setDistanceBand] = useState(2500) // was `sliders` / `valueLabels`
   const distanceBandTimeBound = useRef(null)
   //REF
+  const gistarRequestRef = useRef(0)
   const applyRef = useRef(null)
   const debounceTimerRef = useRef(null)
   const clustersLoadedRef = useRef(false)
@@ -242,7 +250,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   useEffect(() => {
     if (!active) return
 
-    const range = `${startDate ?? ''}|${endDate ?? ''}`
+    const range = `${startDate ?? ''}|${endDate ?? ''}|${bbox ?? ''}`
     if (range === lastRangeRef.current) return // same range, nothing to refetch
     lastRangeRef.current = range
 
@@ -256,7 +264,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
     setCurrentClusterSet(0)
 
     setDataVersion((v) => v + 1) // makes the KDE and cluster effects fetch again
-  }, [startDate, endDate, active])
+  }, [startDate, endDate, active, bbox])
 
   // ---------- KDE ----------
   function fetchKDEHeatmap(
@@ -280,7 +288,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
     if (bandwidthsParam) {
       bandwidthsParam.forEach((bw) => params.append('bandwidth', bw))
     }
-
+    if (bbox) params.append('bbox', bbox)
     const query = params.toString()
     const url = query ? `${API}/kde-heatmap?${query}` : `${API}/kde-heatmap`
 
@@ -460,20 +468,26 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   }
   //GIStar---------------------------------------------------------------
   async function fetchGIStar(value = distanceBand) {
+    const id = ++gistarRequestRef.current
     setIsLoading(true)
     try {
-      const res = await fetch(
-        `${API}/gi-star-heatmap?start_date=${startDate}&end_date=${endDate}&distance_band=${value}`
-      )
+      const params = new URLSearchParams({ distance_band: value })
+      if (startDate) params.append('start_date', startDate)
+      if (endDate) params.append('end_date', endDate)
+      if (bbox) params.append('bbox', bbox)
+
+      const res = await fetch(`${API}/gi-star-heatmap?${params}`)
       if (!res.ok) throw new Error('something wrong with gistar')
       const data = await res.json()
-      console.log(data)
+
+      if (id !== gistarRequestRef.current) return // stale response
+
       setGISData(data)
       setDistanceBand(data.distance_band)
     } catch (error) {
       console.log(error.message)
     } finally {
-      setIsLoading(false)
+      if (id === gistarRequestRef.current) setIsLoading(false)
     }
   }
   function build_GI_Sliders() {
@@ -549,7 +563,8 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   useEffect(() => {
     if (!active || mode !== 'gistar-heatmap') return
     fetchGIStar()
-  }, [active, mode, startDate, endDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, mode, startDate, endDate, bbox])
 
   useEffect(() => {
     if (!active || mode !== 'gistar-heatmap' || !GISData) return
@@ -579,7 +594,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     if (startDate) params.start_date = startDate
     if (endDate) params.end_date = endDate
-
+    if (bbox) params.bbox = bbox
     enabledLevels.forEach((level) => {
       const { eps } = levelToParams(level, sliderValues[level])
       params[`${level}_eps`] = eps
@@ -589,7 +604,6 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     setStatus('loading')
     setDbscanError('')
-
     const qs = new URLSearchParams(params).toString()
 
     try {
@@ -763,11 +777,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
             })
         ]}
       >
-        <FormControl
-          sx={{
-            
-          }}
-        >
+        <FormControl sx={{}}>
           <FormLabel>Cluster and Heat Map Lab: </FormLabel>
 
           <RadioGroup
@@ -808,7 +818,9 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       <Box
         ref={secondBarRef}
         onMouseEnter={() => map.dragging.disable()}
-        onMouseLeave={() => map.dragging.enable()}
+        onMouseLeave={() => {
+          if (!drawArea) map.dragging.enable()
+        }}
         sx={[
           {
             background: 'rgba(24, 24, 44, 0.95)',

@@ -119,8 +119,6 @@ function MapPage() {
       }))
     } finally {
       setReportLoading(false)
-      setAreaBounds(null)
-      setDrawArea(false)
       setIsLoading(false)
     }
   }
@@ -161,7 +159,7 @@ function MapPage() {
 
     const controller = new AbortController()
 
-    async function fetchAll() {
+    async function fetchAll(useArea = true) {
       try {
         let all = []
         let cursor = null
@@ -171,10 +169,10 @@ function MapPage() {
           const params = new URLSearchParams({
             from: fromDay,
             to: toDay,
-            limit: '500'
+            limit: '5000'
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name
-
+          if (useArea && bbox) params.append('bbox', bbox)
           const res = await fetch(`${database}/incidents?${params}`, {
             signal: controller.signal
           })
@@ -186,7 +184,7 @@ function MapPage() {
           all = all.concat(page.incidents)
           cursor = page.next_cursor
           count++
-        } while (count < 10)
+        } while (count < 1)
         setIsLoading(false)
         setAllIncidents(all)
         setSelectedNatures(
@@ -199,7 +197,7 @@ function MapPage() {
 
     fetchAll()
     return () => controller.abort()
-  }, [dateRange])
+  }, [dateRange,bbox])
   // useEffect(() => {
   //   const [fromDay, toDay] = dateRange
   //   if (!fromDay || !toDay) return

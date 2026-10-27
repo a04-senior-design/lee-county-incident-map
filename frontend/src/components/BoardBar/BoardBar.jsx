@@ -11,6 +11,7 @@ import { useAuth } from '../../Context/AuthContext'
 import RouteIcon from '@mui/icons-material/Route'
 import AddAlertIcon from '@mui/icons-material/AddAlert'
 import ReportBtn from './ReportBtn/ReportBtn'
+import SelectAllIcon from '@mui/icons-material/SelectAll'
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -74,7 +75,7 @@ function BoardBar({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 2
+          gap: 2,
         }}
       >
         <IntList
@@ -109,6 +110,24 @@ function BoardBar({
           disabled={analysisOn || !user ? true : false}
         >
           Notification
+        </Button>
+        <Button
+          disabled={user ? false : true}
+          variant={routeOn ? 'contained' : 'text'}
+          color={routeOn ? 'warning' : 'primary'}
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
+            { padding: '8px 20px' }
+          ]}
+          startIcon={<SelectAllIcon />}
+          onClick={(e) => {
+            setDrawArea(true)
+          }}
+        >
+          Areas Filter
         </Button>
         <Button
           disabled={user ? false : true}
@@ -155,21 +174,20 @@ function BoardBar({
         >
           Animation
         </Button>
-        <ReportBtn
+        {/* <ReportBtn
           dateRange={dateRange}
           isLoading={isLoading}
           SetAlertContent={SetAlertContent}
-          setDrawArea={setDrawArea}
+          setDrawArea={setDrawArea}variant={reportBtn ? 'contained' : 'text'}
+          color={reportBtn ? 'info' : 'primary'}
           setAreaBounds={setAreaBounds}
           handleReport={handleReport}
           reportLoading={reportLoading}
-        />
-        {/* <Button
+        /> */}
+        <Button
           loading={reportLoading}
           loadingPosition='start'
           disabled={user && !isLoading ? false : true}
-          variant={reportBtn ? 'contained' : 'text'}
-          color={reportBtn ? 'info' : 'primary'}
           value='report'
           sx={[
             (theme) =>
@@ -179,14 +197,13 @@ function BoardBar({
             { padding: '8px 20px' }
           ]}
           startIcon={<TextSnippetIcon />}
-          onClick={(e) => {
-            setReportBtn(true)
-            handleActive(e)
-            handleReport()
+          onClick={async () => {
+            await handleReport(true)
           }}
         >
-          User Reports
-        </Button> */}
+          Generate Reports
+        </Button>
+
         <Button
           disabled={user ? false : true}
           variant={routeOn ? 'contained' : 'text'}

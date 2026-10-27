@@ -34,7 +34,7 @@ const RECT_STYLE = {
   color: '#0e668f',
   weight: 5,
   dashArray: '6 6',
-  fillOpacity: 0.3,
+  fillOpacity: 0.15,
   interactive: false
 }
 
@@ -498,7 +498,7 @@ function Map({
           sx={{
             position: 'absolute',
             zIndex: 1000,
-            top: '50px',
+            top: '70vh',
             left: 0,
             right: 0,
             display: 'flex',
@@ -522,18 +522,9 @@ function Map({
                 setDrawArea(false)
               }}
             >
-              Cancel
+              Clear draw
             </Button>
-            <Button
-              variant='contained'
-              onClick={async () => {
-                await handleReport(true)
-                setDrawArea(false)
-              }}
-            >
-              {' '}
-              Generate report
-            </Button>
+        
             <Button
               variant='contained'
               color={isDrawOn ? 'warning' : 'success'}
@@ -541,7 +532,7 @@ function Map({
                 setIsDrawOn(!isDrawOn)
               }}
             >
-              {isDrawOn ? 'Turn off draw' : 'Turn on draw'}
+              {isDrawOn ? 'Click to drag' : 'Click to draw'}
             </Button>
           </Box>
         </Box>
@@ -854,6 +845,8 @@ function Map({
           startDate={start_date}
           endDate={end_date}
           setIsLoading={setIsLoading}
+          areaBounds = {areaBounds}
+          drawArea={drawArea && isDrawOn}
         />
         {!analysisOn && (
           <MarkerClusterGroup
