@@ -1,9 +1,7 @@
-import os
-
 import pytest
 import report
 
-from leecad_api import reports, runs
+from leecad_api import reports
 from leecad_api.auth import API, AUTH
 
 REPORTS = f"{API}/reports"
@@ -16,9 +14,10 @@ def sent(monkeypatch):
     monkeypatch.setattr(report, "_map_snapshot", lambda incidents, bounds: None)
     calls = []
 
-    def generate(incidents, bounds, start_date, end_date, runs=None):
-        calls.append({"incidents": incidents, "bounds": bounds, "start": start_date, "end": end_date, "runs": runs})
-        return report.generate_pdf(incidents, bounds, start_date, end_date, runs=runs)
+    def generate(incidents, bounds, start_date, end_date, analyses=None):
+        calls.append({"incidents": incidents, "bounds": bounds, "start": start_date, "end": end_date,
+                      "analyses": analyses})
+        return report.generate_pdf(incidents, bounds, start_date, end_date, analyses=analyses)
 
     monkeypatch.setattr(reports, "generate_pdf", generate)
     return calls
@@ -72,33 +71,64 @@ def test_a_report_covers_at_most_366_days(auth_client, headers, sent):
     assert auth_client.get(f"{REPORTS}?from=2025-06-19&to=2026-06-20", headers=headers).status_code == 400
 
 
-def test_a_drawn_bbox_is_the_reports_map_area(auth_client, headers, sent):
-    auth_client.get(f"{REPORTS}?{JUNE}&bbox=-82.0,26.5,-81.8,26.7", headers=headers)
-    assert sent[0]["bounds"] == {"north": 26.7, "south": 26.5, "east": -81.8, "west": -82.0}
-
-
-def test_without_a_bbox_the_map_area_is_the_incidents_extent(auth_client, headers, sent):
-    auth_client.get(f"{REPORTS}?{JUNE}", headers=headers)
-    [call] = sent
-    assert call["bounds"]["north"] == max(i["lat"] for i in call["incidents"]) + 0.01
-    assert call["runs"] is None
-
-
-def test_run_ids_become_run_folders(auth_client, headers, sent):
-    kde, dbscan = "a" * 32, "b" * 32
-    response = auth_client.get(f"{REPORTS}?{JUNE}&kde_run={kde}&dbscan_run={dbscan}", headers=headers)
-    # the folders don't exist here, so the report says the runs are unavailable instead of failing
-    assert response.status_code == 200
-    assert sent[0]["runs"] == {"kde": os.path.join(runs.RUNS_DIR, kde), "dbscan": os.path.join(runs.RUNS_DIR, dbscan)}
-
-
-@pytest.mark.parametrize("param", ["kde_run", "gi_star_run", "dbscan_run"])
-def test_a_run_id_must_be_one_the_map_returned(auth_client, headers, param):
-    response = auth_client.get(f"{REPORTS}?{JUNE}&{param}=../../etc", headers=headers)
-    assert response.status_code == 400
-    assert response.json["error"] == f"{param} must be a run_id returned by the map"
-
-
 def test_a_report_with_no_incidents_is_refused(auth_client, headers):
     response = auth_client.get(f"{REPORTS}?{JUNE}&category=FRAUD", headers=headers)
     assert response.status_code == 400
+
+
+# the analyses' own names for the report's dates
+JUNE_RUN = "start_date=2026-06-10&end_date=2026-06-20"
+
+
+def made(client, path, query=JUNE_RUN):
+    response = client.get(f"{API}/{path}?{query}")
+    assert response.status_code == 200, response.json
+    return response.json
+
+
+def test_a_report_gets_the_runs_the_user_made(auth_client, headers, sent):
+    kde = made(auth_client, "kde-heatmap")
+    gi_star = made(auth_client, "gi-star-heatmap")
+    clusters = made(auth_client, "clusters")
+    response = auth_client.get(f"{REPORTS}?{JUNE}&kde_run={kde['run_id']}&gi_star_run={gi_star['run_id']}"
+                               f"&dbscan_run={clusters['run_id']}", headers=headers)
+    assert response.status_code == 200, response.json
+    assert sent[0]["analyses"] == {"kde": kde, "gi_star": gi_star, "dbscan": clusters}
+
+
+def test_a_run_not_sent_is_left_out(auth_client, headers, sent):
+    kde = made(auth_client, "kde-heatmap")
+    auth_client.get(f"{REPORTS}?{JUNE}&kde_run={kde['run_id']}", headers=headers)
+    assert list(sent[0]["analyses"]) == ["kde"]
+    auth_client.get(f"{REPORTS}?{JUNE}", headers=headers)
+    assert sent[1]["analyses"] == {}
+
+
+def test_a_run_must_match_the_report_filters(auth_client, headers):
+    kde = made(auth_client, "kde-heatmap", f"{JUNE_RUN}&city=FORT MYERS")
+    response = auth_client.get(f"{REPORTS}?{JUNE}&kde_run={kde['run_id']}", headers=headers)
+    assert response.status_code == 400
+    assert "different filters" in response.json["error"]
+    matching = auth_client.get(f"{REPORTS}?{JUNE}&city=FORT MYERS&kde_run={kde['run_id']}", headers=headers)
+    assert matching.status_code == 200
+
+
+def test_a_run_must_match_the_report_dates(auth_client, headers):
+    gi_star = made(auth_client, "gi-star-heatmap", "start_date=2026-06-15&end_date=2026-06-20")
+    response = auth_client.get(f"{REPORTS}?{JUNE}&gi_star_run={gi_star['run_id']}", headers=headers)
+    assert response.status_code == 400
+    assert "start_date 2026-06-15" in response.json["error"]
+
+
+def test_a_run_must_be_the_analysis_it_is_sent_as(auth_client, headers):
+    gi_star = made(auth_client, "gi-star-heatmap")
+    response = auth_client.get(f"{REPORTS}?{JUNE}&kde_run={gi_star['run_id']}", headers=headers)
+    assert response.status_code == 400
+    assert response.json["error"] == "kde_run is not a KDE heatmap run"
+
+
+def test_an_expired_or_made_up_run_is_refused(auth_client, headers):
+    response = auth_client.get(f"{REPORTS}?{JUNE}&dbscan_run={'0' * 32}", headers=headers)
+    assert response.status_code == 400
+    assert response.json["error"] == "dbscan_run has expired or does not exist; run the cluster analysis again"
+    assert auth_client.get(f"{REPORTS}?{JUNE}&dbscan_run=../../etc", headers=headers).status_code == 400

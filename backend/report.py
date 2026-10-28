@@ -1,8 +1,6 @@
 import io
-import os
 import re
 import base64
-import json
 import math
 import datetime
 from collections import Counter
@@ -86,12 +84,11 @@ def _map_snapshot(incidents, bounds):
         return None
 
 
-# ---- analysis maps: the user's own KDE / Gi* / DBSCAN runs, read from their run folders ----
+# ---- analysis maps: the user's own KDE / Gi* / DBSCAN runs ----
 #
-# A run folder holds the JSON response the map route sent, so the report shows exactly what the user saw:
-#   KDE, Gi*  response.json  "image" is the PNG as a data URL, "bounds" places it
-#   DBSCAN    response.json  the /clusters response; frames[0]["levels"] is {level: GeoJSON}
-_RUN_RESPONSE = "response.json"
+# The route hands over the JSON response each map route sent, so the report shows exactly what the user saw:
+#   KDE, Gi*  "image" is the PNG as a data URL, "bounds" places it
+#   DBSCAN    the /clusters response; frames[0]["levels"] is {level: GeoJSON}
 
 _MAP_SIZE = (750, 450)
 _OVERLAY_OPACITY = 0.8  # L.imageOverlay(..., {opacity: 0.8}) in Analysis.jsx
@@ -248,17 +245,15 @@ def _cluster_legend(levels):
     return _save_chart(fig)
 
 
-def _analysis_maps(bounds, runs):
-    """[(title, map PNG or None, legend PNG or None)] for each run folder the user sent, in DBSCAN, KDE, Gi* order."""
+def _analysis_maps(bounds, analyses):
+    """[(title, map PNG or None, legend PNG or None)] for each run the user sent, in DBSCAN, KDE, Gi* order."""
     maps = []
     for kind, title in (("dbscan", "DBSCAN Clusters"), ("kde", "KDE Heatmap"), ("gi_star", "Gi* Heatmap")):
-        run_dir = (runs or {}).get(kind)
-        if not run_dir:
+        response = (analyses or {}).get(kind)
+        if not response:
             continue
         legend = None
         try:
-            with open(os.path.join(run_dir, _RUN_RESPONSE), encoding="utf-8") as f:
-                response = json.load(f)
             if kind == "dbscan":
                 levels = response["frames"][0]["levels"]
                 png = _clusters_on_map(bounds, levels)
@@ -273,7 +268,7 @@ def _analysis_maps(bounds, runs):
                 elif response.get("legend"):
                     legend = _heatmap_legend(response["legend"])
         except Exception:
-            png = None  # expired run, missing file, or no map tiles
+            png = None  # no map tiles, or a response the report can't read
         maps.append((title, png, legend if png else None))
     return maps
 
@@ -689,19 +684,17 @@ def _metadata_flowables(h2_s, tbl_style, label_s, value_s, rows):
     ]
 
 
-def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses=None, settings=None, runs=None):
+def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses=None, settings=None):
     """Assemble and return a BytesIO PDF for the given filtered incidents.
 
-    runs     -- {"kde" | "gi_star" | "dbscan": run folder} for the overlays the user made on the map;
-                each is drawn on its own map of the report's area. Leave a kind out to skip it.
-
-    settings -- the overlays the user created on the map and their slider values, from
-                report_analytics.settings_from_args(request.args). Only those overlays are summarised;
-                None means the user created none, so the report has no analysis sections.
-    analyses -- overrides which of the overlays in `settings` to include.
+    analyses -- the saved responses of the user's map runs, keyed "kde", "gi_star" and "dbscan",
+                each only when the user made one: the same JSON /api/v1/kde-heatmap,
+                /api/v1/gi-star-heatmap and /api/v1/clusters return. Each is drawn on its own
+                map of the report's area.
+    settings -- overlays to recompute and summarise, from report_analytics.settings_from_args(request.args);
+                None means none, so the report has no summary sections.
     filters  -- text describing the filters applied (e.g. "category: BURGLARY; city: FORT MYERS"),
                 recorded in the report details; None means no filters.
-    analyses -- which map overlays to summarise: any of "kde", "gi_star", "dbscan".
     """
     buf = io.BytesIO()
     styles = getSampleStyleSheet()
@@ -890,7 +883,7 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
     story.append(breakdown)
 
     # Analysis maps: the KDE / Gi* / DBSCAN runs the user made on the map
-    for title, png, legend in _analysis_maps(bounds, runs):
+    for title, png, legend in _analysis_maps(bounds, analyses):
         if png:
             parts = [Paragraph(title, h2_s), Image(png, width=6.5*inch, height=3.9*inch)]
             if legend:
@@ -898,13 +891,12 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
             story.append(KeepTogether(parts))
         else:
             story.append(Paragraph(title, h2_s))
-            story.append(Paragraph("Unavailable: the run has expired or could not be read.", note_s))
+            story.append(Paragraph("Unavailable: the map could not be drawn.", note_s))
 
     # Hotspot (KDE, Gi*) and cluster (DBSCAN) summaries
     settings = settings or report_analytics.default_settings()
-    if analyses is None:
-        analyses = settings["analyses"]
-    analysis = report_analytics.analyze(incidents, run=analyses, settings=settings) if analyses else {}
+    summarised = settings["analyses"]
+    analysis = report_analytics.analyze(incidents, run=summarised, settings=settings) if summarised else {}
     header_tbl_style = TableStyle([
         ("BACKGROUND",    (0, 0), (-1, 0), _NAVY),
         ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),

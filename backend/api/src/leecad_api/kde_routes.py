@@ -184,16 +184,19 @@ def kde_heatmap():
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
     
 
-    # each request gets its own folder, so two users don't overwrite each other's image
-    with tempfile.TemporaryDirectory() as output_dir:
-        # instantiate a KDEHeatMap object
-        kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
-        # generate the heat map overlay PNG image file
-        bounds = kde_obj.generate_heatmap_image()
+    # each request gets its own run folder, so two users don't overwrite each other's image,
+    # and the report can find this one by its run_id
+    run_id, output_dir = runs.new_run_dir()
+    os.makedirs(output_dir)
 
-        # file path for image being sent to frontend
-        img_path = os.path.join(output_dir, "density_overlay.png")
-        image_data = _png_to_base64(path=img_path)
+    # instantiate a KDEHeatMap object
+    kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
+    # generate the heat map overlay PNG image file
+    bounds = kde_obj.generate_heatmap_image()
+
+    # file path for image being sent to frontend
+    img_path = os.path.join(output_dir, "density_overlay.png")
+    image_data = _png_to_base64(path=img_path)
 
     bounds_dict = {
         "west": bounds.left,
@@ -214,7 +217,12 @@ def kde_heatmap():
         "cluster_set": cluster_set,
         "cluster_set_labels": CLUSTER_SET_LABELS,
         "dbscan_status": dbscan_status,
+        "run_id": run_id,
     }
+
+    run_inputs = runs.inputs(filters.parse_without_dates(request.args),
+                             request.args.get("start_date"), request.args.get("end_date"))
+    runs.save_response(output_dir, "kde", run_inputs, result)
 
     return jsonify(result)
 

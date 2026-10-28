@@ -1,3 +1,7 @@
+import os
+
+from leecad_api import runs
+
 GI_STAR = "/api/v1/gi-star-heatmap"
 
 
@@ -12,6 +16,13 @@ def test_the_heatmap_is_an_image_over_the_county(client):
     bounds = body["bounds"]
     assert -82.4 < bounds["west"] < bounds["east"] < -81.4
     assert 26.2 < bounds["south"] < bounds["north"] < 27.0
+
+
+def test_the_heatmap_is_saved_for_the_report(client):
+    body = client.get(f"{GI_STAR}?distance_band=3000&source=lee_county").json
+    saved = runs.load_response(os.path.join(runs.RUNS_DIR, body["run_id"]))
+    assert saved["analysis"] == "gi_star" and saved["response"] == body
+    assert saved["inputs"]["sources"] == ["lee_county"] and saved["inputs"]["start_date"] is None
 
 
 def test_the_distance_band_is_clamped(client):
