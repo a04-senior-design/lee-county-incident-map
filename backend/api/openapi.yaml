@@ -489,8 +489,10 @@ paths:
       description: |
         Windows the mapped incidents like /animation/kde-heatmap and returns
         one Gi* heatmap per window. All frames share one grid, sized from the
-        incidents in every window, so every frame has the same bounds. At
-        most 30 windows. Takes the same category, city, source and bbox
+        incidents in every window, so every frame has the same bounds. All
+        frames are colored on one scale, z-scores -3 to +3, so a color means
+        the same z-score in every frame and one legend fits them all; a
+        z-score beyond it gets the end color. At most 30 windows. Takes the same category, city, source and bbox
         filters as /api/v1/incidents. Dates come only from start_date and
         end_date, so days, from and to are refused.
       parameters:
@@ -1175,6 +1177,15 @@ components:
     GiStarAnimation:
       type: object
       properties:
+        legend:
+          type: object
+          description: The -3 to +3 color scale shared by every frame, from the last frame with a heatmap.
+          properties:
+            colors: { type: array, items: { type: string } }
+            vmin: { type: number, example: -3 }
+            vmax: { type: number, example: 3 }
+            ticks: { type: array, items: { type: number } }
+            caption: { type: string, example: Gi* z-score }
         distance_band: { type: number }
         min_distance_band: { type: number }
         max_distance_band: { type: number }
