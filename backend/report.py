@@ -255,8 +255,12 @@ def _line_chart(incidents, start_date, end_date):
     return buf
 
 
-def generate_pdf(incidents, bounds, start_date, end_date):
-    """Assemble and return a BytesIO PDF for the given filtered incidents."""
+def generate_pdf(incidents, bounds, start_date, end_date, analyses=None):
+    """Assemble and return a BytesIO PDF for the given filtered incidents.
+
+    analyses holds the saved responses of the user's map runs, keyed "kde", "gi_star" and
+    "dbscan", each only when the user made one: the same JSON /api/v1/kde-heatmap,
+    /api/v1/gi-star-heatmap and /api/v1/clusters return. Not drawn yet."""
     buf = io.BytesIO()
     styles = getSampleStyleSheet()
 

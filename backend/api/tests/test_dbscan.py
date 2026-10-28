@@ -1,3 +1,7 @@
+import os
+
+from leecad_api import runs
+
 DBSCAN = "/api/v1/animation/dbscan"
 KDE = "/api/v1/animation/kde-heatmap-dbscan"
 # June 10 to 15 holds three incidents far apart, so every level is noise.
@@ -77,6 +81,19 @@ def test_clusters_take_the_same_filters_as_incidents(client):
     body = clusters(client, "start_date=2026-06-10&end_date=2026-06-20&city=FORT MYERS")
     # 25-001, 25-006, T-001 and the three ties; North Fort Myers and Sanibel are left out
     assert body["frames"][0]["n_incidents"] == 6
+
+
+def test_clusters_save_their_response_for_the_report(client):
+    body = clusters(client, "start_date=2026-06-10&end_date=2026-06-20&levels=district&district_eps=3000")
+    assert body["level_configs"]["district"]["epsilon"] == 3000
+    saved = runs.load_response(os.path.join(runs.RUNS_DIR, body["run_id"]))
+    assert saved["analysis"] == "dbscan" and saved["response"] == body
+    assert (saved["inputs"]["start_date"], saved["inputs"]["end_date"]) == ("2026-06-10", "2026-06-20")
+
+
+def test_animation_runs_save_no_response(client):
+    run_id = run(client, CLOSE_TOGETHER)["run_id"]
+    assert runs.load_response(os.path.join(runs.RUNS_DIR, run_id)) is None
 
 
 def test_clusters_refuse_more_than_sixty_days(client):
