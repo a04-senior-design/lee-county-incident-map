@@ -171,7 +171,11 @@ def clusters():
             level_configs=level_configs,
             csv_name=os.path.join(densities_dir, "userID_dbscan.csv"),
         )
+        run_inputs = runs.inputs(filters.parse_without_dates(request.args), start_date, end_date)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    return jsonify({"frames": frames, "run_id": run_id})
+    # level_configs carries each level's epsilon, which the report prints
+    result = {"frames": frames, "run_id": run_id, "level_configs": level_configs}
+    runs.save_response(densities_dir, "dbscan", run_inputs, result)
+    return jsonify(result)

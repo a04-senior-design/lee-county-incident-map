@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, jsonify, request
 from ml.generate_gi_star_snapshots import GI_STAR_CELL_SIZE, build_gi_star_snapshots, load_land_polygon
 from ml.gi_star.GiStarHeatMap import GiStarHeatMap
 
-from leecad_api import filters, queries
+from leecad_api import filters, queries, runs
 from leecad_api.kde_routes import _parse_time_window_args, _png_to_base64, load_points
 
 bp = Blueprint("gi_star", __name__)
@@ -46,14 +46,17 @@ def gi_star_heatmap():
     y_min = np.min(northing) - padding
     y_max = np.max(northing) + padding
 
-    # each request gets its own folder, so two users don't overwrite each other's image
-    with tempfile.TemporaryDirectory() as output_dir:
-        gi_star_obj = GiStarHeatMap(points=data_points, distance_band=distance_band, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, cell_size=GI_STAR_CELL_SIZE, land_polygon=LAND_POLYGON, output_dir=output_dir)
+    # each request gets its own run folder, so two users don't overwrite each other's image,
+    # and the report can find this one by its run_id
+    run_id, output_dir = runs.new_run_dir()
+    os.makedirs(output_dir)
 
-        # generate the heat map overlay PNG image file and get its latitude/longitude boundaries
-        image_filename = "gi_star_overlay.png"
-        bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename)
-        image_data = _png_to_base64(path=os.path.join(output_dir, image_filename))
+    gi_star_obj = GiStarHeatMap(points=data_points, distance_band=distance_band, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, cell_size=GI_STAR_CELL_SIZE, land_polygon=LAND_POLYGON, output_dir=output_dir)
+
+    # generate the heat map overlay PNG image file and get its latitude/longitude boundaries
+    image_filename = "gi_star_overlay.png"
+    bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename)
+    image_data = _png_to_base64(path=os.path.join(output_dir, image_filename))
 
     bounds_dict = {
         "west": bounds.left,
@@ -62,14 +65,21 @@ def gi_star_heatmap():
         "north": bounds.top,
     }
 
-    return jsonify({
+    result = {
         "image": image_data,
         "bounds": bounds_dict,
         "legend": gi_star_obj.get_legend_data(),
         "distance_band": distance_band,
         "min_distance_band": MIN_DISTANCE_BAND,
         "max_distance_band": MAX_DISTANCE_BAND,
-    })
+        "run_id": run_id,
+    }
+
+    run_inputs = runs.inputs(filters.parse_without_dates(request.args),
+                             request.args.get("start_date"), request.args.get("end_date"))
+    runs.save_response(output_dir, "gi_star", run_inputs, result)
+
+    return jsonify(result)
 
 
 @bp.get("/api/v1/animation/gi-star-heatmap")

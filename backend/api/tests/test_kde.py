@@ -1,3 +1,7 @@
+import os
+
+from leecad_api import runs
+
 ANIMATION = "/api/v1/animation/kde-heatmap"
 JUNE = "start_date=2026-06-10&end_date=2026-06-20&window_length=5D&time_step=5D&bandwidth=1500"
 
@@ -11,6 +15,14 @@ def test_the_heatmap_is_an_image_over_the_county(client):
     bounds = body["bounds"]
     assert -82.4 < bounds["west"] < bounds["east"] < -81.4
     assert 26.2 < bounds["south"] < bounds["north"] < 27.0
+
+
+def test_the_heatmap_is_saved_for_the_report(client):
+    body = client.get("/api/v1/kde-heatmap?start_date=2026-06-15&end_date=2026-06-20&city=fort myers").json
+    saved = runs.load_response(os.path.join(runs.RUNS_DIR, body["run_id"]))
+    assert saved["analysis"] == "kde" and saved["response"] == body
+    assert saved["inputs"] == {"start_date": "2026-06-15", "end_date": "2026-06-20", "categories": [],
+                               "cities": ["FORT MYERS"], "sources": [], "bbox": None}
 
 
 def test_the_heatmap_takes_the_same_filters_as_incidents(client):
