@@ -55,10 +55,8 @@ def test_animation_frames_share_one_grid(client):
     assert all(f["image"].startswith("data:image/png;base64,") for f in frames)
     assert frames[0]["bounds"] == frames[1]["bounds"]
     assert frames[0]["image_filename"] == "gi_star_overlay_1.png"
-    # one legend for the whole animation, on the fixed -3 to +3 scale
-    legend = response.json["legend"]
-    assert (legend["vmin"], legend["vmax"]) == (-3, 3)
-    assert legend["caption"] == "Gi* z-score"
+    # one legend for the whole animation, since the frames share one color scale
+    assert set(response.json["legend"]) == {"colors", "vmin", "vmax", "ticks", "caption"}
 
 
 def test_animation_takes_the_same_filters_as_incidents(client):

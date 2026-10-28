@@ -9,8 +9,6 @@ from ml.gi_star.GiStarHeatMap import GiStarHeatMap
 
 MAX_SNAPSHOTS = 30
 GI_STAR_CELL_SIZE = 2500
-# every animation frame is colored from -3 to +3, the range the colormap was drawn for
-Z_SCALE = 3
 
 LAND_MASK_PATH = os.path.join(os.path.dirname(__file__), "gi_star", "CountyBackground_Land_Mask", "CountyBackground.shp")
 
@@ -37,9 +35,8 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 	saved to output_dir.
 
 	Every frame uses one grid, sized once from the incidents in all
-	windows, so every frame has the same bounds, and one color scale,
-	z-scores -Z_SCALE to +Z_SCALE, so a color means the same z-score in
-	every frame.
+	windows, so every frame has the same bounds, and the color scale set
+	by GiStarHeatMap, so a color means the same z-score in every frame.
 
 	Parameters
 	----------
@@ -130,7 +127,7 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 			gi_star_obj = GiStarHeatMap(points=points, distance_band=distance_band, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, cell_size=GI_STAR_CELL_SIZE, land_polygon=land_polygon, output_dir=output_dir)
 
 			image_filename = f"gi_star_overlay_{i + 1}.png"
-			bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename, z_abs_max=Z_SCALE)
+			bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename)
 			bounds_dict = {
 				"west": bounds.left,
 				"south": bounds.bottom,
