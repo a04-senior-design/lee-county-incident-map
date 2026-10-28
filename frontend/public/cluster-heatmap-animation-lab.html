@@ -430,6 +430,8 @@
 
     .level-slider-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.68rem; color: var(--text-muted); }
     .level-slider     { width: 110px; accent-color: var(--accent); cursor: pointer; }
+    .eps-label        { font-size: 0.68rem; color: var(--text-muted); }
+    .eps-label span   { color: var(--ui-accent); font-weight: 600; }
 
     .level-stats { display: flex; gap: 0.35rem; }
     .level-stats .stat-pill { font-size: 0.7rem; padding: 0.1rem 0.4rem; color: var(--text-sub); }
@@ -614,6 +616,7 @@
              min="0" max="100" step="1" value="50" />
       <span>Dense</span>
     </div>
+    <div class="eps-label">&epsilon; = <span id="anim-eps-district">&mdash;</span> ft</div>
     <div class="level-stats">
       <span class="stat-pill">Clusters: <span id="anim-stat-clusters-district">&mdash;</span></span>
       <span class="stat-pill">Noise: <span id="anim-stat-noise-district">&mdash;</span></span>
@@ -635,6 +638,7 @@
              min="0" max="100" step="1" value="50" />
       <span>Dense</span>
     </div>
+    <div class="eps-label">&epsilon; = <span id="anim-eps-neighborhood">&mdash;</span> ft</div>
     <div class="level-stats">
       <span class="stat-pill">Clusters: <span id="anim-stat-clusters-neighborhood">&mdash;</span></span>
       <span class="stat-pill">Noise: <span id="anim-stat-noise-neighborhood">&mdash;</span></span>
@@ -656,6 +660,7 @@
              min="0" max="100" step="1" value="50" />
       <span>Dense</span>
     </div>
+    <div class="eps-label">&epsilon; = <span id="anim-eps-street">&mdash;</span> ft</div>
     <div class="level-stats">
       <span class="stat-pill">Clusters: <span id="anim-stat-clusters-street">&mdash;</span></span>
       <span class="stat-pill">Noise: <span id="anim-stat-noise-street">&mdash;</span></span>
@@ -1199,6 +1204,17 @@
     return { eps };
   }
 
+  // show each level's current epsilon under its slider
+  function updateEpsLabel(slider) {
+    const level = slider.dataset.level;
+    document.getElementById(`anim-eps-${level}`).textContent =
+      levelToParams(level, Number(slider.value)).eps.toLocaleString();
+  }
+  document.querySelectorAll(".level-slider").forEach(slider => {
+    updateEpsLabel(slider);
+    slider.addEventListener("input", () => updateEpsLabel(slider));
+  });
+
   document.querySelectorAll(".level-toggle").forEach(checkbox => {
     checkbox.addEventListener("change", () => {
       const levelName = checkbox.dataset.level;
@@ -1603,7 +1619,7 @@
       levelEnabled[checkbox.dataset.level] = true;
       document.getElementById(`level-block-${checkbox.dataset.level}`).classList.remove("level-off");
     });
-    document.querySelectorAll(".level-slider").forEach(slider => { slider.value = 50; });
+    document.querySelectorAll(".level-slider").forEach(slider => { slider.value = 50; updateEpsLabel(slider); });
     errorLabel.textContent = "";
     clearAnimation();
   });
