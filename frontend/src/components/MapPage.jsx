@@ -72,6 +72,11 @@ function MapPage() {
     content: ''
   })
   //── Report ───────────────────────────────────────────────────────────
+  const [reportMapState, setReportMapState] = useState({
+    kde: null,
+    clusters: false,
+    giStar: false
+  })
   const [drawArea, setDrawArea] = useState(false)
   const [areaBounds, setAreaBounds] = useState(null)
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
@@ -79,6 +84,12 @@ function MapPage() {
   const { token } = useAuth()
   const API_URL = import.meta.env.VITE_API_BASE_URL
   const [reportLoading, setReportLoading] = useState(false)
+
+  //   const maps = []
+  // if (reportMapState.kde) maps.push(reportMapState.kde === 'all' ? 'kde_all' : 'kde_cluster')
+  // if (reportMapState.clusters) maps.push('cluster')
+  // if (reportMapState.giStar) maps.push('gistar')
+  // if (maps.length) params.append('maps', maps.join(','))
   const handleReport = async (useArea = true) => {
     const [from, to] = dateRange
     setReportLoading(true)
@@ -197,7 +208,7 @@ function MapPage() {
 
     fetchAll()
     return () => controller.abort()
-  }, [dateRange,bbox])
+  }, [dateRange, bbox])
   // useEffect(() => {
   //   const [fromDay, toDay] = dateRange
   //   if (!fromDay || !toDay) return
@@ -363,6 +374,7 @@ function MapPage() {
         setDrawArea={setDrawArea}
         handleReport={handleReport}
         reportLoading={reportLoading}
+        setReportMapState = {setReportMapState}
       />
 
       <Box
@@ -502,6 +514,8 @@ function MapPage() {
               handleReport={handleReport}
               reportLoading={reportLoading}
               setAreaBounds={setAreaBounds}
+              reportMapState={reportMapState}
+              setReportMapState={setReportMapState}
             />
           </Box>
         </Paper>

@@ -34,7 +34,8 @@ function BoardBar({
   SetAlertContent,
   setDrawArea,
   handleReport,
-  reportLoading
+  reportLoading,
+  setReportMapState
 }) {
   // const [activeBtn, setActiveBtn] = useState({
   //   search: false,
@@ -75,7 +76,7 @@ function BoardBar({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
+          gap: 2
         }}
       >
         <IntList
@@ -150,6 +151,7 @@ function BoardBar({
             handleActive(e)
             setSelectedId(null)
             setRouteOn(false)
+            
           }}
         >
           {analysisOn ? 'Back to View Mode' : 'Analysis Mode'}

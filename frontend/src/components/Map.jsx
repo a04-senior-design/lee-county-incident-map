@@ -220,7 +220,9 @@ function Map({
   setDrawArea,
   setAreaBounds,
   handleReport,
-  reportLoading
+  reportLoading,
+  setReportMapState,
+  reportMapState
 }) {
   const exitRoute = useCallback(() => setRouteOn(false), [])
   //render++
@@ -453,7 +455,7 @@ function Map({
             fontWeight: 600
           }}
         >
-          {reportLoading? 'Report Generating...' :'Data Loading...'}
+          {reportLoading ? 'Report Generating...' : 'Data Loading...'}
         </Typography>
         <LinearProgress sx={{ width: '50%' }} aria-label='Loading…' />
       </Box>
@@ -524,7 +526,7 @@ function Map({
             >
               Clear draw
             </Button>
-        
+
             <Button
               variant='contained'
               color={isDrawOn ? 'warning' : 'success'}
@@ -537,6 +539,34 @@ function Map({
           </Box>
         </Box>
       )}
+      {/* <Box
+        sx={{
+          position: 'absolute',
+          zIndex: 1000,
+          top: '60vh',
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          pointerEvents: 'none'
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 3,
+            pointerEvents: 'auto',
+            background: 'yellow',
+            flexDirection: 'column'
+          }}
+        >
+          <Typography variant='h5'>map valid state</Typography>
+          <Typography variant='h6'>{`KDE heat map: ${reportMapState.kde === 'all' ? 'Valid (All points)' : reportMapState.kde === 'cluster' ? 'Valid (By Cluster)' : 'Invalid'}`}</Typography>
+          <Typography variant='h6'>{`Cluster: ${reportMapState.clusters ? 'Valid ' : 'Invalid'}`}</Typography>
+          <Typography variant='h6'>{`Gistar: ${reportMapState.giStar ? 'Valid ' : 'Invalid'}`}</Typography>
+        </Box>
+      </Box> */}
       {routeOn === true && gradeMode === 'drive' && (
         <Box
           sx={{
@@ -845,8 +875,10 @@ function Map({
           startDate={start_date}
           endDate={end_date}
           setIsLoading={setIsLoading}
-          areaBounds = {areaBounds}
+          areaBounds={areaBounds}
           drawArea={drawArea && isDrawOn}
+          reportMapState={reportMapState}
+          setReportMapState={setReportMapState}
         />
         {!analysisOn && (
           <MarkerClusterGroup

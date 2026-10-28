@@ -186,7 +186,9 @@ const Analysis = ({
   endDate,
   setIsLoading,
   areaBounds,
-  drawArea
+  drawArea,
+  reportMapState,
+  setReportMapState
 }) => {
   const map = useMap()
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
@@ -228,8 +230,52 @@ const Analysis = ({
   //prevent when using the slider on the lab, the map can be dragged
   const topBarRef = useRef(null)
   const secondBarRef = useRef(null)
+  const thirdBarRef = useRef(null)
+  //State valid-----------------------------------------------
+  const [currentStateValid, setCurrentStateValid] = useState([])
+  const kdeValid = kdeData
+    ? kdeData.cluster_set === 1
+      ? 'cluster'
+      : 'all'
+    : null
+  const clusterValid = LEVEL_DRAW_ORDER.some((l) => levelData[l])
+  const gistarValid = !!GISData
+
   useEffect(() => {
-    const els = [topBarRef.current, secondBarRef.current].filter(Boolean)
+  if (active) return
+  // leaving Analysis Mode: back to "no valid maps" (diagram: ⊗)
+  setKdeData(null)
+  setGISData(null)
+  setLevelData(EMPTY_LEVELS)
+  setDbscanStatus('missing')
+  setCurrentClusterSet(0)
+  setMode('kde-heatmap') // re-entering starts at KDE (all points), like the diagram's A
+  setLevelVisible(ALL_VISIBLE)
+  setLevelSliders(DEFAULT_LEVEL_SLIDERS)
+  runIdRef.current = null
+  clustersLoadedRef.current = false
+  lastRangeRef.current = '' // so the range effect refetches on re-entry
+  lastKdeKeyRef.current = ''
+  kdeRequestRef.current++ // ignore requests still in flight
+  gistarRequestRef.current++
+  dbscanRequestRef.current++
+}, [active])
+
+  useEffect(() => {
+    setReportMapState(
+      active
+        ? { kde: kdeValid, clusters: clusterValid, giStar: gistarValid }
+        : { kde: null, clusters: false, giStar: false }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, kdeValid, clusterValid, gistarValid])
+
+  useEffect(() => {
+    const els = [
+      topBarRef.current,
+      secondBarRef.current,
+      thirdBarRef.current
+    ].filter(Boolean)
 
     els.forEach((el) => {
       L.DomEvent.disableScrollPropagation(el)
@@ -255,7 +301,7 @@ const Analysis = ({
     lastRangeRef.current = range
 
     setKdeData(null) // avoid showing the old heat map while the new one loads
-
+    setGISData(null)
     // the old cluster run was for the old range, so drop it
     runIdRef.current = null
     clustersLoadedRef.current = false
@@ -635,10 +681,23 @@ const Analysis = ({
       // (this updates dbscan_status and enables "Includes cluster analysis").
       // Old bandwidths may no longer match the levels -> send null and let the backend pick defaults.
       // Cluster set 0 always has exactly one level, so its value is still valid.
-      const refreshBandwidths =
-        currentClusterSet === 1 || !bandwidths.length ? null : bandwidths
+      // const refreshBandwidths =
+      //   currentClusterSet === 1 || !bandwidths.length ? null : bandwidths
 
-      fetchKDEHeatmap(refreshBandwidths, currentClusterSet, runIdRef.current)
+      // fetchKDEHeatmap(refreshBandwidths, currentClusterSet, runIdRef.current)
+      if (currentClusterSet === 1) {
+        // B was built from the old run, so it is no longer valid (diagram: C only)
+        kdeRequestRef.current++ // ignore any KDE response still in flight
+        setKdeData(null)
+        setCurrentClusterSet(0)
+      } else {
+        // A stays valid; refresh it so dbscan_status stays current
+        fetchKDEHeatmap(
+          !bandwidths.length ? null : bandwidths,
+          currentClusterSet,
+          runIdRef.current
+        )
+      }
     } catch (err) {
       if (id !== dbscanRequestRef.current) return
       console.error('DBSCAN fetch failed:', err)
@@ -837,7 +896,8 @@ const Analysis = ({
           },
           (theme) =>
             theme.applyStyles('light', {
-              backgroundColor: 'white'
+              backgroundColor: 'white',
+              borderBottom: '1px solid rgba(66, 62, 62, 0.64)'
             })
         ]}
         id='secondary-bar'
@@ -1068,6 +1128,63 @@ const Analysis = ({
         <div id='bandwidth-controls'>{buildSliders()}</div>
 
         <div id='gistar-controls'>{build_GI_Sliders()}</div>
+      </Box>
+      <Box
+        ref={thirdBarRef}
+        sx={[
+          {
+            position: 'relative',
+            flexShrink: '0',
+            display: active ? 'flex' : 'none',
+            alignItems: 'center',
+            gap: '1.5rem',
+            padding: '0.6rem 1.2rem',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.64)',
+            background: 'rgba(15, 15, 30, 0.95)',
+            zIndex: 1000,
+            cursor: 'default',
+            py: 0.5
+          },
+          (theme) =>
+            theme.applyStyles('light', {
+              backgroundColor: 'white',
+              borderBottom: '1px solid rgba(66, 62, 62, 0.64)'
+            })
+        ]}
+      >
+        <Typography sx={{ fontSize: '16px', fontWeight: 600 }} color='primary'>
+          Valid map in report:
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+          KDE heat map:{' '}
+          <Button
+            size='small'
+            variant='contained'
+            color={reportMapState.kde ? 'success' : 'warning'}
+          >
+            {` ${reportMapState.kde === 'all' ? 'Valid (All points)' : reportMapState.kde === 'cluster' ? 'Valid (By Cluster)' : 'Invalid'}`}
+          </Button>
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+          Cluster Analysis:{' '}
+          <Button
+            size='small'
+            variant='contained'
+            color={reportMapState.clusters ? 'success' : 'warning'}
+          >
+            {` ${reportMapState.clusters ? 'Valid ' : 'Invalid'}`}
+          </Button>
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+          Getis-Ord Gi*:{' '}
+          <Button
+            size='small'
+            variant='contained'
+            color={reportMapState.giStar ? 'success' : 'warning'}
+          >
+            {`${reportMapState.giStar ? 'Valid ' : 'Invalid'}`}
+          </Button>
+        </Typography>
       </Box>
     </>
   )
