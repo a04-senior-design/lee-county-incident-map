@@ -75,9 +75,11 @@ def test_the_kde_animation_frames_share_one_color_scale(tmp_path):
             bandwidths=[1500], densities_dir=tmp_path / name, output_dir=tmp_path / f"{name}_out")
         return legend
 
-    # the loose frame comes last, but the scale and so the legend come from the tight one
-    assert legend("both", tight, loose) == legend("tight", tight)
-    assert legend("both_again", tight, loose) != legend("loose", loose)
+    # the loose frame comes last, but the top of the scale comes from the tight one,
+    # and the cutoff from the loose one, the quietest frame
+    both = legend("both", tight, loose)
+    assert both["vmax"] == legend("tight", tight)["vmax"]
+    assert both["vmin"] == legend("loose", loose)["vmin"]
 
 
 def test_each_run_keeps_its_own_results(client):

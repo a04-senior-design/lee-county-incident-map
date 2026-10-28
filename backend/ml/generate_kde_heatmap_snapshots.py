@@ -129,8 +129,10 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 
 
 	# one color scale for every frame, so a color means the same density in each
-	vmax = max(kde_obj.density_surface.max() for kde_obj in kde_model_per_window if kde_obj is not None)
-	vmin = vmax * 0.0001
+	frame_maxes = [kde_obj.density_surface.max() for kde_obj in kde_model_per_window if kde_obj is not None]
+	vmax = max(frame_maxes)
+	# cut off from the quietest frame's peak, so its heat map isn't cut away
+	vmin = min(frame_maxes) * 0.0001
 
 	# generate the heat map png images for each window
 	bounds_per_window = []
@@ -368,8 +370,10 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths, densities_dir=DBSCAN_ANI
 
 	# one color scale for every frame, so a color means the same density in each;
 	# frame 1 always has cluster levels, so there is at least one KDE
-	vmax = max(kde_obj.density_surface.max() for kde_obj in kde_model_per_frame if kde_obj is not None)
-	vmin = vmax * 0.0001
+	frame_maxes = [kde_obj.density_surface.max() for kde_obj in kde_model_per_frame if kde_obj is not None]
+	vmax = max(frame_maxes)
+	# cut off from the quietest frame's peak, so its heat map isn't cut away
+	vmin = min(frame_maxes) * 0.0001
 
 	# -- one heat map per frame --
 	frames = []
