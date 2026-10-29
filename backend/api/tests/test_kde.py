@@ -60,6 +60,8 @@ def test_animation_frames_count_only_mapped_incidents_in_each_window(client):
     # June 15 to 20 holds 25-006, T-001 and the three ties; 25-007 is out of county.
     assert [f["n_incidents"] for f in frames] == [3, 5]
     assert all(f["image"].startswith("data:image/png;base64,") for f in frames)
+    # one legend for the whole animation, since the frames share one color scale
+    assert set(response.json["legend"]) == {"colors", "vmin", "vmax", "ticks", "caption"}
 
 
 def test_animation_frames_take_the_same_filters_as_incidents(client):

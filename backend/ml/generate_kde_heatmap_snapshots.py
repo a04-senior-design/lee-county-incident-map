@@ -42,10 +42,12 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 
 	Returns
 	-------
-	A list of frames, one per window in time order:
+	(frames, legend). frames is a list, one per window in time order:
 	{"label", "window_start", "window_end", "n_incidents", "image", "bounds"}.
 	image is the PNG file name and bounds is {"west", "south", "east",
 	"north"} in lat/lng. Both are None for a window with no incidents.
+	legend is get_legend_data() of the last non-empty frame; every frame
+	shares one color scale, so it applies to the whole animation.
 
 	Raises
 	------
@@ -127,11 +129,14 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 
 
 	# one color scale for every frame, so a color means the same density in each
-	vmax = max(kde_obj.density_surface.max() for kde_obj in kde_model_per_window if kde_obj is not None)
-	vmin = vmax * 0.0001
+	frame_maxes = [kde_obj.density_surface.max() for kde_obj in kde_model_per_window if kde_obj is not None]
+	vmax = max(frame_maxes)
+	# cut off from the quietest frame's peak, so its heat map isn't cut away
+	vmin = min(frame_maxes) * 0.0001
 
 	# generate the heat map png images for each window
 	bounds_per_window = []
+	legend = None
 
 	for i, kde_obj in enumerate(kde_model_per_window):
 
@@ -143,6 +148,8 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 		snapshot_filename = f"density_overlay_{i + 1}.png"
 		bounds = kde_obj.generate_heatmap_image(snapshot_filename, vmin=vmin, vmax=vmax)
 		bounds_per_window.append(bounds)
+		# the same scale in every frame, so the last non-empty frame's legend fits them all
+		legend = kde_obj.get_legend_data()
 
 	# create a return object; one frame per window in time order
 	frames = []
@@ -174,7 +181,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 			"bounds": bounds_dict,
 		})
 
-	return frames
+	return frames, legend
 
 
 def read_dbscan_frames(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
@@ -272,11 +279,13 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths, densities_dir=DBSCAN_ANI
 
 	Returns
 	-------
-	A list of frames, one per CSV in order:
+	(frames, legend). frames is a list, one per CSV in order:
 	{"label", "n_incidents", "image", "bounds", "note"}.
 	image is the PNG file name and bounds is {"west", "south", "east",
 	"north"} in lat/lng. For an empty or all-noise frame, image and bounds
 	are None and note explains why; otherwise note is None.
+	Every frame shares one color scale, and legend is get_legend_data() of
+	the last frame with a heat map, so it applies to the whole animation.
 
 	Raises
 	------
@@ -320,60 +329,83 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths, densities_dir=DBSCAN_ANI
 	shutil.rmtree(output_dir, ignore_errors=True)
 	os.makedirs(output_dir, exist_ok=True)
 
-	# -- one heat map per frame --
-	frames = []
+	# -- one KDE per frame, before any image, so every frame can share one color scale --
+	kde_model_per_frame = []
+	notes = []
 
 	for frame in dbscan_frames:
-		frame_number = frame["frame_number"]
 		points = frame["points"]
 		cluster_levels = frame["cluster_levels"]
-
-		image_filename = None
-		bounds_dict = None
-		note = None
 
 		# keep only clustered points; noise doesn't go into the KDE
 		is_clustered = cluster_levels != -1
 		clustered_points = points[is_clustered]
 		clustered_levels = cluster_levels[is_clustered]
 
+		# empty or all-noise frame - no heat map, keep a placeholder so the lists stay aligned with frames
 		if len(points) == 0:
-			note = "No incidents in this frame."
-		elif len(clustered_points) == 0:
-			note = "All points were noise; no KDE heat map could be generated."
-		else:
-			# bandwidths for the levels this frame has, lowest level first
-			frame_levels = np.unique(clustered_levels)
-			frame_bandwidths = []
-			for level in frame_levels:
-				frame_bandwidths.append(bandwidth_for_level[int(level)])
+			kde_model_per_frame.append(None)
+			notes.append("No incidents in this frame.")
+			continue
+		if len(clustered_points) == 0:
+			kde_model_per_frame.append(None)
+			notes.append("All points were noise; no KDE heat map could be generated.")
+			continue
 
-			padding = 100
-			x_min = np.min(clustered_points[:, 0]) - padding
-			y_min = np.min(clustered_points[:, 1]) - padding
-			x_max = np.max(clustered_points[:, 0]) + padding
-			y_max = np.max(clustered_points[:, 1]) + padding
+		# bandwidths for the levels this frame has, lowest level first
+		frame_levels = np.unique(clustered_levels)
+		frame_bandwidths = []
+		for level in frame_levels:
+			frame_bandwidths.append(bandwidth_for_level[int(level)])
 
-			kde_obj = KDEHeatMap(points=clustered_points, cluster_levels=clustered_levels, bandwidths=frame_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=300, output_dir=output_dir)
+		padding = 100
+		x_min = np.min(clustered_points[:, 0]) - padding
+		y_min = np.min(clustered_points[:, 1]) - padding
+		x_max = np.max(clustered_points[:, 0]) + padding
+		y_max = np.max(clustered_points[:, 1]) + padding
 
+		kde_obj = KDEHeatMap(points=clustered_points, cluster_levels=clustered_levels, bandwidths=frame_bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=300, output_dir=output_dir)
+		kde_model_per_frame.append(kde_obj)
+		notes.append(None)
+
+	# one color scale for every frame, so a color means the same density in each;
+	# frame 1 always has cluster levels, so there is at least one KDE
+	frame_maxes = [kde_obj.density_surface.max() for kde_obj in kde_model_per_frame if kde_obj is not None]
+	vmax = max(frame_maxes)
+	# cut off from the quietest frame's peak, so its heat map isn't cut away
+	vmin = min(frame_maxes) * 0.0001
+
+	# -- one heat map per frame --
+	frames = []
+	legend = None
+
+	for frame, kde_obj, note in zip(dbscan_frames, kde_model_per_frame, notes):
+		frame_number = frame["frame_number"]
+
+		image_filename = None
+		bounds_dict = None
+
+		if kde_obj is not None:
 			image_filename = f"density_overlay_{frame_number}.png"
-			bounds = kde_obj.generate_heatmap_image(image_filename)
+			bounds = kde_obj.generate_heatmap_image(image_filename, vmin=vmin, vmax=vmax)
 			bounds_dict = {
 				"west": bounds.left,
 				"south": bounds.bottom,
 				"east": bounds.right,
 				"north": bounds.top,
 			}
+			# the same scale in every frame, so the last frame's legend fits them all
+			legend = kde_obj.get_legend_data()
 
 		frames.append({
 			"label": f"Frame {frame_number}",
-			"n_incidents": len(points),
+			"n_incidents": len(frame["points"]),
 			"image": image_filename,
 			"bounds": bounds_dict,
 			"note": note,
 		})
 
-	return frames
+	return frames, legend
 
 
 
@@ -408,7 +440,7 @@ if __name__ == "__main__":
 	"""
 
 	# test building the kde heat maps from the dbscan frames
-	kde_frames = build_kde_heatmap_snapshots_from_dbscan(bandwidths=[3000, 1500, 800])
+	kde_frames, _ = build_kde_heatmap_snapshots_from_dbscan(bandwidths=[3000, 1500, 800])
 	print(f"len(kde_frames) = {len(kde_frames)}")
 
 	for frame in kde_frames:

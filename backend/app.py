@@ -373,7 +373,7 @@ def kde_heatmap_animation():
     # read start_date, end_date, window_length, and time_step
     try:
         start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
-        frames = build_kde_heatmap_snapshots(
+        frames, _ = build_kde_heatmap_snapshots(
             start_date=start_date,
             end_date=end_date,
             window_length=window_length,
@@ -431,7 +431,7 @@ def kde_heatmap_dbscan_animation():
         bandwidths.append(max(MIN_BANDWIDTH, min(MAX_BANDWIDTH, bw)))
 
     try:
-        frames = build_kde_heatmap_snapshots_from_dbscan(bandwidths=bandwidths)
+        frames, _ = build_kde_heatmap_snapshots_from_dbscan(bandwidths=bandwidths)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 

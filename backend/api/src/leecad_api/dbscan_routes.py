@@ -112,7 +112,7 @@ def kde_heatmap_dbscan_animation():
     # each request gets its own folder, so two users don't overwrite each other's frames
     with tempfile.TemporaryDirectory() as output_dir:
         try:
-            frames = build_kde_heatmap_snapshots_from_dbscan(bandwidths=bandwidths, densities_dir=densities_dir,
+            frames, legend = build_kde_heatmap_snapshots_from_dbscan(bandwidths=bandwidths, densities_dir=densities_dir,
                                                             output_dir=output_dir)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
@@ -127,6 +127,7 @@ def kde_heatmap_dbscan_animation():
 
     return jsonify({
         "frames": frames,
+        "legend": legend,
         "bandwidths": bandwidths,
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
