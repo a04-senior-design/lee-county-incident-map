@@ -105,7 +105,7 @@ def gi_star_heatmap_animation():
                 incidents = conn.execute(*queries.mapped_incidents_between(
                     filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
                 )).fetchall()
-            frames = build_gi_star_snapshots(
+            frames, legend = build_gi_star_snapshots(
                 start_date=start_date,
                 end_date=end_date,
                 window_length=window_length,
@@ -127,6 +127,7 @@ def gi_star_heatmap_animation():
 
     return jsonify({
         "frames": frames,
+        "legend": legend,
         "distance_band": distance_band,
         "min_distance_band": MIN_DISTANCE_BAND,
         "max_distance_band": MAX_DISTANCE_BAND,
