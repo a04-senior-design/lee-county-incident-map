@@ -11,12 +11,28 @@ from KDEHeatMap import KDEHeatMap
 import numpy as np
 from scipy.optimize import minimize
 from scipy.interpolate import RegularGridInterpolator
+from scipy.spatial.distance import cdist
 
 class BandwidthOptimizer:
 
     # starting gaps between bandwidths, as fractions of the largest gap that keeps every level within the bounds
     # spread low / middle / high since one start can settle in a local minimum
-    candidate_start_fractions = np.array([0.03, 0.3, 0.9])
+    CANDIDATE_START_FRACTIONS = np.array([0.03, 0.3, 0.9])
+    # points whose grid leave-one-out density is below this fraction of their own kernel peak are recomputed exactly
+    EXACT_RECOMPUTE_FRACTION = 0.01
+    # maximum number of points recomputed exactly per evaluation, to bound runtime;
+    # above this, the grid value is kept, on the assumption that more than this many isolated points only occur at smaller bandwidths that score worse than the optimum
+    MAX_EXACT_RECOMPUTE_POINTS = 500
+    # Nelder-Mead stopping tolerances. Nelder-Mead keeps a group of trial bandwidth sets (one more set than there are
+    # bandwidths, e.g. 4 sets of 3 bandwidths). Each step replaces the worst set with a better one, so the group moves
+    # toward the optimum and shrinks around it; it stops when both of these are met.
+    #   xatol: every set is within this of the best set in each log-gap (a log difference of 0.01 is about a 1% change
+    #     in a gap between bandwidths, under 2 ft for a 684 ft bandwidth); this sets the precision of the result
+    #   fatol: every set's objective value is within this of the best set's; the objective is flat near the optimum,
+    #     so this alone would not pin down the bandwidths - it only needs to be loose enough not to delay stopping
+    #     once xatol is met
+    NM_XATOL = 0.02
+    NM_FATOL = 0.1
 
     def __init__(self, points, cluster_levels, x_min, y_min, x_max, y_max, increment, lower_bound=500, upper_bound=10000):
 
@@ -66,7 +82,7 @@ class BandwidthOptimizer:
         # largest equal gap that keeps every level within the bounds: lower_bound + num_bandwidths * gap <= upper_bound
         max_start_diff = (self.upper_bound - self.lower_bound) / self.num_bandwidths
         # list of start diffs, each element is an array of size num_bandwidths
-        self.candidate_start_bw_diffs = [np.full(self.num_bandwidths, diff) for diff in self.candidate_start_fractions * max_start_diff]
+        self.candidate_start_bw_diffs = [np.full(self.num_bandwidths, diff) for diff in self.CANDIDATE_START_FRACTIONS * max_start_diff]
 
     def _unpack_bandwidths(self, bw_log_diffs: list[float]) -> np.ndarray:
         """function ensures bandwidth bounds for optimization input is 
@@ -130,6 +146,20 @@ class BandwidthOptimizer:
         self_term = self._gaussian_peak_2d(bw_per_arranged_points)
         # leave-one-out density
         f_loo = (N * f_at_arranged_points - self_term) / (N - 1)
+        # the grid underestimates each point's own peak slightly, so for an isolated point the subtraction above can go to
+        # zero or below even though its true leave-one-out density is small but positive; recompute those points exactly
+        flagged = np.flatnonzero(f_loo < self.EXACT_RECOMPUTE_FRACTION * self_term / (N - 1))
+        has_flagged_points = len(flagged) > 0
+        within_recompute_cap = len(flagged) <= self.MAX_EXACT_RECOMPUTE_POINTS
+        if has_flagged_points and within_recompute_cap:
+            # squared distance from each flagged point to every point
+            sq_distances = cdist(self.arranged_points[flagged], self.arranged_points, 'sqeuclidean')
+            # kernel[i, j] is point j's gaussian (with point j's bandwidth) evaluated at flagged point i
+            kernel = np.exp(-sq_distances / (2 * bw_per_arranged_points**2)) / (2 * np.pi * bw_per_arranged_points**2)
+            # a flagged point doesn't count its own kernel
+            kernel[np.arange(len(flagged)), flagged] = 0.0
+            f_loo[flagged] = kernel.sum(axis=1) / (N - 1)
+
         # set values < 1e-300 to 1e-300 (namely to guard against log(0))
         f_loo = np.clip(f_loo, 1e-300, None)
 
@@ -146,7 +176,7 @@ class BandwidthOptimizer:
 
         for bw_guess_diffs in self.candidate_start_bw_diffs:
             initial_bw_log_diffs = np.log(bw_guess_diffs)
-            res = minimize(fun=self._loo_neg_log_likelihood, x0=initial_bw_log_diffs, args=(), method='Nelder-Mead')
+            res = minimize(fun=self._loo_neg_log_likelihood, x0=initial_bw_log_diffs, args=(), method='Nelder-Mead', options={'xatol': self.NM_XATOL, 'fatol': self.NM_FATOL})
             print(f'initial_bw_log_diffs: {initial_bw_log_diffs}  res.message: {res.message}')
             print(f'objective: {res.fun}')
             print(f'bandwidth: {self._unpack_bandwidths(res.x)}')
