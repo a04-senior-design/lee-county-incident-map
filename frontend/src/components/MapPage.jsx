@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import './MapPage.css'
 import Map from './Map'
 import AppBar from './AppBar/AppBar'
@@ -71,6 +71,71 @@ function MapPage() {
     severity: '',
     content: ''
   })
+  //── Report ───────────────────────────────────────────────────────────
+  const [reportMapState, setReportMapState] = useState({
+    kde: null,
+    clusters: false,
+    giStar: false
+  })
+  const [drawArea, setDrawArea] = useState(false)
+  const [areaBounds, setAreaBounds] = useState(null)
+  const bbox = areaBounds ? areaBounds.toBBoxString() : null
+
+  const { token } = useAuth()
+  const API_URL = import.meta.env.VITE_API_BASE_URL
+  const [reportLoading, setReportLoading] = useState(false)
+
+  //   const maps = []
+  // if (reportMapState.kde) maps.push(reportMapState.kde === 'all' ? 'kde_all' : 'kde_cluster')
+  // if (reportMapState.clusters) maps.push('cluster')
+  // if (reportMapState.giStar) maps.push('gistar')
+  // if (maps.length) params.append('maps', maps.join(','))
+  const handleReport = async (useArea = true) => {
+    const [from, to] = dateRange
+    setReportLoading(true)
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams({ from, to })
+      if (useArea && bbox) params.append('bbox', bbox)
+
+      const res = await fetch(`${database}/reports?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.status === 401 || res.status === 403) {
+        SetAlertContent((prev) => ({
+          ...prev,
+          open: true,
+          severity: 'error',
+          content: 'Your session has expired. Please refresh the page.'
+        }))
+        return
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Server error ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `lee-county-report-${from}_to_${to}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      SetAlertContent((prev) => ({
+        ...prev,
+        open: true,
+        severity: 'error',
+        content: `Report generation failed: ${err.message}`
+      }))
+    } finally {
+      setReportLoading(false)
+      setIsLoading(false)
+    }
+  }
+  const onAreaDrawn = useCallback((b) => {
+    setAreaBounds(b)
+  }, [])
   //── Overlay ───────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false)
   const [accountPop, setAccountPop] = useState(false)
@@ -105,7 +170,7 @@ function MapPage() {
 
     const controller = new AbortController()
 
-    async function fetchAll() {
+    async function fetchAll(useArea = true) {
       try {
         let all = []
         let cursor = null
@@ -115,10 +180,10 @@ function MapPage() {
           const params = new URLSearchParams({
             from: fromDay,
             to: toDay,
-            limit: '500'
+            limit: '5000'
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name
-
+          if (useArea && bbox) params.append('bbox', bbox)
           const res = await fetch(`${database}/incidents?${params}`, {
             signal: controller.signal
           })
@@ -130,7 +195,7 @@ function MapPage() {
           all = all.concat(page.incidents)
           cursor = page.next_cursor
           count++
-        } while (count < 10)
+        } while (count < 1)
         setIsLoading(false)
         setAllIncidents(all)
         setSelectedNatures(
@@ -143,7 +208,7 @@ function MapPage() {
 
     fetchAll()
     return () => controller.abort()
-  }, [dateRange])
+  }, [dateRange, bbox])
   // useEffect(() => {
   //   const [fromDay, toDay] = dateRange
   //   if (!fromDay || !toDay) return
@@ -306,7 +371,10 @@ function MapPage() {
         setRouteOn={setRouteOn}
         isLoading={isLoading}
         accountPop={accountPop}
-        
+        setDrawArea={setDrawArea}
+        handleReport={handleReport}
+        reportLoading={reportLoading}
+        setReportMapState = {setReportMapState}
       />
 
       <Box
@@ -439,6 +507,15 @@ function MapPage() {
               routeOn={routeOn}
               setRouteOn={setRouteOn}
               incidentColors={CATEGORY_COLORS}
+              drawArea={drawArea}
+              areaBounds={areaBounds}
+              onAreaDrawn={onAreaDrawn}
+              setDrawArea={setDrawArea}
+              handleReport={handleReport}
+              reportLoading={reportLoading}
+              setAreaBounds={setAreaBounds}
+              reportMapState={reportMapState}
+              setReportMapState={setReportMapState}
             />
           </Box>
         </Paper>

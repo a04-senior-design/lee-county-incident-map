@@ -28,6 +28,84 @@ import Button from '@mui/material/Button'
 import RouteGrader from './RouteSafety/RouteGrader.jsx'
 import AreaForm from './AreaForm/AreaForm.jsx'
 
+import { Rectangle } from 'react-leaflet' // add to your existing import
+
+const RECT_STYLE = {
+  color: '#0e668f',
+  weight: 5,
+  dashArray: '6 6',
+  fillOpacity: 0.15,
+  interactive: false
+}
+
+function AreaFilter({ drawArea, bounds, onDraw }) {
+  const map = useMap()
+  const rectRef = useRef(null)
+
+  // show / update / remove the single rectangle
+  const setRect = (b) => {
+    if (!b) {
+      if (rectRef.current) {
+        map.removeLayer(rectRef.current)
+        rectRef.current = null
+      }
+      return
+    }
+    if (rectRef.current) rectRef.current.setBounds(b)
+    else rectRef.current = L.rectangle(b, RECT_STYLE).addTo(map)
+  }
+
+  // follow the committed bounds (covers Clear / Cancel)
+  useEffect(() => {
+    setRect(bounds)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bounds, map])
+
+  // remove the layer if the component unmounts
+  useEffect(() => () => setRect(null), []) // eslint-disable-line
+
+  useEffect(() => {
+    if (!drawArea) return
+    let start = null
+
+    map.dragging.disable()
+    map.boxZoom.disable()
+    map.getContainer().style.cursor = 'crosshair'
+
+    const down = (e) => {
+      start = e.latlng
+    }
+    const move = (e) => {
+      if (!start) return
+      setRect(L.latLngBounds(start, e.latlng)) // same layer, no second one
+    }
+    const up = (e) => {
+      if (!start) return
+      const s = start
+      start = null
+      const tooSmall =
+        map
+          .latLngToContainerPoint(s)
+          .distanceTo(map.latLngToContainerPoint(e.latlng)) < 10
+      if (tooSmall) {
+        setRect(bounds) // put back the previous rectangle (or none)
+        return
+      }
+      onDraw(L.latLngBounds(s, e.latlng))
+    }
+
+    map.on('mousedown', down).on('mousemove', move).on('mouseup', up)
+    return () => {
+      map.off('mousedown', down).off('mousemove', move).off('mouseup', up)
+      map.dragging.enable()
+      map.boxZoom.enable()
+      map.getContainer().style.cursor = ''
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, drawArea, onDraw, bounds])
+
+  return null // no <Rectangle> anymore
+}
 let iconCache = {}
 //create a custom hook to move the map when user click on the item
 function MoveMap({ selectedLocation, markerRef = null }) {
@@ -135,7 +213,16 @@ function Map({
   setIsLoading,
   routeOn,
   setRouteOn,
-  incidentColors
+  incidentColors,
+  drawArea,
+  areaBounds,
+  onAreaDrawn,
+  setDrawArea,
+  setAreaBounds,
+  handleReport,
+  reportLoading,
+  setReportMapState,
+  reportMapState
 }) {
   const exitRoute = useCallback(() => setRouteOn(false), [])
   //render++
@@ -154,6 +241,8 @@ function Map({
   const [EndRouteList, setEndRouteList] = useState(null)
   const [routePoints, setRoutePoints] = useState(null)
   const [searchWay, setSearchWay] = useState('click') //set between click or type in search box
+  //Draw---------------------------------------------
+  const [isDrawOn, setIsDrawOn] = useState(true)
   useEffect(() => {
     if (!routeOn) {
       setSearchWay('click')
@@ -366,7 +455,7 @@ function Map({
             fontWeight: 600
           }}
         >
-          Data Loading...
+          {reportLoading ? 'Report Generating...' : 'Data Loading...'}
         </Typography>
         <LinearProgress sx={{ width: '50%' }} aria-label='Loading…' />
       </Box>
@@ -406,7 +495,79 @@ function Map({
           </Box>
         </Box>
       )}
-      {routeOn === true && gradeMode === 'drive'  && (
+      {drawArea === true && (
+        <Box
+          sx={{
+            position: 'absolute',
+            zIndex: 1000,
+            top: '70vh',
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            pointerEvents: 'none'
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 3,
+              pointerEvents: 'auto'
+            }}
+          >
+            <Button
+              variant='contained'
+              color='error'
+              onClick={() => {
+                setAreaBounds(null)
+                setDrawArea(false)
+              }}
+            >
+              Clear draw
+            </Button>
+
+            <Button
+              variant='contained'
+              color={isDrawOn ? 'warning' : 'success'}
+              onClick={() => {
+                setIsDrawOn(!isDrawOn)
+              }}
+            >
+              {isDrawOn ? 'Click to drag' : 'Click to draw'}
+            </Button>
+          </Box>
+        </Box>
+      )}
+      {/* <Box
+        sx={{
+          position: 'absolute',
+          zIndex: 1000,
+          top: '60vh',
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          pointerEvents: 'none'
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 3,
+            pointerEvents: 'auto',
+            background: 'yellow',
+            flexDirection: 'column'
+          }}
+        >
+          <Typography variant='h5'>map valid state</Typography>
+          <Typography variant='h6'>{`KDE heat map: ${reportMapState.kde === 'all' ? 'Valid (All points)' : reportMapState.kde === 'cluster' ? 'Valid (By Cluster)' : 'Invalid'}`}</Typography>
+          <Typography variant='h6'>{`Cluster: ${reportMapState.clusters ? 'Valid ' : 'Invalid'}`}</Typography>
+          <Typography variant='h6'>{`Gistar: ${reportMapState.giStar ? 'Valid ' : 'Invalid'}`}</Typography>
+        </Box>
+      </Box> */}
+      {routeOn === true && gradeMode === 'drive' && (
         <Box
           sx={{
             position: 'absolute',
@@ -693,6 +854,13 @@ function Map({
           }}
         />
         <AutoResize />
+        {isDrawOn && (
+          <AreaFilter
+            drawArea={drawArea}
+            bounds={areaBounds}
+            onDraw={onAreaDrawn}
+          />
+        )}
         <RouteGrader
           active={routeOn && !analysisOn}
           incidents={finalList}
@@ -707,6 +875,10 @@ function Map({
           startDate={start_date}
           endDate={end_date}
           setIsLoading={setIsLoading}
+          areaBounds={areaBounds}
+          drawArea={drawArea && isDrawOn}
+          reportMapState={reportMapState}
+          setReportMapState={setReportMapState}
         />
         {!analysisOn && (
           <MarkerClusterGroup
