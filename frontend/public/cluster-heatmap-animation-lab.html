@@ -1699,6 +1699,8 @@
         // take the slider range from the backend
         distanceBandInput.min = body.min_distance_band;
         distanceBandInput.max = body.max_distance_band;
+        // one legend for every frame (they share one -v_abs to +v_abs color scale)
+        buildHeatmapLegend(body.legend);
       }
       else {
         // KDE all points
