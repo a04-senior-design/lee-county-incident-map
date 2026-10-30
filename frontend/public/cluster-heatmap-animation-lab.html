@@ -488,6 +488,42 @@
       margin-right: 5px;
       vertical-align: middle;
     }
+
+    /* ── KDE / Gi* heat map legend ────────────────────────────────────────── */
+    .heatmap-legend {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+      padding: 0.5rem 0.9rem;
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+    .heatmap-legend-caption {
+      font-weight: 600;
+      color: var(--text-strong);
+      margin-bottom: 0.4rem;
+    }
+    .heatmap-legend-bar {
+      width: 200px;
+      height: 12px;
+      border-radius: 2px;
+    }
+    /* tick labels are placed by value under the bar (left: X%), centered on their position */
+    .heatmap-legend-ticks {
+      position: relative;
+      width: 200px;
+      height: 1.1em;
+      margin-top: 0.25rem;
+      font-size: 0.68rem;
+      color: var(--text-sub);
+    }
+    .heatmap-legend-ticks span {
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+
   </style>
   <script>
     // apply the saved theme before first paint to avoid a flash
@@ -1225,6 +1261,7 @@
 
 
   let currentHeatmapOverlay = null; // the KDE or Gi* heat map image on the map, if any
+  let heatmapLegendControl = null; // the KDE or Gi* heat map legend on the map, if any
 
   const applyBtn = document.getElementById("animation-apply");
   const resetBtn = document.getElementById("dbscan-reset");
@@ -1251,6 +1288,76 @@
   const animationControls = document.getElementById("animation-controls");
   const modeRadios = document.querySelectorAll('input[name="analysis-mode"]');
 
+  // a tick value as label text: whole numbers from 100 up, otherwise 2 significant digits
+  function formatTick(value) {
+    if (Math.abs(value) >= 100) {
+      return String(Math.round(value));
+    }
+    return String(Number(value.toPrecision(2)));
+  }
+
+  // remove the KDE or Gi* heat map legend from the map, if there is one
+  function removeHeatmapLegend() {
+    if (heatmapLegendControl) {
+      heatmapLegendControl.remove();
+      heatmapLegendControl = null;
+    }
+  }
+
+  // add the heat map legend (caption, color bar, tick labels) to the map's bottom-right corner;
+  // legend is the "legend" object from the animation response
+  function buildHeatmapLegend(legend) {
+    removeHeatmapLegend();
+
+    // no legend in the response - nothing to show
+    if (!legend) {
+      return;
+    }
+
+    let caption = legend.caption;
+    if (!caption) {
+      caption = "Incident density";
+    }
+
+    // the color bar, vmin on the left to vmax on the right
+    const gradientCss = `linear-gradient(to right, ${legend.colors.join(", ")})`;
+
+    // place each tick label at its value along the bar, so it lines up with its color
+    const range = legend.vmax - legend.vmin;
+    const MIN_GAP_PERCENT = 10; // in-between ticks closer than this to the min or max label would overlap it
+    let tickLabels = "";
+
+    for (let i = 0; i < legend.ticks.length; i++) {
+      const tick = legend.ticks[i];
+      let percent = 0;
+      if (range > 0) {
+        percent = ((tick - legend.vmin) / range) * 100;
+      }
+
+      // the min and max labels (always the first and last ticks) are always shown
+      // skip an in-between tick that would overlap them
+      const isEndTick = (i === 0 || i === legend.ticks.length - 1);
+      const tooCloseToEnd = (percent < MIN_GAP_PERCENT || percent > 100 - MIN_GAP_PERCENT);
+      if (!isEndTick && tooCloseToEnd) {
+        continue;
+      }
+
+      tickLabels += `<span style="left: ${percent}%">${formatTick(tick)}</span>`;
+    }
+
+    heatmapLegendControl = L.control({position: "bottomright"});
+    heatmapLegendControl.onAdd = () => {
+      const div = L.DomUtil.create("div", "heatmap-legend");
+      div.innerHTML = `
+        <div class="heatmap-legend-caption">${caption}</div>
+        <div class="heatmap-legend-bar" style="background: ${gradientCss};"></div>
+        <div class="heatmap-legend-ticks">${tickLabels}</div>
+      `;
+      return div;
+    };
+    heatmapLegendControl.addTo(map);
+  }
+
   // stop playback and remove the current frames, overlays and labels
   function clearAnimation() {
     pause();
@@ -1267,6 +1374,7 @@
       map.removeLayer(currentHeatmapOverlay);
       currentHeatmapOverlay = null;
     }
+    removeHeatmapLegend();
     clearClusterLayer();
     updateClusterLevelStats(null);
   }
@@ -1596,6 +1704,8 @@
         // take the slider range from the backend
         bandwidthInput.min = body.min_bandwidth;
         bandwidthInput.max = body.max_bandwidth;
+        // one legend for every frame (they share one color scale)
+        buildHeatmapLegend(body.legend);
       }
     }
     catch (err) {

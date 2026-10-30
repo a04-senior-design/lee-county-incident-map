@@ -222,7 +222,7 @@ class KDEHeatMap:
             scale_factor = 1.0
 
         if caption is None:
-            caption = f'Incident Density (x {scale_factor:.0e})'
+            caption = f'Incident Density (\u00d7 {scale_factor:.0e})'
 
         # sample the color gradient in raw density units
         n_samples = 256
