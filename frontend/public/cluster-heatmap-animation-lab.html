@@ -1691,6 +1691,8 @@
         statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
         // rebuild the sliders at the bandwidths the backend used (defaults on the first Apply)
         buildKDEHeatmapLevelSliders(body.bandwidths, body.min_bandwidth, body.max_bandwidth);
+        // one legend for every frame (they share one color scale)
+        buildHeatmapLegend(body.legend);
       }
       else if (mode === "gistar-heatmap") {
         statDistanceBand.textContent = `${body.distance_band} ft`;
