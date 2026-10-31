@@ -305,7 +305,7 @@
 
     /* ── Date range picker (mirrors the React DatePicker / Mantine DatePickerInput) ── */
     #date-range-field { position: relative; }
-    #date-range-wrap { position: relative; width: 230px; }
+    #date-range-wrap { position: relative; width: 300px; }
     #date-range-wrap input { width: 100%; padding-right: 1.8rem; cursor: pointer; }
     #date-range-clear {
       position: absolute; right: 0.3rem; top: 50%; transform: translateY(-50%);
@@ -330,7 +330,18 @@
       padding: 0.35rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; white-space: nowrap;
     }
     #date-presets button:hover { background: #f1f3f5; }
+    #date-main { display: flex; flex-direction: column; }
     #date-calendar { padding: 0.5rem; width: 252px; }
+    #date-times {
+      display: flex; flex-direction: column; gap: 0.35rem;
+      padding: 0.5rem; border-top: 1px solid #dee2e6;
+    }
+    .time-row { display: flex; align-items: center; gap: 0.3rem; }
+    .time-row > span:first-child { width: 2.6rem; color: #868e96; font-size: 0.78rem; }
+    .time-row select {
+      background: #fff; color: #000; border: 1px solid #ced4da; border-radius: 4px;
+      padding: 0.2rem 0.3rem; font-size: 0.85rem;
+    }
     .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; color: #000; font-weight: 500; }
     .cal-header button {
       border: none; background: none; color: #000; cursor: pointer;
@@ -556,7 +567,13 @@
     </div>
     <div id="date-popover" class="hidden">
       <div id="date-presets"></div>
-      <div id="date-calendar"></div>
+      <div id="date-main">
+        <div id="date-calendar"></div>
+        <div id="date-times">
+          <div class="time-row" data-which="start"><span>Start</span><select class="time-hour" aria-label="Start hour"></select>:<select class="time-minute" aria-label="Start minute"></select></div>
+          <div class="time-row" data-which="end"><span>End</span><select class="time-hour" aria-label="End hour"></select>:<select class="time-minute" aria-label="End minute"></select></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="field-row window-field">
@@ -787,10 +804,35 @@
       fmt(new Date(todayDate.getFullYear() - 1, 11, 31))]},
   ];
 
+  // hour/minute for each end of the range; 00:00 (midnight) unless the user picks otherwise
+  const times = {start: {hour: 0, minute: 0}, end: {hour: 0, minute: 0}};
+  const timeStr = t => `${pad(t.hour)}:${pad(t.minute)}`;
+  const withTime = (dateStr, which) => dateStr ? `${dateStr} ${timeStr(times[which])}` : "";
+  // the input only shows a time when it isn't the midnight default
+  const label = (dateStr, which) => !dateStr ? "" : (times[which].hour || times[which].minute) ? withTime(dateStr, which) : dateStr;
+
+  for (const row of document.querySelectorAll("#date-times .time-row")) {
+    const which = row.dataset.which;
+    const hourSel = row.querySelector(".time-hour");
+    const minuteSel = row.querySelector(".time-minute");
+    for (let i = 0; i < 24; i++) hourSel.add(new Option(pad(i), i));
+    for (let i = 0; i < 60; i++) minuteSel.add(new Option(pad(i), i));
+    hourSel.addEventListener("change", () => { times[which].hour = Number(hourSel.value); updateDateInput(); });
+    minuteSel.addEventListener("change", () => { times[which].minute = Number(minuteSel.value); updateDateInput(); });
+  }
+
   function updateDateInput() {
     const [start, end] = draft;
-    dateInput.value = start ? `${start} – ${end || ""}` : "";
+    dateInput.value = start ? `${label(start, "start")} – ${label(end, "end")}` : "";
     dateWrap.classList.toggle("has-value", Boolean(start || end));
+  }
+
+  function resetTimes() {
+    for (const row of document.querySelectorAll("#date-times .time-row")) {
+      times[row.dataset.which] = {hour: 0, minute: 0};
+      row.querySelector(".time-hour").value = 0;
+      row.querySelector(".time-minute").value = 0;
+    }
   }
 
   // commit only a complete range, or a cleared one
@@ -862,6 +904,7 @@
     openDatePopover();
   });
   document.getElementById("date-range-clear").addEventListener("click", () => {
+    resetTimes();
     setDraft([null, null]);
   });
   dateCalendar.addEventListener("click", e => {
@@ -887,8 +930,8 @@
   // returns the params, plus the labels of any blank fields
   function readWindowParams() {
     const params = {
-      start_date: dateRange[0] || "",
-      end_date: dateRange[1] || "",
+      start_date: withTime(dateRange[0], "start"),
+      end_date: withTime(dateRange[1], "end"),
       window_length: document.getElementById("input-window-length").value.trim(),
       time_step: document.getElementById("input-time-step").value.trim(),
     };
