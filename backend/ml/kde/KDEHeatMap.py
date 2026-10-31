@@ -26,6 +26,13 @@ class KDEHeatMap:
 
         self.points = np.asarray(points)
         self.cluster_levels = np.asarray(cluster_levels)
+        # no input points - there is nothing to build a density surface from
+        if len(self.points) == 0:
+            raise ValueError("No points were given; at least one point is required to build a density surface.")
+        # one cluster level is needed per point
+        if len(self.points) != len(self.cluster_levels):
+            raise ValueError(f"Expected one cluster level per point: got {len(self.points)} points and {len(self.cluster_levels)} cluster levels.")
+
         # bandwidth in the order [bw0, bw1 (if applicable), bw2 (if applicable)] where bw0 is cluster=0, bw1 is cluster=1 (if applicable), bw2 is cluster=2 (if applicable) such that bw0>bw1>bw2
         self.bandwidths = np.asarray(bandwidths)
 
@@ -54,6 +61,13 @@ class KDEHeatMap:
                 mask = (self.cluster_levels == cluster_level)
                 self.points_per_cluster.append(self.points[mask])
 
+        # number of points in each cluster, and the non-noise total, for weighting each cluster's surface
+        self.cluster_sizes = [len(cluster_points) for cluster_points in self.points_per_cluster]
+        self.n_points = sum(self.cluster_sizes)
+        # every point is noise - there is no cluster to build a density surface from
+        if self.n_points == 0:
+            raise ValueError("All points are noise (cluster level of -1); at least one cluster level is required to build a density surface.")
+        
         # instantiate a FFTKDE object, one per bandwidth
         self.kde_obj_per_cluster = []
         self.rescale = []
@@ -73,6 +87,10 @@ class KDEHeatMap:
     @property
     def density_surface(self):
         return self._density_surface
+
+    def density_surface_volume(self):
+        # approximates the volume under the density surface (density surface is normalized to have a volume of 1)
+        return self._density_surface.sum() * self.increment_lattice**2
 
     def _fit_kde_model(self):
         # fit a kde model for each cluster of input data
@@ -99,11 +117,12 @@ class KDEHeatMap:
         # apply the kde model to the mesh grid
 #        start = time.perf_counter()
         density_surface_per_cluster = []
-        for kde_model, factor in zip(self.kde_model_per_cluster, self.rescale):
+        for kde_model, factor, n_k in zip(self.kde_model_per_cluster, self.rescale, self.cluster_sizes):
             density_surface_scaled_1d = kde_model.evaluate(grid_points=(self.lattice / factor))            
-            density_surface_rescaled_2d = density_surface_scaled_1d.reshape(self.x_coords.shape[0], self.y_coords.shape[0]) / factor**2
+            # / factor**2 undoes the rescaling; * n_k / n_points weights the cluster by its share of the points
+            density_surface_rescaled_2d = density_surface_scaled_1d.reshape(self.x_coords.shape[0], self.y_coords.shape[0]) / factor**2 * (n_k / self.n_points)
             density_surface_per_cluster.append(density_surface_rescaled_2d)
-        # summation represents the density surface of the full model    
+        # count-weighted sum of the cluster surfaces, so the full model integrates to 1
         density_surface = np.sum(density_surface_per_cluster, axis=0)
 #        end = time.perf_counter()
 #        print(f'time to compute density_surface: {end - start:.4f} seconds')
