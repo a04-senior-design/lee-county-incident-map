@@ -32,6 +32,7 @@ function BoardBar({
   isLoading,
   setAreaBounds,
   SetAlertContent,
+  drawArea,
   setDrawArea,
   handleReport,
   reportLoading,
@@ -114,8 +115,8 @@ function BoardBar({
         </Button>
         <Button
           disabled={user ? false : true}
-          variant={routeOn ? 'contained' : 'text'}
-          color={routeOn ? 'warning' : 'primary'}
+          variant={drawArea ? 'contained' : 'text'}
+          color={drawArea ? 'warning' : 'primary'}
           sx={[
             (theme) =>
               theme.applyStyles('dark', {

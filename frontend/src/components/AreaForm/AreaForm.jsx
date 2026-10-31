@@ -83,8 +83,10 @@ function AreaForm({
       setTypes([])
       setCurrentPicked([])
     } catch (error) {
-      showAlert('error',`Failed storage: Your session has expired. Please refresh the page.`)
-       
+      showAlert(
+        'error',
+        `Failed storage: Your session has expired. Please refresh the page.`
+      )
     } finally {
       setSubmitLoading(false)
     }
@@ -193,7 +195,7 @@ function AreaForm({
             currentPicked={currentPicked}
           />
         </Box>
-        {/* <Box>
+        <Box>
           <FormLabel id='radio-noti-time-group-label'>Time</FormLabel>
           <RadioGroup
             row
@@ -217,7 +219,7 @@ function AreaForm({
               label='monthly'
             />
           </RadioGroup>
-        </Box> */}
+        </Box>
         <Box>
           <FormLabel id='radio-noti-distance-group-label'>
             Distance (miles)

@@ -375,6 +375,7 @@ function MapPage() {
         handleReport={handleReport}
         reportLoading={reportLoading}
         setReportMapState = {setReportMapState}
+        drawArea ={drawArea}
       />
 
       <Box
