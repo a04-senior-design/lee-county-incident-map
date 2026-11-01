@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import { useAuth } from '../../Context/AuthContext'
@@ -8,12 +8,31 @@ import CardMedia from '@mui/material/CardMedia'
 import CardContent from '@mui/material/CardContent'
 import CardActions from '@mui/material/CardActions'
 import ModeSelect from '../ModeSelect/ModeSelect'
+import BorderColorIcon from '@mui/icons-material/BorderColor'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import EditForm from './EditForm/EditForm'
 const url = import.meta.env.VITE_API_BASE_URL
 
-function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
+function MyAccountPop({
+  accountPop,
+  setAccountPop,
+  CATEGORY_COLORS,
+  searching,
+  addressType,
+  addressList,
+  checkBound,
+  setAddressList,
+  setAddressType,
+  showAlert,
+  addressSearch,
+  setAddressSearch
+}) {
   const [notiList, setNotiList] = useState()
   const { user, token } = useAuth()
+  const [editCard, setEditCard] = useState(false)
+  const [editCardContent, setEditCardContent] = useState(false)
+  //REF-----
+  const itemRef = useRef(null)
   const pickColor = (category) => {
     const key = category || ''
     for (const color in CATEGORY_COLORS) {
@@ -38,7 +57,7 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
       }
     }
     fetchNotiList()
-  }, [accountPop, token])
+  }, [accountPop, token, editCard])
   const handleDelete = async (id) => {
     try {
       const res = await fetch(`${url}/users/me/areas/${id}`, {
@@ -51,6 +70,28 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
       console.log(error.message)
     }
   }
+  const editNoti = async (id, alert) => {
+    try {
+      const res = await fetch(`${url}/users/me/areas/${id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          alert_enabled: !alert
+        })
+      })
+      if (!res.ok) throw new Error('area delete has problem')
+      setNotiList((prev) => prev.filter((area) => area.id !== id))
+    } catch (error) {
+      console.log(error.message)
+    }
+  }
+  const showNotiPop = (item) => {
+    console.log('here')
+  }
+
   return (
     <Box
       sx={{
@@ -180,15 +221,26 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                     >
                       {item.name}
                     </Typography>
-                    <Button
-                      onClick={() => {
-                        if (window.confirm(`Delete "${item.name}"?`)) {
-                          handleDelete(item.id)
-                        }
-                      }}
-                    >
-                      <DeleteOutlineIcon color='error' />
-                    </Button>
+                    <Box>
+                      <Button
+                        variant=''
+                        onClick={() => {
+                          setEditCard(true)
+                          setEditCardContent(item)
+                        }}
+                      >
+                        <BorderColorIcon color='primary' />
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm(`Delete "${item.name}"?`)) {
+                            handleDelete(item.id)
+                          }
+                        }}
+                      >
+                        <DeleteOutlineIcon color='error' />
+                      </Button>
+                    </Box>
                   </Box>
 
                   {/* <Typography
@@ -260,6 +312,15 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                       ))}
                     </Box>
                   </Box>
+
+                  <Button
+                    sx={{ mt: '10px' }}
+                    onClick={() => editNoti(item.id, item.alerts_enabled)}
+                    color='success'
+                    variant='outlined'
+                  >
+                    Alert Enable: {item.alerts_enabled? 'On': 'Off'}
+                  </Button>
                 </CardContent>
                 {/* <CardActions>
                   <Button size='small'>Share</Button>
@@ -276,6 +337,24 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
           </Box>
         </Box>
       </Box>
+      {editCard && (
+        <Box sx={{ position: 'absolute', zIndex: 10000, top: '30%' }}>
+          <EditForm
+            item={editCardContent}
+            searching={searching}
+            addressType={addressType}
+            addressList={addressList}
+            checkBound={checkBound}
+            setAddressList={setAddressList}
+            setAddressType={setAddressType}
+            showAlert={showAlert}
+            addressSearch={addressSearch}
+            setAddressSearch={setAddressSearch}
+            editCard={editCard}
+            setEditCard={setEditCard}
+          />
+        </Box>
+      )}
     </Box>
   )
 }

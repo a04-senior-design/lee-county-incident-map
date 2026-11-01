@@ -6,7 +6,7 @@ export default function LimitTags({
   url,
   setTypes,
   currentPicked,
-  setCurrentPicked
+  setCurrentPicked,
 }) {
   const [categories, setCategories] = useState([])
   const [fullList, setFullList] = useState(null)
@@ -58,10 +58,11 @@ export default function LimitTags({
       multiple
       limitTags={2}
       id='multiple-limit-tags'
+      
       options={allTypesPicked ? emptiedList : categories}
       value={currentPicked}
       onChange={(_, newValue) => handleOption(newValue)}
-      defaultValue={categories[0] ?? []}
+      
       renderInput={(params) => (
         <TextField
           {...params}

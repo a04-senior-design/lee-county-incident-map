@@ -138,7 +138,7 @@ function MapPage() {
   }, [])
   //── Overlay ───────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false)
-  const [accountPop, setAccountPop] = useState(false)
+  const [accountPop, setAccountPop] = useState(true)
   //── Route safety ───────────────────────────────────────────────────────────
   const [routeOn, setRouteOn] = useState(false)
   useEffect(() => {
@@ -337,11 +337,7 @@ function MapPage() {
         position: 'relative'
       }}
     >
-      <MyAccountPop
-        accountPop={accountPop}
-        setAccountPop={setAccountPop}
-        CATEGORY_COLORS={CATEGORY_COLORS}
-      />
+    
       {/* App bar */}
       <AppBar
         accountPop={accountPop}
@@ -374,8 +370,8 @@ function MapPage() {
         setDrawArea={setDrawArea}
         handleReport={handleReport}
         reportLoading={reportLoading}
-        setReportMapState = {setReportMapState}
-        drawArea ={drawArea}
+        setReportMapState={setReportMapState}
+        drawArea={drawArea}
       />
 
       <Box
@@ -517,6 +513,9 @@ function MapPage() {
               setAreaBounds={setAreaBounds}
               reportMapState={reportMapState}
               setReportMapState={setReportMapState}
+              accountPop = {accountPop}
+              setAccountPop={setAccountPop}
+              CATEGORY_COLORS={CATEGORY_COLORS}
             />
           </Box>
         </Paper>

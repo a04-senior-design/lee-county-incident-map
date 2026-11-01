@@ -27,7 +27,7 @@ import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import RouteGrader from './RouteSafety/RouteGrader.jsx'
 import AreaForm from './AreaForm/AreaForm.jsx'
-
+import MyAccountPop from './MyAccountPop/MyAccountPop.jsx'
 import { Rectangle } from 'react-leaflet' // add to your existing import
 
 const RECT_STYLE = {
@@ -222,7 +222,10 @@ function Map({
   handleReport,
   reportLoading,
   setReportMapState,
-  reportMapState
+  reportMapState,
+  accountPop,
+  setAccountPop,
+  CATEGORY_COLORS
 }) {
   const exitRoute = useCallback(() => setRouteOn(false), [])
   //render++
@@ -495,6 +498,22 @@ function Map({
           </Box>
         </Box>
       )}
+      {
+        <MyAccountPop
+          accountPop={accountPop}
+          setAccountPop={setAccountPop}
+          CATEGORY_COLORS={CATEGORY_COLORS}
+          searching={searching}
+          addressType={addressType}
+          addressList={addressList}
+          checkBound={checkBound}
+          setAddressList={setAddressList}
+          setAddressType={setAddressType}
+          showAlert={showAlert}
+          addressSearch={addressSearch}
+          setAddressSearch={setAddressSearch}
+        />
+      }
       {drawArea === true && (
         <Box
           sx={{
