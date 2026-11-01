@@ -31,6 +31,7 @@ function MyAccountPop({
   const { user, token } = useAuth()
   const [editCard, setEditCard] = useState(false)
   const [editCardContent, setEditCardContent] = useState(false)
+  const [alertTrigger, setAlertTrigger] = useState(0) //just set a state to trigger the noti list render useeffect
   //REF-----
   const itemRef = useRef(null)
   const pickColor = (category) => {
@@ -57,7 +58,7 @@ function MyAccountPop({
       }
     }
     fetchNotiList()
-  }, [accountPop, token, editCard])
+  }, [accountPop, token, editCard, alertTrigger])
   const handleDelete = async (id) => {
     try {
       const res = await fetch(`${url}/users/me/areas/${id}`, {
@@ -72,6 +73,7 @@ function MyAccountPop({
   }
   const editNoti = async (id, alert) => {
     try {
+      console.log('alert here ', alert)
       const res = await fetch(`${url}/users/me/areas/${id}`, {
         method: 'PATCH',
         headers: {
@@ -79,11 +81,11 @@ function MyAccountPop({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          alert_enabled: !alert
+          alerts_enabled: !alert
         })
       })
-      if (!res.ok) throw new Error('area delete has problem')
-      setNotiList((prev) => prev.filter((area) => area.id !== id))
+      if (!res.ok) throw new Error('alert noti has problem')
+      setAlertTrigger((e) => e + 1)
     } catch (error) {
       console.log(error.message)
     }
@@ -316,10 +318,10 @@ function MyAccountPop({
                   <Button
                     sx={{ mt: '10px' }}
                     onClick={() => editNoti(item.id, item.alerts_enabled)}
-                    color='success'
+                    color={item.alerts_enabled ? 'success' : 'error'}
                     variant='outlined'
                   >
-                    Alert Enable: {item.alerts_enabled? 'On': 'Off'}
+                    Alert Enable: {item.alerts_enabled ? 'On' : 'Off'}
                   </Button>
                 </CardContent>
                 {/* <CardActions>

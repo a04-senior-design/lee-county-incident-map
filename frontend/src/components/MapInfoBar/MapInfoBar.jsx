@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Menu from '@mui/material/Menu'
@@ -9,7 +9,9 @@ import Checkbox from '@mui/material/Checkbox'
 import Divider from '@mui/material/Divider'
 import DatePicker from '../DatePicker/DatePicker'
 import CircularProgress from '@mui/material/CircularProgress'
-
+import TimePicker from '../DatePicker/TimePicker/TimePicker.tsx'
+import Button from '@mui/material/Button'
+import AvTimerIcon from '@mui/icons-material/AvTimer'
 function MapInfoBar({
   selectedNatures,
   setSelectedNatures,
@@ -20,9 +22,28 @@ function MapInfoBar({
   onNatureChange,
   dateRange,
   setDateRange,
-  isLoading
+  isLoading,
+  setTimeRange,
+  timeRange
 }) {
   const [anchorEl, setAnchorEl] = useState(null)
+  const [showTimePicker, setShowTimePicker] = useState(false)
+  const boxRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      //a function
+      if (boxRef.current && !boxRef.current.contains(event.target)) {
+        setShowTimePicker(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside) //add a function to window, 1 mouse click and function runs
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside) //remove right after it is done
+    }
+  }, [])
   const open = Boolean(anchorEl)
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget)
@@ -38,6 +59,7 @@ function MapInfoBar({
           position: 'relative',
           zIndex: 1000,
           display: 'flex',
+          flexGrow: 1,
           alignItems: 'center', //{xs:'flex-end', md:'center'},
           justifyContent: 'right', //{xs:'space-evenly', md:'center'}
           gap: 2,
@@ -63,23 +85,54 @@ function MapInfoBar({
             color: 'white'
           }
         }}
-        icon={
-          isLoading ? (
-            <CircularProgress size={22} />
-          ) : (
-            <ModeStandbyIcon />
-          )
-        }
+        icon={isLoading ? <CircularProgress size={22} /> : <ModeStandbyIcon />}
         label={
           filteredListWithLocation.length !== 0
             ? `${filteredListWithLocation.length}/${filteredListWithLocation.length + filteredListWithoutLocation.length}  incidents`
             : '- incidents'
         }
       />
-
+      <Box ref={boxRef} sx={{ backgroundColor: 'white', borderRadius: 1 }}>
+        <Button
+          startIcon={<AvTimerIcon />}
+          variant='outlined'
+          onClick={() => setShowTimePicker(!showTimePicker)}
+          sx={{ width: '250px', color: 'black' }}
+        >
+          {`Start: ${timeRange[0]} - End: ${timeRange[1]} `}
+        </Button>
+        {showTimePicker && (
+          <Box
+            sx={{
+              position: 'absolute',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '8px',
+              top: (theme) =>
+                `calc(${theme.mapCustom.mapInfoBarHeight} + 2px) `,
+              display: 'flex',
+              gap: 1,
+              color: 'black'
+            }}
+          >
+            <TimePicker
+              label={'Start: '}
+              timeRange={timeRange[0]}
+              setTimeRange={setTimeRange}
+              index={0}
+            />
+            <TimePicker
+              label={'End: '}
+              timeRange={timeRange[1]}
+              setTimeRange={setTimeRange}
+              index={1}
+            />
+          </Box>
+        )}
+      </Box>
       <Box
         sx={{
-          width: '500px',
+          width: '400px',
           '& .m_8fb7ebe7': {
             fontWeight: 500
           }

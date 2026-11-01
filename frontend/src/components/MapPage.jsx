@@ -57,6 +57,7 @@ function MapPage() {
     today.subtract(7, 'day').format('YYYY-MM-DD'),
     today.format('YYYY-MM-DD')
   ])
+  const [timeRange, setTimeRange] = useState(['0:00', '0:00'])
   const [start_date, end_date] = dateRange
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
@@ -138,7 +139,7 @@ function MapPage() {
   }, [])
   //── Overlay ───────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false)
-  const [accountPop, setAccountPop] = useState(true)
+  const [accountPop, setAccountPop] = useState(false)
   //── Route safety ───────────────────────────────────────────────────────────
   const [routeOn, setRouteOn] = useState(false)
   useEffect(() => {
@@ -337,7 +338,6 @@ function MapPage() {
         position: 'relative'
       }}
     >
-    
       {/* App bar */}
       <AppBar
         accountPop={accountPop}
@@ -475,6 +475,8 @@ function MapPage() {
               dateRange={dateRange}
               setDateRange={setDateRange}
               isLoading={isLoading}
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
             />
           </Box>
           <Box
@@ -513,7 +515,7 @@ function MapPage() {
               setAreaBounds={setAreaBounds}
               reportMapState={reportMapState}
               setReportMapState={setReportMapState}
-              accountPop = {accountPop}
+              accountPop={accountPop}
               setAccountPop={setAccountPop}
               CATEGORY_COLORS={CATEGORY_COLORS}
             />
