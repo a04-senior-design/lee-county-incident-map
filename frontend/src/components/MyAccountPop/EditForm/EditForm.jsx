@@ -99,6 +99,8 @@ function EditForm({
       <Box
         sx={[
           {
+            border:'4px solid black',
+            borderColor: (theme) => theme.palette.primary.main,
             background: 'white',
             width: '400px',
             p: 2,
