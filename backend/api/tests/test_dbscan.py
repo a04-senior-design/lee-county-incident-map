@@ -1,5 +1,9 @@
 import os
 
+import numpy as np
+import pandas as pd
+from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots_from_dbscan
+
 from leecad_api import runs
 
 DBSCAN = "/api/v1/animation/dbscan"
@@ -48,6 +52,34 @@ def test_a_run_drives_the_kde_animation(client):
     frames = response.json["frames"]
     assert frames[0]["n_incidents"] == 5
     assert frames[0]["image"].startswith("data:image/png;base64,")
+    assert set(response.json["legend"]) == {"colors", "vmin", "vmax", "ticks", "caption"}
+
+
+def write_frames(folder, *frames):
+    for number, points in enumerate(frames, start=1):
+        rows = [{"easting": x, "northing": y, "cluster_density_level": 0} for x, y in points]
+        pd.DataFrame(rows, columns=["easting", "northing", "cluster_density_level"]).to_csv(
+            folder / f"{number}_userID_dbscan.csv", index=False)
+
+
+def test_the_kde_animation_frames_share_one_color_scale(tmp_path):
+    rng = np.random.default_rng(0)
+    center = np.array([700000.0, 800000.0])
+    tight = center + rng.normal(0, 100, (20, 2))
+    loose = center + rng.normal(0, 3000, (20, 2))
+
+    def legend(name, *frames):
+        (tmp_path / name).mkdir()
+        write_frames(tmp_path / name, *frames)
+        _, legend = build_kde_heatmap_snapshots_from_dbscan(
+            bandwidths=[1500], densities_dir=tmp_path / name, output_dir=tmp_path / f"{name}_out")
+        return legend
+
+    # the loose frame comes last, but the top of the scale comes from the tight one,
+    # and the cutoff from the loose one, the quietest frame
+    both = legend("both", tight, loose)
+    assert both["vmax"] == legend("tight", tight)["vmax"]
+    assert both["vmin"] == legend("loose", loose)["vmin"]
 
 
 def test_each_run_keeps_its_own_results(client):

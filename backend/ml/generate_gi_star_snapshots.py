@@ -9,6 +9,8 @@ from ml.gi_star.GiStarHeatMap import GiStarHeatMap
 
 MAX_SNAPSHOTS = 30
 GI_STAR_CELL_SIZE = 2500
+# every animation frame is colored from -3 to +3, the range the colormap was drawn for
+Z_SCALE = 3
 
 LAND_MASK_PATH = os.path.join(os.path.dirname(__file__), "gi_star", "CountyBackground_Land_Mask", "CountyBackground.shp")
 
@@ -35,7 +37,9 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 	saved to output_dir.
 
 	Every frame uses one grid, sized once from the incidents in all
-	windows, so every frame has the same bounds.
+	windows, so every frame has the same bounds, and one color scale,
+	z-scores -Z_SCALE to +Z_SCALE, so a color means the same z-score in
+	every frame.
 
 	Parameters
 	----------
@@ -51,10 +55,12 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 
 	Returns
 	-------
-	A list of frames, one per window in time order:
+	(frames, legend). frames is a list, one per window in time order:
 	{"label", "window_start", "window_end", "n_incidents", "image", "bounds"}.
 	image is the PNG file name and bounds is {"west", "south", "east",
 	"north"} in lat/lng. Both are None for a window with no incidents.
+	legend is get_legend_data() of the last non-empty frame; every frame
+	shares one color scale, so it applies to the whole animation.
 
 	Raises
 	------
@@ -111,6 +117,7 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 
 	# one frame per window, in time order
 	frames = []
+	legend = None
 
 	for i, window in enumerate(windows):
 		points = points_per_window[i]
@@ -123,13 +130,15 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 			gi_star_obj = GiStarHeatMap(points=points, distance_band=distance_band, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, cell_size=GI_STAR_CELL_SIZE, land_polygon=land_polygon, output_dir=output_dir)
 
 			image_filename = f"gi_star_overlay_{i + 1}.png"
-			bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename)
+			bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename, z_abs_max=Z_SCALE)
 			bounds_dict = {
 				"west": bounds.left,
 				"south": bounds.bottom,
 				"east": bounds.right,
 				"north": bounds.top,
 			}
+			# the same scale in every frame, so the last non-empty frame's legend fits them all
+			legend = gi_star_obj.get_legend_data()
 
 		window_start = window["window_start"]
 		window_end = window["window_end"]
@@ -143,4 +152,4 @@ def build_gi_star_snapshots(start_date, end_date, window_length, time_step, dist
 			"bounds": bounds_dict,
 		})
 
-	return frames
+	return frames, legend

@@ -104,7 +104,8 @@ class GiStarHeatMap:
                 print(f"  cell centroid ({centroid[0]:.3f}, {centroid[1]:.3f}): count = {int(count)}, Z = {z:.3f}, p = {p:.3f}")
 
 
-    def generate_zscore_heatmap_image(self, filename="z_score_overlay.png", pixels_per_cell=10):
+    def generate_zscore_heatmap_image(self, filename="z_score_overlay.png", pixels_per_cell=10, z_abs_max=None):
+        # z_abs_max lets animation frames share one color scale; the default keeps the per-image scale
 
         # z-scores as a north-up grid: transpose (nx, ny) -> (ny, nx) so rows are y,
         # then flip so the first row is the northernmost row of cells
@@ -158,8 +159,10 @@ class GiStarHeatMap:
         cmap.set_bad(alpha=0)  # NaN (no data) pixels are fully transparent
 
         # diverging norm centered at 0 so blue/red are symmetric (unchanged)
-        finite_z = self.z_scores[np.isfinite(self.z_scores)]
-        z_abs_max = max(np.abs(finite_z).max(), 1e-6) if finite_z.size else 1.0
+        if z_abs_max is None:
+            finite_z = self.z_scores[np.isfinite(self.z_scores)]
+            z_abs_max = max(np.abs(finite_z).max(), 1e-6) if finite_z.size else 1.0
+        # z-scores beyond the scale get its end colors
         norm = TwoSlopeNorm(vmin=-z_abs_max, vcenter=0, vmax=z_abs_max)
 
         # apply the norm and colormap to the reprojected z-scores
