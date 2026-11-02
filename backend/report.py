@@ -220,7 +220,7 @@ def _heatmap_legend(legend, caption=None):
 
 def _kde_caption(caption):
     """The KDE caption with its display scale written out: "(x 1e+12)" becomes "(×10¹²)"."""
-    match = re.search(r"x\s*1e([+-]?\d+)", caption or "")
+    match = re.search(r"[x×]\s*1e([+-]?\d+)", caption or "")
     if not match:
         return "Incident density"
     power = str(int(match.group(1))).translate(str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹"))
