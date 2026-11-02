@@ -126,7 +126,8 @@ function BoardBar({
           ]}
           startIcon={<SelectAllIcon />}
           onClick={(e) => {
-            setDrawArea(true)
+            setSelectedId(null)
+            setDrawArea(!drawArea)
           }}
         >
           Areas Filter
@@ -152,7 +153,6 @@ function BoardBar({
             handleActive(e)
             setSelectedId(null)
             setRouteOn(false)
-            
           }}
         >
           {analysisOn ? 'Back to View Mode' : 'Analysis Mode'}
