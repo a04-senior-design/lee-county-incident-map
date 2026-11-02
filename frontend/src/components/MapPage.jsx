@@ -12,7 +12,8 @@ import dayjs from 'dayjs'
 import { useAuth } from '../Context/AuthContext'
 import MyAccountPop from './MyAccountPop/MyAccountPop'
 const today = dayjs()
-
+// Lee County, FL extent: west,south,east,north (lng,lat,lng,lat)
+const LEE_COUNTY_BBOX = '-82.335044,26.315610,-81.560813,26.790092'
 function cleanDuplicateId(incidentList) {
   const bucket = new Set()
   const newList = incidentList.filter((inc) => {
@@ -57,7 +58,7 @@ function MapPage() {
     today.subtract(7, 'day').format('YYYY-MM-DD'),
     today.format('YYYY-MM-DD')
   ])
-  const [timeRange, setTimeRange] = useState(['0:00', '0:00'])
+  const [timeRange, setTimeRange] = useState(['12:00', '12:00'])
   const [start_date, end_date] = dateRange
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
@@ -81,7 +82,7 @@ function MapPage() {
   const [drawArea, setDrawArea] = useState(false)
   const [areaBounds, setAreaBounds] = useState(null)
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
-
+  const effectiveBbox = bbox ?? LEE_COUNTY_BBOX
   const { token } = useAuth()
   const API_URL = import.meta.env.VITE_API_BASE_URL
   const [reportLoading, setReportLoading] = useState(false)
@@ -96,9 +97,12 @@ function MapPage() {
     setReportLoading(true)
     setIsLoading(true)
     try {
-      const params = new URLSearchParams({ from, to })
+      const params = new URLSearchParams({
+        from,
+        to
+        //bbox: useArea && bbox ? bbox : LEE_COUNTY_BBOX
+      })
       if (useArea && bbox) params.append('bbox', bbox)
-
       const res = await fetch(`${database}/reports?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -181,7 +185,9 @@ function MapPage() {
           const params = new URLSearchParams({
             from: fromDay,
             to: toDay,
+            mapped: 'true',
             limit: '5000'
+            //bbox: useArea && bbox ? bbox : LEE_COUNTY_BBOX
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name
           if (useArea && bbox) params.append('bbox', bbox)
@@ -194,6 +200,32 @@ function MapPage() {
 
           const page = await res.json()
           all = all.concat(page.incidents)
+          const withCoords = all.filter((i) => i.lat != null && i.lon != null)
+
+          // 1. suspicious coordinates (rough Lee County bounds, deliberately generous)
+          console.log(
+            'odd coords:',
+            withCoords.filter(
+              (i) =>
+                i.lat < 26.0 || i.lat > 27.2 || i.lon < -82.4 || i.lon > -81.2
+            ).length
+          )
+
+          // 2. count per day, to see if the first or last day is short
+          const byDay = {}
+          withCoords.forEach((i) => {
+            const d = i.occurred_at.slice(0, 10)
+            byDay[d] = (byDay[d] || 0) + 1
+          })
+          console.table(byDay)
+          const ids = all.map((i) => i.source_incident_id)
+          console.log({
+            raw: all.length,
+            uniqueIds: new Set(ids).size,
+            noId: ids.filter((id) => id == null).length,
+            noCoords: all.filter((i) => i.lat == null || i.lon == null).length,
+            noCategory: all.filter((i) => !i.category).length
+          })
           cursor = page.next_cursor
           count++
         } while (count < 1)

@@ -286,6 +286,8 @@ function MyAccountPop({
                       {`${item.created_at.split('T')[0]}`}
                     </Typography>
                   </Box>
+                  <Typography variant='h5'>Address can be here. Ex: 1234 ABC Drive</Typography>
+                  <Typography variant='h5'>Time can be here. Ex: Bi-weekly</Typography>
                   <Box sx={{ display: 'flex', gap: 2, mt: '20px' }}>
                     <Typography
                       variant='span'

@@ -132,7 +132,7 @@ function MapInfoBar({
       </Box>
       <Box
         sx={{
-          width: '400px',
+          width: '300px',
           '& .m_8fb7ebe7': {
             fontWeight: 500
           }
