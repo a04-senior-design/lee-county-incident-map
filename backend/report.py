@@ -13,10 +13,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 from matplotlib.cm import ScalarMappable
-from matplotlib.colors import BoundaryNorm, ListedColormap, Normalize
+from matplotlib.colors import ListedColormap, Normalize
 from matplotlib.patches import Patch
 
-import report_analytics
 from staticmap import StaticMap, CircleMarker
 from reportlab.platypus import KeepTogether
 from reportlab.lib.pagesizes import letter
@@ -30,7 +29,6 @@ from reportlab.platypus import (
 )
 
 _NAVY  = colors.HexColor("#1e3a5f")
-_BLUE  = "#2563eb"
 _LIGHT = colors.HexColor("#f0f4f8")
 _RULE  = colors.HexColor("#ddd")
 
@@ -686,188 +684,8 @@ def _save_chart(fig):
     return buf
 
 
-# Gi* bands, coldest to hottest: z-score cut-offs for 99/95/90% confidence either side of zero
-_GI_BOUNDS = [-4, -2.58, -1.96, -1.65, 1.65, 1.96, 2.58, 4]
-_GI_COLORS = ["#2166ac", "#67a9cf", "#d1e5f0", "#d9d9d9", "#fddbc7", "#ef8a62", "#b2182b"]
-_GI_LABELS = ["Cold 99%", "Cold 95%", "Cold 90%", "Not significant", "Hot 90%", "Hot 95%", "Hot 99%"]
-
-
-def _hotspot_chart(kde, gi_star):
-    """KDE density surface and Gi* z-score grid side by side, with the listed areas numbered."""
-    panels = [p for p in (kde, gi_star) if p and "error" not in p]
-    fig, axes = plt.subplots(1, len(panels), figsize=(7, 3.3), squeeze=False)
-    fig.patch.set_facecolor("#f8f9fa")
-
-    for ax, panel in zip(axes[0], panels):
-        ax.set_facecolor("#e9edf1")
-        x0, x1, y0, y1 = panel["extent"]
-        if panel is kde:
-            surface = panel["surface"]
-            shown = np.ma.masked_less(surface, 0.05 * surface.max())  # leave the quiet areas blank
-            image = ax.imshow(shown.T, origin="lower", extent=(x0, x1, y0, y1), cmap="YlOrRd")
-            cbar_label, title = "Relative density", "Incident density (KDE)"
-            marks = panel["hotspots"]
-        else:
-            # confidence bands, not a smooth scale: a busier-than-average cell that isn't
-            # significant stays grey, so the picture agrees with the text
-            z = np.ma.masked_invalid(np.clip(panel["z"], -_GI_BOUNDS[-1] + 0.01, _GI_BOUNDS[-1] - 0.01))
-            ax.set_facecolor(_BG)  # water / outside the county, distinct from grey "not significant"
-            image = ax.imshow(z.T, origin="lower", extent=(x0, x1, y0, y1),
-                              cmap=ListedColormap(_GI_COLORS), norm=BoundaryNorm(_GI_BOUNDS, len(_GI_COLORS)))
-            cbar_label, title = "Confidence", "Statistically significant hot spots (Gi*)"
-            marks = panel["areas"]
-
-        for m in marks:
-            ax.annotate(str(m["rank"]), (m["x"], m["y"]), ha="center", va="center", fontsize=8,
-                        fontweight="bold", color="white",
-                        bbox=dict(boxstyle="circle,pad=0.25", fc="#1e3a5f", ec="white", lw=1))
-        ax.set_title(title, fontsize=9, fontweight="bold", pad=6)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        cbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.03)
-        cbar.set_label(cbar_label, fontsize=7)
-        cbar.ax.tick_params(labelsize=6)
-        if panel is kde:
-            cbar.set_ticks([])
-        else:
-            cbar.set_ticks([(a + b) / 2 for a, b in zip(_GI_BOUNDS, _GI_BOUNDS[1:])])
-            cbar.set_ticklabels(_GI_LABELS)
-            cbar.ax.tick_params(length=0)
-
-    plt.tight_layout()
-    return _save_chart(fig)
-
-
-def _dbscan_chart(dbscan):
-    """Every incident, coloured by the tightest DBSCAN level it clusters at; noise in grey."""
-    xy = dbscan["xy"]
-    density = dbscan["density_levels"]
-
-    fig, ax = plt.subplots(figsize=(7, 3.6))
-    fig.patch.set_facecolor("#f8f9fa")
-    ax.set_facecolor("#e9edf1")
-
-    noise = density == -1
-    ax.scatter(xy[noise, 0], xy[noise, 1], s=3, color="#aaaaaa", linewidths=0,
-               label=f"Not clustered ({noise.sum():,})")
-    # levels run loosest to tightest, so the tightest is drawn last, on top
-    for k, level in enumerate(dbscan["levels"]):
-        keep = density == k
-        if keep.any():
-            ax.scatter(xy[keep, 0], xy[keep, 1], s=4, color=level["color"], linewidths=0,
-                       label=f"{level['name']} ({keep.sum():,})")
-
-    ax.set_aspect("equal")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.set_title("DBSCAN clusters by density level", fontsize=10, fontweight="bold", pad=8)
-    ax.legend(fontsize=7, loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False, markerscale=3)
-
-    plt.tight_layout()
-    return _save_chart(fig)
-
-
-def _kde_bandwidth_text(kde):
-    """'a 1,500 ft smoothing bandwidth', or one bandwidth per density level in by-level mode."""
-    if not kde["level_names"]:
-        return f"a {kde['bandwidths_ft'][0]:,.0f} ft smoothing bandwidth"
-    per_level = ", ".join(f"{name} {bw:,.0f} ft" for name, bw in zip(kde["level_names"], kde["bandwidths_ft"]))
-    return f"a separate smoothing bandwidth for each DBSCAN density level ({per_level})"
-
-
 def _sentence(text):
     return text[0].upper() + text[1:]
-
-
-def _place(item):
-    """'near Fort Myers (26.5434, -81.9148)' for a hotspot or cluster."""
-    coords = f"{item['lat']:.4f}, {item['lng']:.4f}"
-    return f"near {item['city']} ({coords})" if item.get("city") else coords
-
-
-def _analysis_flowables(analysis, h2_s, h3_s, body_s, note_s, params_tbl_style):
-    """Hotspot (KDE, Gi*) and cluster (DBSCAN) sections; each degrades to a one-line note."""
-    story = []
-    kde, gi_star, dbscan = analysis.get("kde"), analysis.get("gi_star"), analysis.get("dbscan")
-
-    # --- hotspots: KDE + Gi* ---
-    if kde or gi_star:
-        working = [p for p in (kde, gi_star) if p and "error" not in p]
-        heading = Paragraph("Hotspot Analysis", h2_s)
-        story.append(KeepTogether([heading, _chart_image(_hotspot_chart(kde, gi_star))]) if working else heading)
-        for name, panel in (("Kernel density (KDE)", kde), ("Getis-Ord Gi*", gi_star)):
-            if not panel:
-                continue
-            story.append(Paragraph(name, h3_s))
-            if "error" in panel:
-                story.append(Paragraph(_sentence(panel["error"]), note_s))
-                continue
-            if panel is kde:
-                story.append(Paragraph(
-                    f"Densest areas, using {_kde_bandwidth_text(panel)}. "
-                    f"Counts are incidents within {panel['radius_ft'] / 5280:.1f} mi of each peak.", note_s))
-                for h in panel["hotspots"]:
-                    story.append(Paragraph(
-                        f"<b>{h['rank']}.</b> {_sentence(_place(h))}: <b>{h['count']:,}</b> incidents "
-                        f"({h['share']:.0%} of the total)"
-                        + (f", most often {h['top_type']}" if h["top_type"] else "") + ".",
-                        body_s))
-            else:
-                story.append(Paragraph(
-                    f"<b>{panel['hot_cells_95']:,}</b> of {panel['cells_analyzed']:,} grid cells "
-                    f"({panel['cell_size_ft']:,} ft squares, {panel['distance_band_ft']:,.0f} ft neighbourhood) "
-                    f"are statistically significant hot spots at 95% confidence "
-                    f"({panel['hot_cells_99']:,} at 99%). Z-scores compare each cell with the rest of "
-                    f"this report's area, so the same place can score differently in a larger report.", note_s))
-                strongest = panel.get("strongest")
-                if not panel["areas"]:
-                    text = "No area is significantly hotter than the rest of the region."
-                    if strongest and strongest["z"] > 0:
-                        level = (f"significant only at 90% confidence, short of the {report_analytics.GI_Z_95} "
-                                 f"needed for 95%" if strongest["z"] >= report_analytics.GI_Z_90
-                                 else f"short of the {report_analytics.GI_Z_95} needed for 95% confidence")
-                        text += (f" The highest-scoring cell, {_place(strongest)}, reached a z-score of "
-                                 f"<b>{strongest['z']:.2f}</b> ({strongest['count']:,} incidents): {level}.")
-                    story.append(Paragraph(text, body_s))
-                for a in panel["areas"]:
-                    story.append(Paragraph(
-                        f"<b>{a['rank']}.</b> {_sentence(_place(a))}: peak z-score <b>{a['max_z']:.1f}</b> over "
-                        f"{a['cells']} cell{'s' if a['cells'] != 1 else ''}, <b>{a['count']:,}</b> incidents "
-                        f"({a['share']:.0%})"
-                        + (f", most often {a['top_type']}" if a["top_type"] else "") + ".",
-                        body_s))
-
-    # --- clusters: DBSCAN ---
-    if dbscan:
-        heading = Paragraph("DBSCAN Cluster Analysis", h2_s)
-        if "error" in dbscan:
-            story.append(heading)
-            story.append(Paragraph(_sentence(dbscan["error"]), note_s))
-        else:
-            story.append(KeepTogether([heading, _chart_image(_dbscan_chart(dbscan))]))
-            rows = [["Level", "Radius (ε)", "Min points", "Clusters", "Clustered", "Largest cluster"]]
-            for lvl in dbscan["levels"]:
-                top = lvl["top_clusters"][0] if lvl["top_clusters"] else None
-                largest = "—"
-                if top:
-                    largest = f"{top['size']:,} incidents"
-                    if top["city"]:
-                        largest += f", near {top['city']}"
-                rows.append([
-                    lvl["name"], f"{lvl['epsilon_ft']:,.0f} ft", str(lvl["min_pts"]), str(lvl["n_clusters"]),
-                    f"{lvl['clustered_share']:.0%}", Paragraph(largest, body_s),
-                ])
-            tbl = Table(rows, colWidths=[0.95*inch, 0.9*inch, 0.85*inch, 0.75*inch, 0.8*inch, 2.25*inch])
-            tbl.setStyle(params_tbl_style)
-            story.append(tbl)
-            story.append(Paragraph(
-                "Each level groups incidents that lie within the radius of at least the minimum number of others. "
-                "Wider levels find broad districts; tighter levels find street-scale concentrations.", note_s))
-    return story
 
 
 def _metadata_flowables(h2_s, tbl_style, label_s, value_s, rows):
@@ -878,15 +696,13 @@ def _metadata_flowables(h2_s, tbl_style, label_s, value_s, rows):
     ]
 
 
-def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses=None, settings=None):
+def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses=None):
     """Assemble and return a BytesIO PDF for the given filtered incidents.
 
     analyses -- the saved responses of the user's map runs, keyed "kde", "gi_star" and "dbscan",
                 each only when the user made one: the same JSON /api/v1/kde-heatmap,
                 /api/v1/gi-star-heatmap and /api/v1/clusters return. Each is drawn on its own
                 map of the report's area.
-    settings -- overlays to recompute and summarise, from report_analytics.settings_from_args(request.args);
-                None means none, so the report has no summary sections.
     filters  -- text describing the filters applied (e.g. "category: BURGLARY; city: FORT MYERS"),
                 recorded in the report details; None means no filters.
     """
@@ -908,10 +724,6 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
     footer_s = ParagraphStyle(
         "RFooter", parent=styles["Normal"],
         fontSize=7.5, textColor=colors.HexColor("#888"),
-    )
-    h3_s = ParagraphStyle(
-        "RH3", parent=styles["Heading3"],
-        fontSize=10, textColor=_NAVY, spaceBefore=8, spaceAfter=3,
     )
     body_s = ParagraphStyle(
         "RBody", parent=styles["Normal"],
@@ -1089,42 +901,14 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
             story.append(Paragraph(title, h2_s))
             story.append(Paragraph("Unavailable: the map could not be drawn.", note_s))
 
-    # Hotspot (KDE, Gi*) and cluster (DBSCAN) summaries
-    settings = settings or report_analytics.default_settings()
-    summarised = settings["analyses"]
-    analysis = report_analytics.analyze(incidents, run=summarised, settings=settings) if summarised else {}
-    header_tbl_style = TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, 0), _NAVY),
-        ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",      (0, 0), (-1, -1), 8.5),
-        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, _LIGHT]),
-        ("GRID",          (0, 0), (-1, -1), 0.5, _RULE),
-        ("ALIGN",         (1, 0), (4, -1), "CENTER"),
-        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ])
-    story.extend(_analysis_flowables(analysis, h2_s, h3_s, body_s, note_s, header_tbl_style))
-
     # Report details: everything needed to reproduce this report
     parameters = _run_parameters(analyses)
-    if "kde" in analysis and "error" not in analysis["kde"]:
-        parameters.append(f"KDE: {_kde_bandwidth_text(analysis['kde'])}")
-    if "gi_star" in analysis and "error" not in analysis["gi_star"]:
-        parameters.append(f"Gi* distance band {analysis['gi_star']['distance_band_ft']:,.0f} ft, "
-                          f"{analysis['gi_star']['cell_size_ft']:,} ft cells")
-    if "dbscan" in analysis and "error" not in analysis["dbscan"]:
-        parameters.append("DBSCAN " + "; ".join(
-            f"{l['name']} ε {l['epsilon_ft']:,.0f} ft, min {l['min_pts']}" for l in analysis["dbscan"]["levels"]))
     details = [
         ("Bounding coordinates",
          f"N {bounds['north']:.5f}°, S {bounds['south']:.5f}°, E {bounds['east']:.5f}°, W {bounds['west']:.5f}°"),
         ("Date range", days_label),
         ("Filters applied", filters or "None (all incident types and sources)"),
-        ("Incidents included", f"{len(incidents):,}"
-         + (f" ({analysis['left_out']:,} geocoded far outside the county are left out of the hotspot "
-            f"and cluster analyses)" if analysis.get("left_out") else "")),
+        ("Incidents included", f"{len(incidents):,}"),
         ("Analysis parameters", "<br/>".join(parameters) or "None (no hotspot or cluster overlay was created on the map)"),
         ("Generated", now.strftime("%B %d, %Y at %H:%M UTC")),
     ]
