@@ -245,8 +245,193 @@ def _cluster_legend(levels):
     return _save_chart(fig)
 
 
-def _analysis_maps(bounds, analyses):
-    """[(title, map PNG or None, legend PNG or None)] for each run the user sent, in DBSCAN, KDE, Gi* order."""
+# what each map shows, in plain words, printed under it
+_MAP_CAPTIONS = {
+    "dbscan": "DBSCAN finds clusters: places where many incidents happened close together. Each shaded "
+              "shape is one cluster, found at up to three scales: District (broad areas), Neighborhood, "
+              "and Street (tight, block-level concentrations). Incidents outside every shape are not part "
+              "of any cluster.",
+    "kde": "KDE (kernel density estimation) shows how concentrated incidents are. Each incident adds a "
+           "little density to the area around it, so places with more incidents nearby go from blue "
+           "(fewer) through yellow to red (most). It shows where incidents pile up, not whether that is unusual.",
+    "gi_star": "Gi* (Getis-Ord) tests whether an area has more incidents than expected compared with the "
+               "rest of the map. Yellow to red areas are hot spots (more than expected, red the strongest), "
+               "blue areas are cold spots (fewer), and white is about as expected. The z-score shows how "
+               "strong that is: beyond ±1.96 is statistically significant at 95% confidence.",
+}
+
+
+_FT_PER_DEGREE = 364_000  # feet per degree of latitude, near enough for distances across the county
+_SPOTS = 3
+# below this many incidents in the report's area, the densest spots are only an incident or two
+# each, so the maps go in without their list
+_MIN_INCIDENTS_FOR_SPOTS = 25
+_MIN_SPOT_INCIDENTS = 3  # a listed spot has at least this many incidents around it
+_GI_SIGNIFICANT = 1.96  # z-score for 95% confidence; weaker Gi* areas aren't listed
+
+
+def _map_values(response, bounds):
+    """The value under each colored pixel of a KDE or Gi* image, read back through its legend's colors.
+
+    The image is in latitude/longitude, stretched between its bounds, and the legend samples the
+    color scale evenly from vmin to vmax, so a pixel's nearest legend color gives its value.
+    Returns (values, lats, lngs, top), values NaN where the map shows nothing or is outside `bounds`;
+    the scale often ends in one flat color, so a value of `top` or more reads only as "at least top"."""
+    legend, box = response["legend"], response["bounds"]
+    png_bytes = base64.b64decode(response["image"].split(",", 1)[1])
+    rgba = np.asarray(PILImage.open(io.BytesIO(png_bytes)).convert("RGBA")).astype(np.int64)
+    height, width = rgba.shape[:2]
+    lats = box["north"] - (np.arange(height) + 0.5) / height * (box["north"] - box["south"])
+    lngs = box["west"] + (np.arange(width) + 0.5) / width * (box["east"] - box["west"])
+
+    palette = np.array([ImageColor.getrgb(c)[:3] for c in legend["colors"]])
+    packed = (rgba[..., 0] << 16) | (rgba[..., 1] << 8) | rgba[..., 2]
+    shown = rgba[..., 3] > 0
+    shown &= ((lats >= bounds["south"]) & (lats <= bounds["north"]))[:, None]
+    shown &= ((lngs >= bounds["west"]) & (lngs <= bounds["east"]))[None, :]
+    step = (legend["vmax"] - legend["vmin"]) / (len(palette) - 1)
+    flat = (palette == palette[-1]).all(axis=1)
+    top_index = len(palette) - 1
+    while top_index > 0 and flat[top_index - 1]:
+        top_index -= 1
+    values = np.full((height, width), np.nan)
+    if shown.any():
+        colors, which = np.unique(packed[shown], return_inverse=True)
+        rgb = np.stack([colors >> 16, (colors >> 8) & 255, colors & 255], axis=1)
+        nearest = ((rgb[:, None, :] - palette[None, :, :]) ** 2).sum(axis=2).argmin(axis=1)
+        values[shown] = legend["vmin"] + nearest[which.ravel()] * step
+    return values, lats, lngs, legend["vmin"] + top_index * step
+
+
+def _distance_ft(lat, lng, lats, lngs):
+    return np.hypot((lats - lat) * _FT_PER_DEGREE, (lngs - lng) * _FT_PER_DEGREE * math.cos(math.radians(lat)))
+
+
+def _top_spots(values, lats, lngs, apart_ft, n=_SPOTS):
+    """The highest points on the map, each at least apart_ft from the others, highest first: [(lat, lng, value)].
+    The first n are the top n; a few more follow so ties with the nth can be told apart.
+
+    Spots with the same reading, as on a scale's flat top color, rank by how big their patch of it is."""
+    values = values.copy()
+    grid_lat, grid_lng = np.meshgrid(lats, lngs, indexing="ij")
+    found = []
+    while len(found) < 5 * n and not np.isnan(values).all():
+        row, col = np.unravel_index(np.nanargmax(values), values.shape)
+        peak = values[row, col]
+        near = _distance_ft(lats[row], lngs[col], grid_lat, grid_lng) < apart_ft
+        # the peak color often covers a patch, so take its middle
+        top = near & (values >= peak)
+        found.append((peak, top.sum(), grid_lat[top].mean(), grid_lng[top].mean()))
+        values[near] = np.nan
+    found.sort(key=lambda spot: spot[:2], reverse=True)
+    return [(lat, lng, peak) for peak, _, lat, lng in found]
+
+
+def _nearby(lat, lng, incidents, radius_ft):
+    """The incidents within radius_ft of a spot, and 'near Fort Myers ' from their most common city."""
+    nearby = [i for i in incidents if i.get("lat") is not None and i.get("lng") is not None
+              and _distance_ft(lat, lng, float(i["lat"]), float(i["lng"])) <= radius_ft]
+    cities = Counter((i.get("city") or "").strip().title() for i in nearby if (i.get("city") or "").strip())
+    return nearby, f"near {cities.most_common(1)[0][0]} " if cities else ""
+
+
+def _spot_text(rank, lat, lng, incidents, radius_ft, value_text):
+    """'1. Near Fort Myers (26.6406, -81.8723): <value>; 85 incidents within 1,500 ft, most often Theft.'"""
+    nearby, place = _nearby(lat, lng, incidents, radius_ft)
+    text = f"<b>{rank}.</b> {_sentence(place) if place else ''}({lat:.4f}, {lng:.4f}): {value_text}; " \
+           f"<b>{len(nearby):,}</b> incident{'s' if len(nearby) != 1 else ''} within {radius_ft:,.0f} ft"
+    if nearby:
+        text += f", most often {_type_label(Counter(_type_key(i) for i in nearby).most_common(1)[0][0])}"
+    return text + "."
+
+
+def _gi_confidence(z):
+    return f"a hot spot at {'99%' if z >= 2.58 else '95%'} confidence"
+
+
+def _map_spots(kind, response, bounds, incidents):
+    """The densest KDE spots or strongest Gi* hot spots the map shows, as report paragraphs' text."""
+    radius = max(response.get("bandwidths") or [1500]) if kind == "kde" else response.get("distance_band") or 5280
+    values, lats, lngs, top = _map_values(response, bounds)
+    if kind == "gi_star":
+        values[values < _GI_SIGNIFICANT] = np.nan  # only significant hot spots
+    # a spot with hardly any incidents around it is the edge of someone else's peak, not a place worth naming
+    found = [(lat, lng, value) for lat, lng, value in _top_spots(values, lats, lngs, apart_ft=max(2 * radius, 5280))
+             if len(_nearby(lat, lng, incidents, radius)[0]) >= _MIN_SPOT_INCIDENTS]
+    spots = found[:_SPOTS]
+    if not spots:
+        if kind == "gi_star":
+            return ["No statistically significant hot spots: no area on this map has more incidents than "
+                    f"expected at 95% confidence (z-score {_GI_SIGNIFICANT} or higher)."]
+        return []
+    count = f"{len(spots)} " if len(spots) > 1 else ""
+    if kind == "kde":
+        heading = f"The {count}densest spot{'s' if len(spots) > 1 else ''} on this map " \
+                  "(density read from its colors, in the legend's units):"
+    else:
+        heading = f"The {count}strongest hot spot{'s' if len(spots) > 1 else ''} on this map " \
+                  "(z-score read from its colors):"
+    lines = [heading]
+    vmin, vmax = response["legend"]["vmin"], response["legend"]["vmax"]
+    flat_top = vmax - top > 0.02 * (vmax - vmin)  # Gi*'s red covers its top few tenths
+    for rank, (lat, lng, value) in enumerate(spots, 1):
+        number = f"{value:.2f}" if kind == "gi_star" else f"{float(f'{value:.3g}'):,g}"
+        if flat_top and value >= top:
+            number += " or higher (the top of the color scale)"
+        if kind == "kde":
+            value_text = f"density <b>{number}</b>"
+        else:
+            value_text = f"z-score <b>{number}</b>, {_gi_confidence(value)}"
+        lines.append(_spot_text(rank, lat, lng, incidents, radius, value_text))
+    # areas past the last listed one that read just as high, so the list doesn't hide them
+    tied = [(lat, lng) for lat, lng, value in found[_SPOTS:] if flat_top and value >= top]
+    if tied:
+        places = "; ".join(f"{_nearby(lat, lng, incidents, radius)[1]}({lat:.4f}, {lng:.4f})" for lat, lng in tied)
+        lines.append(f"{len(tied)} more area{'s' if len(tied) != 1 else ''} also reach{'' if len(tied) != 1 else 'es'} "
+                     f"the top of the color scale, with smaller patches: {places}.")
+    return lines
+
+
+def _run_parameters(analyses):
+    """The settings each of the user's runs was made with, one line per run, for the report details."""
+    analyses = analyses or {}
+    lines = []
+    dbscan = analyses.get("dbscan")
+    if dbscan:
+        try:
+            levels = dbscan["frames"][0]["levels"]
+            configs = dbscan.get("level_configs") or {}
+            parts = []
+            for level in _level_order(levels):
+                meta = levels[level].get("metadata") or {}
+                eps = meta.get("eps", (configs.get(level) or {}).get("epsilon"))
+                min_pts = meta.get("min_pts", (configs.get(level) or {}).get("min_pts"))
+                part = f"{_LEVEL_LABELS.get(level, level.title())} ε {eps:,.0f} ft, min {min_pts} points"
+                if "n_clusters" in meta:
+                    part += f", {meta['n_clusters']} cluster{'s' if meta['n_clusters'] != 1 else ''}"
+                parts.append(part)
+            lines.append("DBSCAN: " + "; ".join(parts))
+        except Exception:
+            pass
+    kde = analyses.get("kde")
+    if kde and kde.get("bandwidths"):
+        bandwidths = kde["bandwidths"]
+        if kde.get("cluster_set") == 1 and len(bandwidths) == len(_LEVEL_DRAW_ORDER):
+            # by cluster density level: one bandwidth per level, loosest level first
+            text = ", ".join(f"{_LEVEL_LABELS[lvl]} {bw:,.0f} ft" for lvl, bw in zip(_LEVEL_DRAW_ORDER, bandwidths))
+        else:
+            text = ", ".join(f"{bw:,.0f} ft" for bw in bandwidths)
+        mode = _KDE_SETS.get(kde.get("cluster_set"))
+        lines.append(f"KDE{f' ({mode})' if mode else ''}: bandwidth {text}")
+    gi_star = analyses.get("gi_star")
+    if gi_star and gi_star.get("distance_band") is not None:
+        lines.append(f"Gi*: distance band {gi_star['distance_band']:,.0f} ft")
+    return lines
+
+
+def _analysis_maps(bounds, analyses, incidents):
+    """[(title, map PNG or None, legend PNG or None, caption, [spot lines])] for each run the user sent,
+    in DBSCAN, KDE, Gi* order."""
     maps = []
     for kind, title in (("dbscan", "DBSCAN Clusters"), ("kde", "KDE Heatmap"), ("gi_star", "Gi* Heatmap")):
         response = (analyses or {}).get(kind)
@@ -269,7 +454,16 @@ def _analysis_maps(bounds, analyses):
                     legend = _heatmap_legend(response["legend"])
         except Exception:
             png = None  # no map tiles, or a response the report can't read
-        maps.append((title, png, legend if png else None))
+        spots = []
+        if png and kind != "dbscan" and len(incidents) < _MIN_INCIDENTS_FOR_SPOTS:
+            spots = [f"Only {len(incidents)} incident{'s' if len(incidents) != 1 else ''} in this area, too few "
+                     f"to single out its {'densest spots' if kind == 'kde' else 'hot spots'}."]
+        elif png and kind != "dbscan" and response.get("legend"):
+            try:
+                spots = _map_spots(kind, response, bounds, incidents)
+            except Exception:
+                spots = []  # the map still goes in without its list
+        maps.append((title, png, legend if png else None, _MAP_CAPTIONS[kind], spots))
     return maps
 
 
@@ -883,11 +1077,13 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
     story.append(breakdown)
 
     # Analysis maps: the KDE / Gi* / DBSCAN runs the user made on the map
-    for title, png, legend in _analysis_maps(bounds, analyses):
+    for title, png, legend, caption, spots in _analysis_maps(bounds, analyses, incidents):
         if png:
             parts = [Paragraph(title, h2_s), Image(png, width=6.5*inch, height=3.9*inch)]
             if legend:
                 parts += [Spacer(1, 4), _chart_image(legend, width=ImageReader(legend).getSize()[0] / 150 * inch)]
+            parts.append(Paragraph(caption, note_s))
+            parts += [Paragraph(line, body_s) for line in spots]
             story.append(KeepTogether(parts))
         else:
             story.append(Paragraph(title, h2_s))
@@ -912,7 +1108,7 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
     story.extend(_analysis_flowables(analysis, h2_s, h3_s, body_s, note_s, header_tbl_style))
 
     # Report details: everything needed to reproduce this report
-    parameters = []
+    parameters = _run_parameters(analyses)
     if "kde" in analysis and "error" not in analysis["kde"]:
         parameters.append(f"KDE: {_kde_bandwidth_text(analysis['kde'])}")
     if "gi_star" in analysis and "error" not in analysis["gi_star"]:
