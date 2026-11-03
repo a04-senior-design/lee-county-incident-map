@@ -938,7 +938,7 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
 if __name__ == "__main__":
     # Build a report from map responses saved off the live site, to test without running the API.
     # The folder holds any of clusters.json, kde.json and gi_star.json, copied from devtools;
-    # the incidents for the dates come from the live API.
+    # the incidents for the dates, and for --bbox if the site sent one, come from the live API.
     import argparse
     import json
     import os
@@ -950,12 +950,15 @@ if __name__ == "__main__":
     parser.add_argument("folder")
     parser.add_argument("--from", dest="start", required=True, type=datetime.date.fromisoformat)
     parser.add_argument("--to", dest="end", required=True, type=datetime.date.fromisoformat)
+    parser.add_argument("--bbox", help="the bbox from the site's requests: west,south,east,north")
     parser.add_argument("--api", default="https://leecountyincidentmap.com/api/v1")
     args = parser.parse_args()
 
     rows, cursor = [], None
     while True:
         query = {"from": args.start, "to": args.end, "mapped": "true", "limit": 5000}
+        if args.bbox:
+            query["bbox"] = args.bbox
         if cursor:
             query["cursor"] = cursor
         with urllib.request.urlopen(f"{args.api}/incidents?{urllib.parse.urlencode(query)}") as response:
