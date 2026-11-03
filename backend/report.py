@@ -934,3 +934,61 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
     doc.build(story)
     buf.seek(0)
     return buf
+
+if __name__ == "__main__":
+    # Build a report from map responses saved off the live site, to test without running the API.
+    # The folder holds any of clusters.json, kde.json and gi_star.json, copied from devtools;
+    # the incidents for the dates come from the live API.
+    import argparse
+    import json
+    import os
+    import urllib.parse
+    import urllib.request
+    from zoneinfo import ZoneInfo
+
+    parser = argparse.ArgumentParser(description="Build a report from map responses saved off the site.")
+    parser.add_argument("folder")
+    parser.add_argument("--from", dest="start", required=True, type=datetime.date.fromisoformat)
+    parser.add_argument("--to", dest="end", required=True, type=datetime.date.fromisoformat)
+    parser.add_argument("--api", default="https://leecountyincidentmap.com/api/v1")
+    args = parser.parse_args()
+
+    rows, cursor = [], None
+    while True:
+        query = {"from": args.start, "to": args.end, "mapped": "true", "limit": 5000}
+        if cursor:
+            query["cursor"] = cursor
+        with urllib.request.urlopen(f"{args.api}/incidents?{urllib.parse.urlencode(query)}") as response:
+            page = json.load(response)
+        rows += page["incidents"]
+        cursor = page["next_cursor"]
+        if not cursor:
+            break
+
+    # the same incidents, map area and analyses the /reports route passes
+    eastern = ZoneInfo("America/New_York")
+    incidents = [{
+        "nature": r["category"],
+        "city": r["city"],
+        "lat": r["lat"],
+        "lng": r["lon"],
+        "occuredDate": datetime.datetime.fromisoformat(r["occurred_at"]).astimezone(eastern).isoformat(),
+    } for r in rows]
+    pad = 0.01
+    bounds = {
+        "north": max(i["lat"] for i in incidents) + pad,
+        "south": min(i["lat"] for i in incidents) - pad,
+        "east": max(i["lng"] for i in incidents) + pad,
+        "west": min(i["lng"] for i in incidents) - pad,
+    }
+    analyses = {}
+    for name, file in (("dbscan", "clusters.json"), ("kde", "kde.json"), ("gi_star", "gi_star.json")):
+        path = os.path.join(args.folder, file)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                analyses[name] = json.load(f)
+
+    out = os.path.join(args.folder, "report.pdf")
+    with open(out, "wb") as f:
+        f.write(generate_pdf(incidents, bounds, args.start, args.end, analyses=analyses).read())
+    print(f"{len(incidents):,} incidents, maps: {', '.join(analyses) or 'none'} -> {out}")
