@@ -43,7 +43,7 @@ def test_dates_and_filters_work_as_on_the_kde_heatmap(client):
 
 
 ANIMATION = "/api/v1/animation/gi-star-heatmap"
-JUNE = "start_date=2026-06-10&end_date=2026-06-20&window_length=5D&time_step=5D&distance_band=2500"
+JUNE = "start_date=2026-06-10&end_date=2026-06-19&window_length=5D&time_step=5D&distance_band=2500"
 
 
 def test_animation_frames_share_one_grid(client):

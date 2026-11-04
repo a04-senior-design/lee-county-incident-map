@@ -15,7 +15,7 @@ from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
 
 from leecad_api import filters, queries, runs
-from leecad_api.kde_routes import DEFAULT_BANDWIDTH, MAX_BANDWIDTH, MIN_BANDWIDTH, _png_to_base64, _utc
+from leecad_api.kde_routes import DEFAULT_BANDWIDTH, MAX_BANDWIDTH, MIN_BANDWIDTH, _png_to_base64
 
 bp = Blueprint("dbscan", __name__)
 
@@ -56,10 +56,12 @@ def animation_dbscan():
     run_id, densities_dir = runs.new_run_dir()
 
     try:
+        start_date = filters.eastern_time(start_date, "start_date")
+        end_date = filters.eastern_time(end_date, "end_date", end=True)
         level_configs = _parse_dbscan_level_overrides(request.args)
         with current_app.pool.connection() as conn:
             incidents = conn.execute(*queries.mapped_incidents_between(
-                filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
+                filters.parse_without_dates(request.args), start_date, end_date
             )).fetchall()
         frames = build_dbscan_snapshots(
             start_date=start_date,
@@ -149,8 +151,8 @@ def clusters():
     try:
         # DBSCAN memory grows with the square of the point count, so instead of every incident
         # the range defaults to the last 30 days and is capped at 60
-        end = _utc(end_date) if end_date else pd.Timestamp.now(tz="UTC")
-        start = _utc(start_date) if start_date else end - pd.Timedelta(days=30)
+        end = filters.eastern_time(end_date, "end_date", end=True) if end_date else pd.Timestamp.now(tz="UTC")
+        start = filters.eastern_time(start_date, "start_date") if start_date else end - pd.Timedelta(days=30)
         if end - start > pd.Timedelta(days=60):
             raise ValueError("at most 60 days per request")
         with current_app.pool.connection() as conn:

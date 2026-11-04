@@ -24,12 +24,6 @@ CLUSTER_SET_LABELS = [
     "KDE Heat Map (by cluster density level)",
 ]
 
-def _utc(value: str) -> pd.Timestamp:
-    # dates are read as UTC, like build_time_windows() does with the stored timestamps
-    timestamp = pd.Timestamp(value)
-    return timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp
-
-
 def load_points() -> np.ndarray:
     """
     Load the mapped incidents from the database and return a (N, 2)
@@ -39,8 +33,8 @@ def load_points() -> np.ndarray:
     # optional; without them every mapped incident is used
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
-    start = _utc(start_date) if start_date else None
-    end = _utc(end_date) if end_date else None
+    start = filters.eastern_time(start_date, "start_date") if start_date else None
+    end = filters.eastern_time(end_date, "end_date", end=True) if end_date else None
 
     with current_app.pool.connection() as conn:
         rows = conn.execute(*queries.mapped_points(
@@ -71,15 +65,17 @@ def _parse_time_window_args(args):
     """Read the time-windowing query params shared by the animation routes.
 
     Returns (start_date, end_date, window_length, time_step).
-    start_date and end_date are returned as strings, or None if not sent.
+    start_date and end_date are returned as Eastern datetimes (see
+    filters.eastern_time()), or None if not sent.
     window_length and time_step are converted with to_offset(), or None
     if not sent.
 
-    Raises ValueError if window_length or time_step isn't a valid offset
-    (e.g. "abc"), so call it inside the route's try/except ValueError.
+    Raises ValueError if a date or time can't be read, or if window_length
+    or time_step isn't a valid offset (e.g. "abc"), so call it inside the
+    route's try/except ValueError.
     """
-    start_date = args.get("start_date") or None 
-    end_date = args.get("end_date") or None 
+    start_date = filters.eastern_time(args["start_date"], "start_date") if args.get("start_date") else None
+    end_date = filters.eastern_time(args["end_date"], "end_date", end=True) if args.get("end_date") else None
 
     window_length = args.get("window_length")
     if window_length:
@@ -253,7 +249,7 @@ def kde_heatmap_animation():
             start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
             with current_app.pool.connection() as conn:
                 incidents = conn.execute(*queries.mapped_incidents_between(
-                    filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
+                    filters.parse_without_dates(request.args), start_date, end_date
                 )).fetchall()
             frames, legend = build_kde_heatmap_snapshots(
                 start_date=start_date,
