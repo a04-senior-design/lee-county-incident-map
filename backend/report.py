@@ -170,17 +170,35 @@ def _clusters_on_map(bounds, levels):
     base, zoom, center = _base_map(bounds)
     for level in _level_order(levels):
         fill_a, line_a, width = _LEVEL_STYLES.get(level, (0.14, 0.65, 2))
-        layer = PILImage.new("RGBA", base.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(layer)
+        fill, line = round(255 * fill_a), round(255 * line_a)
         for feature in _cluster_polygons(levels[level]):
             geom = feature["geometry"]
-            rings = [geom["coordinates"][0]] if geom["type"] == "Polygon" else [p[0] for p in geom["coordinates"]]
-            rgb = ImageColor.getrgb(feature.get("properties", {}).get("color", "#555555"))[:3]
-            for ring in rings:
-                pts = [_px(lng, lat, zoom, center) for lng, lat in ring]
-                draw.polygon(pts, fill=rgb + (round(255 * fill_a),))
-                draw.line(pts + pts[:1], fill=rgb + (round(255 * line_a),), width=width)
-        base.alpha_composite(layer)
+            # DBSCANCluster.to_geojson emits unary_union(...) shapes: a Polygon or MultiPolygon whose
+            # coordinates are [exterior, hole, hole, ...] per polygon
+            polygons = [geom["coordinates"]] if geom["type"] == "Polygon" else geom["coordinates"]
+            rgb = ImageColor.getrgb((feature.get("properties") or {}).get("color", "#555555"))[:3]
+            for exterior, *holes in polygons:
+                outer = [_px(lng, lat, zoom, center) for lng, lat in exterior]
+                # Each polygon is drawn on its own small layer and composited, never drawn straight onto a
+                # shared one (ImageDraw overwrites pixels), so where clusters overlap their opacities add up
+                # and cutting a hole out can't erase a neighbouring cluster.
+                x0 = max(math.floor(min(x for x, _ in outer)) - width, 0)
+                y0 = max(math.floor(min(y for _, y in outer)) - width, 0)
+                x1 = min(math.ceil(max(x for x, _ in outer)) + width + 1, base.width)
+                y1 = min(math.ceil(max(y for _, y in outer)) + width + 1, base.height)
+                if x1 <= x0 or y1 <= y0:
+                    continue  # entirely outside the report's frame
+                piece = PILImage.new("RGBA", (x1 - x0, y1 - y0), (0, 0, 0, 0))
+                piece_draw = ImageDraw.Draw(piece)
+                outer = [(x - x0, y - y0) for x, y in outer]
+                inner = [[(x - x0, y - y0) for x, y in (_px(lng, lat, zoom, center) for lng, lat in hole)]
+                         for hole in holes]
+                piece_draw.polygon(outer, fill=rgb + (fill,))
+                for pts in inner:
+                    piece_draw.polygon(pts, fill=(0, 0, 0, 0))
+                for pts in [outer] + inner:
+                    piece_draw.line(pts + pts[:1], fill=rgb + (line,), width=width)
+                base.alpha_composite(piece, (x0, y0))
     return _png(base)
 
 
@@ -230,7 +248,7 @@ def _cluster_legend(levels):
     for level in _level_order(levels):
         polygons = _cluster_polygons(levels[level])
         if polygons:
-            color = polygons[0].get("properties", {}).get("color", "#555555")
+            color = (polygons[0].get("properties") or {}).get("color", "#555555")
             handles.append(Patch(facecolor=color, edgecolor=color, label=_LEVEL_LABELS.get(level, level.title())))
     if not handles:
         return None
