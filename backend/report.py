@@ -82,14 +82,11 @@ def _map_snapshot(incidents, bounds):
         return None
 
 
-# ---- analysis maps: the user's own KDE / Gi* / DBSCAN runs ----
-#
-# The route hands over the JSON response each map route sent, so the report shows exactly what the user saw:
-#   KDE, Gi*  "image" is the PNG as a data URL, "bounds" places it
-#   DBSCAN    the /clusters response; frames[0]["levels"] is {level: GeoJSON}
+# analysis maps: the user's own KDE / Gi* / DBSCAN runs
+# The route hands over the JSON response each map route sent, so the report shows exactly what the user saw
 
 _MAP_SIZE = (750, 450)
-_OVERLAY_OPACITY = 0.8  # L.imageOverlay(..., {opacity: 0.8}) in Analysis.jsx
+_OVERLAY_OPACITY = 0.8 
 # Analysis.jsx draws the loosest level first; (fill alpha, outline alpha, outline width) per level
 _LEVEL_DRAW_ORDER = ["district", "neighborhood", "street"]
 _LEVEL_STYLES = {"district": (0.07, 0.45, 1), "neighborhood": (0.14, 0.65, 2), "street": (0.26, 0.85, 2)}
@@ -272,9 +269,8 @@ def _map_values(response, bounds):
     """The value under each colored pixel of a KDE or Gi* image, read back through its legend's colors.
 
     The image is in latitude/longitude, stretched between its bounds, and the legend samples the
-    color scale evenly from vmin to vmax, so a pixel's nearest legend color gives its value.
-    Returns (values, lats, lngs, top), values NaN where the map shows nothing or is outside `bounds`;
-    the scale often ends in one flat color, so a value of `top` or more reads only as "at least top"."""
+    color scale evenly from vmin to vmax, so a pixel's nearest legend color gives its value."""
+
     legend, box = response["legend"], response["bounds"]
     png_bytes = base64.b64decode(response["image"].split(",", 1)[1])
     rgba = np.asarray(PILImage.open(io.BytesIO(png_bytes)).convert("RGBA")).astype(np.int64)
@@ -515,6 +511,26 @@ def _type_color(key):
     return _REST_COLOR if key == _REST else _NATURE_COLORS.get(key, "#7f8c8d")
 
 
+def _published_through(incidents, end_date):
+    """The last day the Sheriff's incident log reaches, when a recent report runs past it; else None.
+    Traffic comes from a live feed, everything else from a log published 48 hours late, so the
+    last days of a recent report hold Traffic only."""
+    if end_date < datetime.date.today() - datetime.timedelta(days=3):
+        return None  # an older report: the log has caught up
+
+    last = None
+    for inc in incidents:
+        if _type_key(inc) == "traffic":
+            continue
+        d = _parse_date(inc)
+        if d and (last is None or d.date() > last):
+            last = d.date()
+
+    if last is None or last >= end_date:
+        return None
+    return last
+
+
 def _stack_keys(top, incidents):
     """The top types, then the grey 'all other types' band if anything falls outside them."""
     rest = any(_type_key(inc) not in top for inc in incidents)
@@ -596,8 +612,9 @@ def _city_chart(incidents, top):
     return _save_chart(fig)
 
 
-def _line_chart(incidents, start_date, end_date, top):
-    """Stacked area over time, split into the top incident types; weekly once the range passes ~3 months."""
+def _line_chart(incidents, start_date, end_date, top, published_through=None):
+    """Stacked area over time, split into the top incident types; weekly once the range passes ~3 months.
+    Days after published_through are shaded, and left out of the average."""
     num_days = (end_date - start_date).days
     weekly = num_days > 92
     step = 7 if weekly else 1
@@ -619,9 +636,19 @@ def _line_chart(incidents, start_date, end_date, top):
     ax.stackplot(periods, [counts[k] for k in keys], colors=[_type_color(k) for k in keys],
                  edgecolor="white", linewidth=0.3)
     totals = sum(counts.values())
-    avg = totals.mean() if len(totals) else 0
+    complete = []  # each period's total, leaving out the days not yet published
+    for period, period_total in zip(periods, totals):
+        if published_through is None or period <= published_through:
+            complete.append(period_total)
+    avg = sum(complete) / len(complete) if complete else 0
     ax.axhline(avg, color="#333", linestyle="--", linewidth=0.8)
     ax.text(periods[-1], avg, f" avg {avg:.0f}", va="bottom", ha="right", fontsize=7, color="#333")
+    if published_through:
+        pending = datetime.datetime.combine(published_through, datetime.time(12))
+        ax.axvspan(pending, periods[-1], color="#999", alpha=0.15, linewidth=0)
+        ax.text(pending + (datetime.datetime.combine(periods[-1], datetime.time()) - pending) / 2,
+                ax.get_ylim()[1] * 0.95, "Traffic only:\nothers not yet published",
+                ha="center", va="top", fontsize=7, style="italic", color="#555")
 
     unit = "week" if weekly else "day"
     ax.set_title(f"Incidents per {unit}, split by type", fontsize=10.5, fontweight="bold", pad=10, loc="left")
@@ -632,7 +659,7 @@ def _line_chart(incidents, start_date, end_date, top):
 
     _legend_below(fig, keys)
     plt.tight_layout(rect=(0, 0.1, 1, 1))
-    return _save_chart(fig), unit, totals, periods
+    return _save_chart(fig), unit, totals, periods, avg
 
 
 def _timing_chart(incidents, top):
@@ -843,12 +870,22 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
         story.append(Spacer(1, 0.05 * inch))
 
     # Trend over time
-    trend_png, unit, per_period, periods = _line_chart(incidents, start_date, end_date, top_types)
+    published = _published_through(incidents, end_date)
+    if published:
+        first, days = published + datetime.timedelta(days=1), (end_date - published).days
+        span = f"{first:%b %d}" if days == 1 else f"{first:%b %d} – {end_date:%b %d}"
+        pending_note = (f" <b>{span}</b> {'shows' if days == 1 else 'show'} Traffic only: the other types "
+                        "are not yet published for those days. Traffic comes from the Sheriff's live traffic feed; "
+                        "everything else comes from its incident log, which is published 48 hours late.")
+    trend_png, unit, per_period, periods, avg = _line_chart(incidents, start_date, end_date, top_types, published)
     if per_period.any():
         peak = int(per_period.argmax())
         when = f"the week of {periods[peak]:%b %d}" if unit == "week" else f"{periods[peak]:%A, %b %d}"
-        caption = (f"An average of <b>{per_period.mean():.1f}</b> incidents per {unit} (dashed line). "
+        caption = (f"An average of <b>{avg:.1f}</b> incidents per {unit} (dashed line"
+                   f"{', not counting the shaded days' if published else ''}). "
                    f"The busiest {unit} was <b>{when}</b>, with {int(per_period[peak]):,}.")
+        if published:
+            caption += pending_note
     else:
         caption = "No incidents with a usable date in this period."
     story.append(chart_block(f"{'Weekly' if unit == 'week' else 'Daily'} Incident Trend", trend_png, caption))
@@ -862,6 +899,9 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
         caption = (f"The busiest hour is <b>{_hour_label(h)}–{_hour_label((h + 1) % 24)}</b> "
                    f"({int(per_hour[h]):,} incidents) and the busiest day is <b>{day}</b> "
                    f"({int(per_day.max()):,}). Times are Eastern.")
+        if published:
+            caption += (f" {span} {'holds' if days == 1 else 'hold'} Traffic only so far, "
+                        "so the days of the week they fall on are short of the other types.")
     else:
         caption = "No incidents with a usable time in this period."
     story.append(chart_block("Incident Timing", timing_png, caption))
