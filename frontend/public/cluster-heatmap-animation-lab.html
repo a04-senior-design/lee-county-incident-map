@@ -840,12 +840,15 @@
       fmt(new Date(todayDate.getFullYear() - 1, 11, 31))]},
   ];
 
-  // hour/minute for each end of the range; 00:00 (midnight) unless the user picks otherwise
-  const times = {start: {hour: 0, minute: 0}, end: {hour: 0, minute: 0}};
+  // hour/minute for each end of the range; start defaults to 00:00, end to 23:59 (an end of 00:00 would
+  // exclude the last day of the range)
+  const defaultTimes = {start: {hour: 0, minute: 0}, end: {hour: 23, minute: 59}};
+  const times = {start: {...defaultTimes.start}, end: {...defaultTimes.end}};
   const timeStr = t => `${pad(t.hour)}:${pad(t.minute)}`;
   const withTime = (dateStr, which) => dateStr ? `${dateStr} ${timeStr(times[which])}` : "";
-  // the input only shows a time when it isn't the midnight default
-  const label = (dateStr, which) => !dateStr ? "" : (times[which].hour || times[which].minute) ? withTime(dateStr, which) : dateStr;
+  // the input only shows a time when it isn't the default
+  const label = (dateStr, which) => !dateStr ? "" :
+    (times[which].hour !== defaultTimes[which].hour || times[which].minute !== defaultTimes[which].minute) ? withTime(dateStr, which) : dateStr;
 
   for (const row of document.querySelectorAll("#date-times .time-row")) {
     const which = row.dataset.which;
@@ -853,6 +856,8 @@
     const minuteSel = row.querySelector(".time-minute");
     for (let i = 0; i < 24; i++) hourSel.add(new Option(pad(i), i));
     for (let i = 0; i < 60; i++) minuteSel.add(new Option(pad(i), i));
+    hourSel.value = defaultTimes[which].hour;
+    minuteSel.value = defaultTimes[which].minute;
     hourSel.addEventListener("change", () => { times[which].hour = Number(hourSel.value); updateDateInput(); });
     minuteSel.addEventListener("change", () => { times[which].minute = Number(minuteSel.value); updateDateInput(); });
   }
@@ -865,9 +870,10 @@
 
   function resetTimes() {
     for (const row of document.querySelectorAll("#date-times .time-row")) {
-      times[row.dataset.which] = {hour: 0, minute: 0};
-      row.querySelector(".time-hour").value = 0;
-      row.querySelector(".time-minute").value = 0;
+      const d = defaultTimes[row.dataset.which];
+      times[row.dataset.which] = {...d};
+      row.querySelector(".time-hour").value = d.hour;
+      row.querySelector(".time-minute").value = d.minute;
     }
   }
 
