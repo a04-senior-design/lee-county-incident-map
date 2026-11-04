@@ -1,5 +1,5 @@
 """
-This module defines class BandwidthOptimizer, which finds the optimum KDE
+This module defines class BandwidthOptimizer, which searches for the optimum KDE
 bandwidth for each cluster level by mimimizing an objective function derived
 from Negative-Log Likelihood (NLL) with Leave-One-Out (LOO) Cross-Validation (CV).
 The likelihood is computed from the density surface produced by a KDE model
@@ -33,8 +33,12 @@ class BandwidthOptimizer:
     #     once xatol is met
     NM_XATOL = 0.02
     NM_FATOL = 0.1
+    # padding only needs to keep the points inside the grid: FFTKDE computes the same density at each grid node however
+    # far the grid extends, and the objective only reads the density at the data points, so a larger grid adds runtime
+    # without changing the result
+    PADDING = 100
 
-    def __init__(self, points, cluster_levels, x_min, y_min, x_max, y_max, increment, lower_bound=500, upper_bound=10000):
+    def __init__(self, points, cluster_levels, x_min_no_padding, y_min_no_padding, x_max_no_padding, y_max_no_padding, increment, lower_bound=500, upper_bound=10000):
 
         self.points = np.asarray(points)
         self.cluster_levels = np.asarray(cluster_levels)
@@ -53,13 +57,13 @@ class BandwidthOptimizer:
             raise ValueError(f"upper_bound must be greater than lower_bound: got lower_bound={lower_bound}, upper_bound={upper_bound}.")
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
-        self.x_min_lattice = x_min
-        self.y_min_lattice = y_min
-        self.x_max_lattice = x_max
-        self.y_max_lattice = y_max
+        self.x_min_lattice = x_min_no_padding - self.PADDING
+        self.y_min_lattice = y_min_no_padding - self.PADDING
+        self.x_max_lattice = x_max_no_padding + self.PADDING
+        self.y_max_lattice = y_max_no_padding + self.PADDING
         self.increment_lattice = increment
-        self.x_coords = np.arange(x_min, x_max + increment, increment)
-        self.y_coords = np.arange(y_min, y_max + increment, increment)  
+        self.x_coords = np.arange(self.x_min_lattice, self.x_max_lattice + self.increment_lattice, self.increment_lattice)
+        self.y_coords = np.arange(self.y_min_lattice, self.y_max_lattice + self.increment_lattice, self.increment_lattice)  
         # separate points into clusters (number of clusters may vary from 1 to 3) -1==noise; 0==least dense; 1==denser than 0; 2==denser than 1
         unique_cluster_levels = np.unique(self.cluster_levels)
         self.num_bandwidths = np.count_nonzero(unique_cluster_levels != -1)
