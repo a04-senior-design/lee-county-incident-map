@@ -7,7 +7,7 @@ at the candidate bandwidths, using the FFTKDE class from the KDEpy package.
 """
 
 import time
-from KDEHeatMap import KDEHeatMap
+from .KDEHeatMap import KDEHeatMap
 import numpy as np
 from scipy.optimize import minimize
 from scipy.interpolate import RegularGridInterpolator

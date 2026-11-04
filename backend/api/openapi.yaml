@@ -161,7 +161,9 @@ paths:
         instead, one bandwidth per level, so it needs that run's run_id; the
         filters are ignored then, so pass them to /api/v1/clusters.
         dbscan_status says whether the run's results can be used, and is
-        missing without a run_id. The response is kept for an hour under the
+        missing without a run_id. With optimize=true the bandwidths are
+        picked by BandwidthOptimizer instead, which can take close to a
+        minute for three levels. The response is kept for an hour under the
         run_id it returns, for /api/v1/reports?kde_run=.
       parameters:
         - name: start_date
@@ -185,6 +187,13 @@ paths:
           schema: { type: array, items: { type: number } }
           style: form
           explode: true
+        - name: optimize
+          in: query
+          description: |
+            true picks one bandwidth per cluster level that best fits the
+            incidents, for the "Optimize Bandwidth(s)" button. Can't be sent
+            with bandwidth.
+          schema: { type: boolean, default: false }
         - name: cluster_set
           in: query
           description: Index into cluster_set_labels.
@@ -1147,6 +1156,7 @@ components:
             ticks: { type: array, items: { type: number } }
             caption: { type: string }
         bandwidths: { type: array, items: { type: number } }
+        optimized: { type: boolean, description: True when the bandwidths came from optimize=true. }
         min_bandwidth: { type: number }
         max_bandwidth: { type: number }
         cluster_set: { type: integer }
