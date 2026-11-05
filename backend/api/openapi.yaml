@@ -1216,6 +1216,14 @@ components:
       additionalProperties: false
       properties:
         name: { type: string, minLength: 1, maxLength: 100, example: Home }
+        address:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: |
+            The address as the user typed it, for display; lat and lon are
+            what the alerts use. Optional, and null on areas saved without one.
+          example: 1234 ABC Drive
         lat:
           type: number
           minimum: 26.2

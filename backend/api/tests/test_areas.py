@@ -40,6 +40,9 @@ def test_the_first_area_starts_the_alerts(auth_client, database_url):
 
 @pytest.mark.parametrize("change", [
     {"name": "  "},
+    {"address": ""},
+    {"address": "x" * 201},
+    {"address": 1234},
     {"lat": 40.7},
     {"lon": "-81.87"},
     {"radius_mi": 0},
@@ -74,6 +77,15 @@ def test_patch_changes_only_what_is_sent(auth_client):
     changed = auth_client.patch(f"{AREAS}/{area['id']}", headers=headers,
                                 json={"radius_mi": 2, "alerts_enabled": False, "categories": []}).json
     assert changed == {**area, "radius_mi": 2, "alerts_enabled": False, "categories": []}
+
+
+def test_an_area_keeps_the_address_it_was_saved_with(auth_client):
+    headers = sign_in(auth_client)
+    assert auth_client.post(AREAS, headers=headers, json=HOME).json["address"] is None
+    area = auth_client.post(AREAS, headers=headers, json={**HOME, "address": " 1234 ABC Drive "}).json
+    assert area["address"] == "1234 ABC Drive"
+    moved = auth_client.patch(f"{AREAS}/{area['id']}", headers=headers, json={"address": "5 Main St"}).json
+    assert moved == {**area, "address": "5 Main St"}
 
 
 def test_an_area_can_be_deleted(auth_client):
