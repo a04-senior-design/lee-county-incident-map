@@ -840,33 +840,15 @@
       fmt(new Date(todayDate.getFullYear() - 1, 11, 31))]},
   ];
 
-  // hour/minute for each end of the range; 00:00 (midnight) unless the user picks otherwise
-  const times = {start: {hour: 0, minute: 0}, end: {hour: 0, minute: 0}};
+  // hour/minute for each end of the range; start defaults to 00:00, end to 23:59 (an end of 00:00 would
+  // exclude the last day of the range)
+  const defaultTimes = {start: {hour: 0, minute: 0}, end: {hour: 23, minute: 59}};
+  const times = {start: {...defaultTimes.start}, end: {...defaultTimes.end}};
   const timeStr = t => `${pad(t.hour)}:${pad(t.minute)}`;
   const withTime = (dateStr, which) => dateStr ? `${dateStr} ${timeStr(times[which])}` : "";
-  // The backend reads a time with no offset as UTC, but the user picks Eastern time (EST/EDT), so send
-  // an explicit offset: "2026-10-01 12:30" -> "2026-10-01 12:30-04:00".
-  const easternParts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", hourCycle: "h23",
-    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
-  });
-  function easternOffset(dateStr, t) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const wallMs = Date.UTC(y, m - 1, d, t.hour, t.minute);
-    // find the offset at which that UTC instant reads as the requested Eastern wall time (guess EST, then recheck)
-    let offsetMin = -300;
-    for (let i = 0; i < 2; i++) {
-      const p = Object.fromEntries(easternParts.formatToParts(new Date(wallMs - offsetMin * 60000)).map(x => [x.type, x.value]));
-      const shownMs = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute);
-      offsetMin += (shownMs - wallMs) / 60000;
-    }
-    const sign = offsetMin < 0 ? "-" : "+";
-    return `${sign}${pad(Math.floor(Math.abs(offsetMin) / 60))}:${pad(Math.abs(offsetMin) % 60)}`;
-  }
-  const toEastern = (dateStr, which) =>
-    dateStr ? `${withTime(dateStr, which)}${easternOffset(dateStr, times[which])}` : "";
-  // the input only shows a time when it isn't the midnight default
-  const label = (dateStr, which) => !dateStr ? "" : (times[which].hour || times[which].minute) ? withTime(dateStr, which) : dateStr;
+  // the input only shows a time when it isn't the default
+  const label = (dateStr, which) => !dateStr ? "" :
+    (times[which].hour !== defaultTimes[which].hour || times[which].minute !== defaultTimes[which].minute) ? withTime(dateStr, which) : dateStr;
 
   for (const row of document.querySelectorAll("#date-times .time-row")) {
     const which = row.dataset.which;
@@ -874,6 +856,8 @@
     const minuteSel = row.querySelector(".time-minute");
     for (let i = 0; i < 24; i++) hourSel.add(new Option(pad(i), i));
     for (let i = 0; i < 60; i++) minuteSel.add(new Option(pad(i), i));
+    hourSel.value = defaultTimes[which].hour;
+    minuteSel.value = defaultTimes[which].minute;
     hourSel.addEventListener("change", () => { times[which].hour = Number(hourSel.value); updateDateInput(); });
     minuteSel.addEventListener("change", () => { times[which].minute = Number(minuteSel.value); updateDateInput(); });
   }
@@ -886,9 +870,10 @@
 
   function resetTimes() {
     for (const row of document.querySelectorAll("#date-times .time-row")) {
-      times[row.dataset.which] = {hour: 0, minute: 0};
-      row.querySelector(".time-hour").value = 0;
-      row.querySelector(".time-minute").value = 0;
+      const d = defaultTimes[row.dataset.which];
+      times[row.dataset.which] = {...d};
+      row.querySelector(".time-hour").value = d.hour;
+      row.querySelector(".time-minute").value = d.minute;
     }
   }
 
@@ -987,8 +972,8 @@
   // returns the params, plus the labels of any blank fields
   function readWindowParams() {
     const params = {
-      start_date: toEastern(dateRange[0], "start"),
-      end_date: toEastern(dateRange[1], "end"),
+      start_date: withTime(dateRange[0], "start"),
+      end_date: withTime(dateRange[1], "end"),
       window_length: document.getElementById("input-window-length").value.trim(),
       time_step: document.getElementById("input-time-step").value.trim(),
     };
@@ -1296,12 +1281,18 @@
     }
   }
 
+  // slider value is in feet, stepping 100 ft; Sparse (left) = epsMax, Dense (right) = epsMin
   function levelToParams(levelName, sliderVal) {
-    const t = sliderVal / 100;
     const p = LEVEL_PRESETS[levelName];
-    // log scale for eps: at t=0 (Sparse) -> epsMax; at t=1 (Dense) -> epsMin
-    const eps = Math.round(Math.exp(Math.log(p.epsMax) + (Math.log(p.epsMin) - Math.log(p.epsMax)) * t));
-    return { eps };
+    return { eps: p.epsMax + p.epsMin - sliderVal };
+  }
+
+  function resetLevelSlider(slider) {
+    const p = LEVEL_PRESETS[slider.dataset.level];
+    slider.min = p.epsMin;
+    slider.max = p.epsMax;
+    slider.step = 100;
+    slider.value = Math.round((p.epsMin + p.epsMax) / 2 / 100) * 100;
   }
 
   // show each level's current epsilon under its slider
@@ -1311,6 +1302,7 @@
       levelToParams(level, Number(slider.value)).eps.toLocaleString();
   }
   document.querySelectorAll(".level-slider").forEach(slider => {
+    resetLevelSlider(slider);
     updateEpsLabel(slider);
     slider.addEventListener("input", () => updateEpsLabel(slider));
   });
@@ -1797,7 +1789,7 @@
       levelEnabled[checkbox.dataset.level] = true;
       document.getElementById(`level-block-${checkbox.dataset.level}`).classList.remove("level-off");
     });
-    document.querySelectorAll(".level-slider").forEach(slider => { slider.value = 50; updateEpsLabel(slider); });
+    document.querySelectorAll(".level-slider").forEach(slider => { resetLevelSlider(slider); updateEpsLabel(slider); });
     errorLabel.textContent = "";
     clearAnimation();
   });
