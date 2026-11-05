@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { ActionIcon } from '@mantine/core'
 import { TimeInput } from '@mantine/dates'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
-
+import { Popover, Button } from '@mantine/core'
 interface Props {
   label: string
-  timeRange: string
-  setTimeRange: React.Dispatch<React.SetStateAction<string[]>>
+  draftRange: string
+  setDraftRange: React.Dispatch<React.SetStateAction<string[]>>
   index: number
 }
 
-function TimePicker({ label,timeRange, setTimeRange, index }: Props) {
+function TimePicker({ label, draftRange, setDraftRange, index }: Props) {
+  const [opened, setOpened] = useState(false)
   const [time, setTime] = useState<string>('')
   const ref = useRef<HTMLInputElement>(null)
   //   useEffect(() => {
@@ -18,8 +19,7 @@ function TimePicker({ label,timeRange, setTimeRange, index }: Props) {
   //   }, [time])
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value
-    setTime(newValue)
-    setTimeRange((prev) => {
+    setDraftRange((prev) => {
       const updated = [...prev]
       updated[index] = newValue
       return updated
@@ -42,7 +42,7 @@ function TimePicker({ label,timeRange, setTimeRange, index }: Props) {
     <TimeInput
       label={label}
       ref={ref}
-      value={timeRange}
+      value={draftRange}
       rightSection={pickerControl}
       onChange={handleChange}
     />

@@ -54,12 +54,21 @@ function MapPage() {
   const [selectedNatures, setSelectedNatures] = useState([])
   const [locationMove, setLocationMove] = useState(null) //state to get lat, lng when user click on the item
   const [idPopup, setIdPopup] = useState(null) //state to get the id when user click on incident on the list
+
+  // ── Time ──────────────────────────────────────────────────────────────────
   const [dateRange, setDateRange] = useState([
     today.subtract(7, 'day').format('YYYY-MM-DD'),
     today.format('YYYY-MM-DD')
   ])
   const [timeRange, setTimeRange] = useState(['00:00', '23:59'])
   const [start_date, end_date] = dateRange
+
+  const [start_hour, end_hour] = timeRange
+
+  const newStartDate = `${start_date}T${start_hour}`
+  const newEndDate = `${end_date}T${end_hour}`
+  console.log('new start and end date: ', newStartDate, newEndDate)
+
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
   const [isPulled, setIsPulled] = useState(false) //pull out the interactive list
@@ -90,18 +99,20 @@ function MapPage() {
   const API_URL = import.meta.env.VITE_API_BASE_URL
   const [reportLoading, setReportLoading] = useState(false)
   const noTypes = Array.isArray(selectedNatures) && selectedNatures.length === 0
+
   const handleReport = async (useArea = true) => {
     if (noTypes) {
-       SetAlertContent((prev) => ({
-          ...prev,
-          open: true,
-          severity: 'error',
-          content: 'Choose at least 1 type!'
-        }))
+      SetAlertContent((prev) => ({
+        ...prev,
+        open: true,
+        severity: 'error',
+        content: 'Choose at least 1 type!'
+      }))
 
       return
     }
-    const [from, to] = dateRange
+
+    const [from, to] = [newStartDate, newEndDate]
     setReportLoading(true)
     setIsLoading(true)
     try {
@@ -193,7 +204,7 @@ function MapPage() {
 
   const [selectedId, setSelectedId] = useState(null)
   useEffect(() => {
-    const [fromDay, toDay] = dateRange
+    const [fromDay, toDay] = [newStartDate, newEndDate]
     if (!fromDay || !toDay) return
 
     const controller = new AbortController()
@@ -264,7 +275,7 @@ function MapPage() {
 
     fetchAll()
     return () => controller.abort()
-  }, [dateRange, bbox])
+  }, [dateRange, bbox, timeRange])
   // useEffect(() => {
   //   const [fromDay, toDay] = dateRange
   //   if (!fromDay || !toDay) return
@@ -554,8 +565,8 @@ function MapPage() {
               analysisOn={analysisOn}
               selectedId={selectedId}
               setSelectedId={setSelectedId}
-              start_date={start_date}
-              end_date={end_date}
+              start_date={newStartDate}
+              end_date={newEndDate}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
               routeOn={routeOn}

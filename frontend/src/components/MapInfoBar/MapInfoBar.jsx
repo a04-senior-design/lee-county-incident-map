@@ -51,7 +51,24 @@ function MapInfoBar({
   const handleClose = () => {
     setAnchorEl(null)
   }
-
+  //draft time
+  const [draftRange, setDraftRange] = useState(timeRange)
+  const handleTimeChange = () => {
+    if (draftRange) setTimeRange(draftRange)
+    setShowTimePicker(false)
+  }
+  const cancelTimeChange = () => {
+    setDraftRange(timeRange)
+    setShowTimePicker(false)
+  }
+  const resetTimeChange = () => {
+    setTimeRange(['00:00', '23:59'])
+    setShowTimePicker(false)
+  }
+  const handleToggle = () => {
+    if (!showTimePicker) setDraftRange(timeRange) // start from the saved values
+    setShowTimePicker(!showTimePicker)
+  }
   return (
     <Box
       sx={[
@@ -96,7 +113,7 @@ function MapInfoBar({
         <Button
           startIcon={<AvTimerIcon />}
           variant='outlined'
-          onClick={() => setShowTimePicker(!showTimePicker)}
+          onClick={() => handleToggle()}
           sx={{ width: '250px', color: 'black' }}
         >
           {`Start: ${timeRange[0]} - End: ${timeRange[1]} `}
@@ -111,22 +128,49 @@ function MapInfoBar({
               top: (theme) =>
                 `calc(${theme.mapCustom.mapInfoBarHeight} + 2px) `,
               display: 'flex',
+              flexDirection: 'column',
               gap: 1,
               color: 'black'
             }}
           >
-            <TimePicker
-              label={'Start: '}
-              timeRange={timeRange[0]}
-              setTimeRange={setTimeRange}
-              index={0}
-            />
-            <TimePicker
-              label={'End: '}
-              timeRange={timeRange[1]}
-              setTimeRange={setTimeRange}
-              index={1}
-            />
+            {' '}
+            <Box
+              sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}
+            >
+              <TimePicker
+                label={'Start: '}
+                draftRange={draftRange[0]}
+                setDraftRange={setDraftRange}
+                index={0}
+              />
+              <TimePicker
+                label={'End: '}
+                draftRange={draftRange[1]}
+                setDraftRange={setDraftRange}
+                index={1}
+              />
+            </Box>
+            <Box
+              sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}
+            >
+              <Button
+                variant='outlined'
+                color='error'
+                onClick={cancelTimeChange}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='outlined'
+                color='warning'
+                onClick={resetTimeChange}
+              >
+                Reset
+              </Button>
+              <Button variant='contained' onClick={handleTimeChange}>
+                Save
+              </Button>
+            </Box>
           </Box>
         )}
       </Box>

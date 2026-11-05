@@ -343,6 +343,11 @@ const Analysis = ({
   }, [startDate, endDate, active, bbox, natureKey])
 
   // ---------- KDE ----------
+  // >= 100: nearest whole number. < 100: two significant digits.
+  function formatTick(t) {
+    if (Math.abs(t) >= 100) return Math.round(t)
+    return Number(t.toPrecision(2))
+  }
   function fetchKDEHeatmap(
     bandwidthsParam,
     clusterSet,
@@ -457,7 +462,7 @@ const Analysis = ({
     const gradientCss = `linear-gradient(to right, ${legend.colors.join(', ')})`
 
     const tickLabels = legend.ticks
-      .map((t) => `<span>${Number(t.toPrecision(2))}</span>`)
+      .map((t) => `<span>${formatTick(t)}</span>`)
       .join('')
 
     const legendControl = L.control({ position: 'bottomright' })
