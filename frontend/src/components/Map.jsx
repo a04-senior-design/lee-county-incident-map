@@ -73,6 +73,8 @@ function AreaFilter({ drawArea, bounds, onDraw }) {
     map.getContainer().style.cursor = 'crosshair'
 
     const down = (e) => {
+      // a press that starts on an Analysis bar is a slider or button press, not a draw
+      if (e.originalEvent?.target?.closest?.('.analysis-bar')) return
       start = e.latlng
     }
     const move = (e) => {

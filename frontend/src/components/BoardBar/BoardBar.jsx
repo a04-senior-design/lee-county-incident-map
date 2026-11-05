@@ -127,7 +127,8 @@ function BoardBar({
           startIcon={<SelectAllIcon />}
           onClick={(e) => {
             setSelectedId(null)
-            setDrawArea(!drawArea)
+
+            setDrawArea(true)
           }}
         >
           Areas Filter

@@ -77,21 +77,19 @@ function MapPage() {
   const [reportMapState, setReportMapState] = useState({
     kde: null,
     clusters: false,
-    giStar: false
+    giStar: false,
+    kdeRunId: null,
+    dbscanRunId: null,
+    giStarRunId: null
   })
   const [drawArea, setDrawArea] = useState(false)
   const [areaBounds, setAreaBounds] = useState(null)
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
   const effectiveBbox = bbox ?? LEE_COUNTY_BBOX
-  const { token } = useAuth()
+  const { token, refreshToken } = useAuth()
   const API_URL = import.meta.env.VITE_API_BASE_URL
   const [reportLoading, setReportLoading] = useState(false)
 
-  //   const maps = []
-  // if (reportMapState.kde) maps.push(reportMapState.kde === 'all' ? 'kde_all' : 'kde_cluster')
-  // if (reportMapState.clusters) maps.push('cluster')
-  // if (reportMapState.giStar) maps.push('gistar')
-  // if (maps.length) params.append('maps', maps.join(','))
   const handleReport = async (useArea = true) => {
     const [from, to] = dateRange
     setReportLoading(true)
@@ -99,13 +97,28 @@ function MapPage() {
     try {
       const params = new URLSearchParams({
         from,
-        to
+        to,
         //bbox: useArea && bbox ? bbox : LEE_COUNTY_BBOX
+        category: selectedNatures
       })
       if (useArea && bbox) params.append('bbox', bbox)
-      const res = await fetch(`${database}/reports?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      if (reportMapState.dbscanRunId)
+        params.append('dbscan_run', reportMapState.dbscanRunId)
+      if (reportMapState.kdeRunId)
+        params.append('kde_run', reportMapState.kdeRunId)
+      if (reportMapState.giStarRunId)
+        params.append('gi_star_run', reportMapState.giStarRunId)
+
+      const request = (token) =>
+        fetch(`${database}/reports?${params}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+      let res = await request(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await request(newToken)
+      }
       if (res.status === 401 || res.status === 403) {
         SetAlertContent((prev) => ({
           ...prev,

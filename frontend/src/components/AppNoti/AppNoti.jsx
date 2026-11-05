@@ -4,22 +4,17 @@ import IconButton from '@mui/material/IconButton'
 import Badge from '@mui/material/Badge'
 import Popover from '@mui/material/Popover'
 import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Typography from '@mui/material/Typography'
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
 import { useAuth } from '../../Context/AuthContext'
-import NotiPopup from './NotiPopup/NotiPopup'
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 const url = import.meta.env.VITE_API_BASE_URL
 const timeSend = 3 * 60 * 1000
 
 function AppNoti({ CATEGORY_COLORS }) {
-  const { token } = useAuth()
+  const { token, refreshToken } = useAuth()
   const [alerts, setAlerts] = useState([])
   const [cursor, setCursor] = useState(null)
   const [hasMore, setHasMore] = useState(false)
@@ -37,9 +32,17 @@ function AppNoti({ CATEGORY_COLORS }) {
   const fetchNoti = useCallback(async () => {
     if (openRef.current) return // don't replace the list the user is reading
     try {
-      const res = await fetch(`${url}/users/me/alerts`, {
+      let res = await fetch(`${url}/users/me/alerts`, {
         headers: { Authorization: `Bearer ${token}` }
       })
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) {
+          res = await fetch(`${url}/users/me/alerts`, {
+            headers: { Authorization: `Bearer ${newToken}` }
+          })
+        }
+      }
       if (!res.ok) throw new Error('noti has problem')
       const data = await res.json()
       setAlerts(data.alerts ?? [])
@@ -59,14 +62,20 @@ function AppNoti({ CATEGORY_COLORS }) {
   const markSeen = async (c) => {
     if (!c) return
     try {
-      const res = await fetch(`${url}/users/me/alerts/seen`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ cursor: c })
-      })
+      const send = (t) =>
+        fetch(`${url}/users/me/alerts/seen`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${t}`
+          },
+          body: JSON.stringify({ cursor: c })
+        })
+      let res = await send(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await send(newToken)
+      }
       if (!res.ok) throw new Error('mark seen has problem')
       // the success response is 204 with no body, so don't call res.json()
     } catch (error) {

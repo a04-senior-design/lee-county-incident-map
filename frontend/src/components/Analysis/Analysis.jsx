@@ -197,7 +197,7 @@ const Analysis = ({
   const [currentClusterSet, setCurrentClusterSet] = useState(0)
   const [clusterSetLabels, setClusterSetLabels] = useState([])
   const [dataVersion, setDataVersion] = useState(0) // bumps when the date range changes
-
+  const [dbscanRunId, setDbscanRunId] = useState(null)
   // KDE
   const [kdeData, setKdeData] = useState(null) // last KDE response
   const [dbscanStatus, setDbscanStatus] = useState(null)
@@ -242,33 +242,57 @@ const Analysis = ({
   const gistarValid = !!GISData
 
   useEffect(() => {
-  if (active) return
-  // leaving Analysis Mode: back to "no valid maps" (diagram: ⊗)
-  setKdeData(null)
-  setGISData(null)
-  setLevelData(EMPTY_LEVELS)
-  setDbscanStatus('missing')
-  setCurrentClusterSet(0)
-  setMode('kde-heatmap') // re-entering starts at KDE (all points), like the diagram's A
-  setLevelVisible(ALL_VISIBLE)
-  setLevelSliders(DEFAULT_LEVEL_SLIDERS)
-  runIdRef.current = null
-  clustersLoadedRef.current = false
-  lastRangeRef.current = '' // so the range effect refetches on re-entry
-  lastKdeKeyRef.current = ''
-  kdeRequestRef.current++ // ignore requests still in flight
-  gistarRequestRef.current++
-  dbscanRequestRef.current++
-}, [active])
+    if (active) return
+    // leaving Analysis Mode: back to "no valid maps" (diagram: ⊗)
+    setKdeData(null)
+    setGISData(null)
+    setLevelData(EMPTY_LEVELS)
+    setDbscanStatus('missing')
+    setCurrentClusterSet(0)
+    setMode('kde-heatmap') // re-entering starts at KDE (all points), like the diagram's A
+    setLevelVisible(ALL_VISIBLE)
+    setLevelSliders(DEFAULT_LEVEL_SLIDERS)
+    runIdRef.current = null
+    setDbscanRunId(null)
+
+    clustersLoadedRef.current = false
+    lastRangeRef.current = '' // so the range effect refetches on re-entry
+    lastKdeKeyRef.current = ''
+    kdeRequestRef.current++ // ignore requests still in flight
+    gistarRequestRef.current++
+    dbscanRequestRef.current++
+  }, [active])
 
   useEffect(() => {
     setReportMapState(
       active
-        ? { kde: kdeValid, clusters: clusterValid, giStar: gistarValid }
-        : { kde: null, clusters: false, giStar: false }
+        ? {
+            kde: kdeValid,
+            clusters: clusterValid,
+            giStar: gistarValid,
+            kdeRunId: kdeData?.run_id ?? null,
+            dbscanRunId: clusterValid ? dbscanRunId : null,
+            giStarRunId: GISData?.run_id ?? null
+          }
+        : {
+            kde: null,
+            clusters: false,
+            giStar: false,
+            kdeRunId: null,
+            dbscanRunId: null,
+            giStarRunId: null
+          }
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, kdeValid, clusterValid, gistarValid])
+  }, [
+    active,
+    kdeValid,
+    clusterValid,
+    gistarValid,
+    kdeData,
+    GISData,
+    dbscanRunId
+  ])
 
   useEffect(() => {
     const els = [
@@ -304,6 +328,7 @@ const Analysis = ({
     setGISData(null)
     // the old cluster run was for the old range, so drop it
     runIdRef.current = null
+    setDbscanRunId(null)
     clustersLoadedRef.current = false
     setLevelData(EMPTY_LEVELS)
     setDbscanStatus('missing')
@@ -376,6 +401,7 @@ const Analysis = ({
           (err.data?.dbscan_status === 'missing' || /run_id/i.test(err.message))
         ) {
           runIdRef.current = null
+          setDbscanRunId(null)
           clustersLoadedRef.current = false
           setDbscanStatus('missing')
           setCurrentClusterSet(0)
@@ -488,7 +514,7 @@ const Analysis = ({
               className='bandwidth-slider'
               min={kdeData?.min_bandwidth}
               max={kdeData?.max_bandwidth}
-              step={1}
+              step={100}
               value={bw}
               onChange={(e) => handleBandwidthInput(i, e.target.value)}
             />
@@ -663,16 +689,19 @@ const Analysis = ({
       }
       const snapshot = body.frames && body.frames.length ? body.frames[0] : null
       const next = { ...EMPTY_LEVELS }
-
       if (snapshot) {
         enabledLevels.forEach((level) => {
           if (snapshot.levels[level]) next[level] = snapshot.levels[level]
         })
       }
+      const hasClusters = Object.values(next).some(
+        (level) => level?.metadata?.n_clusters > 0
+      )
+      setDbscanStatus(hasClusters ? 'available' : 'no_cluster_levels')
 
       // keep this run: /kde-heatmap needs it for the "Includes cluster analysis" option
       runIdRef.current = body.run_id ?? null
-
+      setDbscanRunId(body.run_id ?? null)
       setLevelData(next) // stats + layers + legend all derive from this
       setStatus('ready')
       clustersLoadedRef.current = true
@@ -690,14 +719,15 @@ const Analysis = ({
         kdeRequestRef.current++ // ignore any KDE response still in flight
         setKdeData(null)
         setCurrentClusterSet(0)
-      } else {
-        // A stays valid; refresh it so dbscan_status stays current
-        fetchKDEHeatmap(
-          !bandwidths.length ? null : bandwidths,
-          currentClusterSet,
-          runIdRef.current
-        )
       }
+      //  else {
+      //   // A stays valid; refresh it so dbscan_status stays current
+      //   fetchKDEHeatmap(
+      //     !bandwidths.length ? null : bandwidths,
+      //     currentClusterSet,
+      //     runIdRef.current
+      //   )
+      // }
     } catch (err) {
       if (id !== dbscanRequestRef.current) return
       console.error('DBSCAN fetch failed:', err)
@@ -815,7 +845,12 @@ const Analysis = ({
     <>
       <Box sx={{ display: 'flex' }}></Box>
       <Box
+        className='analysis-bar'
         ref={topBarRef}
+        onMouseEnter={() => map.dragging.disable()}
+        onMouseLeave={() => {
+          if (!drawArea) map.dragging.enable()
+        }}
         sx={[
           {
             position: 'relative',
@@ -875,6 +910,7 @@ const Analysis = ({
       </Box>
 
       <Box
+        className='analysis-bar'
         ref={secondBarRef}
         onMouseEnter={() => map.dragging.disable()}
         onMouseLeave={() => {
@@ -1008,6 +1044,12 @@ const Analysis = ({
                     <Slider
                       sx={{ width: '60%' }}
                       valueLabelDisplay='auto'
+                      // valueLabelFormat={(v) =>
+                      //   `${levelToParams(level, v).eps.toLocaleString()} ft`
+                      // }
+                      valueLabelFormat={(v) =>
+                        `${levelToParams(level, v).eps.toLocaleString()} ft`
+                      }
                       aria-label='Default'
                       id={`slider-${level}`}
                       data-level={level}
@@ -1040,7 +1082,21 @@ const Analysis = ({
                       Dense
                     </Typography>
                   </Box>
-
+                  <Typography
+                    sx={{
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}
+                    color='text'
+                  >
+                    ε ={' '}
+                    {levelToParams(
+                      level,
+                      levelSliders[level] ?? 50
+                    ).eps.toLocaleString()}{' '}
+                    ft
+                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
@@ -1130,7 +1186,12 @@ const Analysis = ({
         <div id='gistar-controls'>{build_GI_Sliders()}</div>
       </Box>
       <Box
+        onMouseEnter={() => map.dragging.disable()}
+        onMouseLeave={() => {
+          if (!drawArea) map.dragging.enable()
+        }}
         ref={thirdBarRef}
+        className='analysis-bar'
         sx={[
           {
             position: 'relative',
