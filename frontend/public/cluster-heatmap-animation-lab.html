@@ -1281,12 +1281,18 @@
     }
   }
 
+  // slider value is in feet, stepping 100 ft; Sparse (left) = epsMax, Dense (right) = epsMin
   function levelToParams(levelName, sliderVal) {
-    const t = sliderVal / 100;
     const p = LEVEL_PRESETS[levelName];
-    // log scale for eps: at t=0 (Sparse) -> epsMax; at t=1 (Dense) -> epsMin
-    const eps = Math.round(Math.exp(Math.log(p.epsMax) + (Math.log(p.epsMin) - Math.log(p.epsMax)) * t));
-    return { eps };
+    return { eps: p.epsMax + p.epsMin - sliderVal };
+  }
+
+  function resetLevelSlider(slider) {
+    const p = LEVEL_PRESETS[slider.dataset.level];
+    slider.min = p.epsMin;
+    slider.max = p.epsMax;
+    slider.step = 100;
+    slider.value = Math.round((p.epsMin + p.epsMax) / 2 / 100) * 100;
   }
 
   // show each level's current epsilon under its slider
@@ -1296,6 +1302,7 @@
       levelToParams(level, Number(slider.value)).eps.toLocaleString();
   }
   document.querySelectorAll(".level-slider").forEach(slider => {
+    resetLevelSlider(slider);
     updateEpsLabel(slider);
     slider.addEventListener("input", () => updateEpsLabel(slider));
   });
@@ -1782,7 +1789,7 @@
       levelEnabled[checkbox.dataset.level] = true;
       document.getElementById(`level-block-${checkbox.dataset.level}`).classList.remove("level-off");
     });
-    document.querySelectorAll(".level-slider").forEach(slider => { slider.value = 50; updateEpsLabel(slider); });
+    document.querySelectorAll(".level-slider").forEach(slider => { resetLevelSlider(slider); updateEpsLabel(slider); });
     errorLabel.textContent = "";
     clearAnimation();
   });
