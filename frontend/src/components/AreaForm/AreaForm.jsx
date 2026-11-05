@@ -75,7 +75,12 @@ function AreaForm({
         const newToken = await refreshToken()
         if (newToken) res = await send(newToken)
       }
-      if (!res.ok) throw new Error('noti form has problem')
+      if (res.status === 409) {
+        showAlert('error', 'Maximum norification reached!')
+      }
+      if (!res.ok) {
+        return
+      }
       showAlert('success', 'area saved successfully')
       setNoti({
         name: '',
@@ -87,10 +92,7 @@ function AreaForm({
       setTypes([])
       setCurrentPicked([])
     } catch (error) {
-      showAlert(
-        'error',
-        `Failed storage: Your session has expired. Please refresh the page.`
-      )
+      showAlert('error', error.message)
     } finally {
       setSubmitLoading(false)
     }

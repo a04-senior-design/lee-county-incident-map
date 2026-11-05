@@ -563,6 +563,7 @@ function MapPage() {
               accountPop={accountPop}
               setAccountPop={setAccountPop}
               CATEGORY_COLORS={CATEGORY_COLORS}
+              selectedNatures = {selectedNatures}
             />
           </Box>
         </Paper>

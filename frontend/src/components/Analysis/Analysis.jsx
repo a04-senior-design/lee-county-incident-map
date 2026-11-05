@@ -188,10 +188,15 @@ const Analysis = ({
   areaBounds,
   drawArea,
   reportMapState,
-  setReportMapState
+  setReportMapState,
+  selectedNatures
 }) => {
   const map = useMap()
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
+  const natureKey = Array.isArray(selectedNatures)
+    ? selectedNatures.join(',')
+    : (selectedNatures ?? '')
+  const noTypes = Array.isArray(selectedNatures) && selectedNatures.length === 0
   //Mode --------------
   const [mode, setMode] = useState('kde-heatmap')
   const [currentClusterSet, setCurrentClusterSet] = useState(0)
@@ -320,7 +325,7 @@ const Analysis = ({
   useEffect(() => {
     if (!active) return
 
-    const range = `${startDate ?? ''}|${endDate ?? ''}|${bbox ?? ''}`
+    const range = `${startDate ?? ''}|${endDate ?? ''}|${bbox ?? ''}|${natureKey}`
     if (range === lastRangeRef.current) return // same range, nothing to refetch
     lastRangeRef.current = range
 
@@ -335,7 +340,7 @@ const Analysis = ({
     setCurrentClusterSet(0)
 
     setDataVersion((v) => v + 1) // makes the KDE and cluster effects fetch again
-  }, [startDate, endDate, active, bbox])
+  }, [startDate, endDate, active, bbox, natureKey])
 
   // ---------- KDE ----------
   function fetchKDEHeatmap(
@@ -343,6 +348,11 @@ const Analysis = ({
     clusterSet,
     runId = runIdRef.current
   ) {
+    if (noTypes) {
+      setKdeData(null)
+
+      return
+    }
     setIsLoading(true)
     const params = new URLSearchParams()
 
@@ -355,7 +365,14 @@ const Analysis = ({
 
     if (startDate) params.append('start_date', startDate)
     if (endDate) params.append('end_date', endDate)
-
+    if (selectedNatures?.length) {
+      params.append(
+        'category',
+        Array.isArray(selectedNatures)
+          ? selectedNatures.join(',')
+          : selectedNatures
+      )
+    }
     if (bandwidthsParam) {
       bandwidthsParam.forEach((bw) => params.append('bandwidth', bw))
     }
@@ -540,12 +557,25 @@ const Analysis = ({
   }
   //GIStar---------------------------------------------------------------
   async function fetchGIStar(value = distanceBand) {
+    if (noTypes) {
+      setGISData(null)
+      return
+    }
     const id = ++gistarRequestRef.current
+
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ distance_band: value })
       if (startDate) params.append('start_date', startDate)
       if (endDate) params.append('end_date', endDate)
+      if (selectedNatures?.length) {
+        params.append(
+          'category',
+          Array.isArray(selectedNatures)
+            ? selectedNatures.join(',')
+            : selectedNatures
+        )
+      }
       if (bbox) params.append('bbox', bbox)
 
       const res = await fetch(`${API}/gi-star-heatmap?${params}`)
@@ -636,7 +666,7 @@ const Analysis = ({
     if (!active || mode !== 'gistar-heatmap') return
     fetchGIStar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, mode, startDate, endDate, bbox])
+  }, [active, mode, startDate, endDate, bbox, natureKey])
 
   useEffect(() => {
     if (!active || mode !== 'gistar-heatmap' || !GISData) return
@@ -651,7 +681,12 @@ const Analysis = ({
     visible = levelVisible,
     sliderValues = levelSliders
   ) {
-    setIsLoading(true)
+    if (noTypes) {
+      setLevelData(EMPTY_LEVELS)
+      setDbscanError('Select at least one incident type')
+      setStatus('error')
+      return
+    }
     const params = {}
 
     const enabledLevels = LEVEL_DRAW_ORDER.filter((level) => visible[level])
@@ -661,11 +696,16 @@ const Analysis = ({
       setStatus('error')
       return
     }
-
+    setIsLoading(true)
     params.levels = enabledLevels.join(',')
 
     if (startDate) params.start_date = startDate
     if (endDate) params.end_date = endDate
+    if (selectedNatures?.length) {
+      params.category = Array.isArray(selectedNatures)
+        ? selectedNatures.join(',')
+        : selectedNatures
+    }
     if (bbox) params.bbox = bbox
     enabledLevels.forEach((level) => {
       const { eps } = levelToParams(level, sliderValues[level])

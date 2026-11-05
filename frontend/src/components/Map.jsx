@@ -227,7 +227,8 @@ function Map({
   reportMapState,
   accountPop,
   setAccountPop,
-  CATEGORY_COLORS
+  CATEGORY_COLORS,
+  selectedNatures
 }) {
   const exitRoute = useCallback(() => setRouteOn(false), [])
   //render++
@@ -900,6 +901,7 @@ function Map({
           drawArea={drawArea && isDrawOn}
           reportMapState={reportMapState}
           setReportMapState={setReportMapState}
+          selectedNatures={selectedNatures}
         />
         {!analysisOn && (
           <MarkerClusterGroup
