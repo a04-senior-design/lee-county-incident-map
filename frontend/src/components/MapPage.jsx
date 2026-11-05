@@ -89,8 +89,18 @@ function MapPage() {
   const { token, refreshToken } = useAuth()
   const API_URL = import.meta.env.VITE_API_BASE_URL
   const [reportLoading, setReportLoading] = useState(false)
-
+  const noTypes = Array.isArray(selectedNatures) && selectedNatures.length === 0
   const handleReport = async (useArea = true) => {
+    if (noTypes) {
+       SetAlertContent((prev) => ({
+          ...prev,
+          open: true,
+          severity: 'error',
+          content: 'Choose at least 1 type!'
+        }))
+
+      return
+    }
     const [from, to] = dateRange
     setReportLoading(true)
     setIsLoading(true)
@@ -563,7 +573,7 @@ function MapPage() {
               accountPop={accountPop}
               setAccountPop={setAccountPop}
               CATEGORY_COLORS={CATEGORY_COLORS}
-              selectedNatures = {selectedNatures}
+              selectedNatures={selectedNatures}
             />
           </Box>
         </Paper>
