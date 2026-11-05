@@ -28,17 +28,19 @@ def _csv(args, name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(v.strip().upper() for v in raw.split(",") if v.strip()))
 
 
-def _eastern_midnight(value: str, name: str) -> datetime:
+def _eastern_end(value: str, name: str) -> datetime:
+    # to: the queries leave out their end, so a date ends at the next day's Eastern midnight, and a
+    # time a microsecond after it, which keeps it in, as end_date does on the analyses
     try:
         day = date.fromisoformat(value)
     except ValueError:
-        raise ValueError(f"{name} must be a date like 2026-07-01") from None
-    return datetime(day.year, day.month, day.day, tzinfo=EASTERN).astimezone(UTC)
+        return eastern_time(value, name).astimezone(UTC) + timedelta(microseconds=1)
+    return datetime.combine(day + timedelta(days=1), time.min, tzinfo=EASTERN).astimezone(UTC)
 
 
 def eastern_time(value: str, name: str, end: bool = False) -> datetime:
-    # start_date and end_date on the KDE, Gi* and DBSCAN routes, matching the map's Eastern days:
-    # a date is the whole day, so as an end it runs to the day's last microsecond, since those
+    # from and to, and start_date and end_date on the KDE, Gi* and DBSCAN routes, in Eastern time:
+    # a date is the whole day, so as an end_date it runs to the day's last microsecond, since those
     # routes include their end; a time without an offset is Eastern too
     try:
         day = date.fromisoformat(value)
@@ -87,9 +89,9 @@ def parse(args) -> Filters:
         start = datetime.now(UTC) - timedelta(days=days)
     else:
         if "from" in args:
-            start = _eastern_midnight(args["from"], "from")
+            start = eastern_time(args["from"], "from").astimezone(UTC)
         if "to" in args:
-            end = _eastern_midnight(args["to"], "to") + timedelta(days=1)
+            end = _eastern_end(args["to"], "to")
     if start and end and start >= end:
         raise ValueError("from must be earlier than to")
 

@@ -834,14 +834,20 @@ paths:
         - name: from
           in: query
           required: true
-          description: Start date, inclusive, read as Eastern time.
-          schema: { type: string, format: date }
+          description: |
+            A date such as 2026-09-01, from the start of that Eastern day, or
+            a time such as 2026-09-01T18:00, Eastern unless it carries an
+            offset such as -04:00.
+          schema: { type: string }
           example: "2026-09-01"
         - name: to
           in: query
           required: true
-          description: End date, inclusive, read as Eastern time.
-          schema: { type: string, format: date }
+          description: |
+            A date such as 2026-09-30, through the end of that Eastern day, or
+            a time such as 2026-09-30T06:00, which is included. Eastern unless
+            it carries an offset.
+          schema: { type: string }
           example: "2026-09-30"
         - $ref: "#/components/parameters/category"
         - $ref: "#/components/parameters/city"
@@ -898,14 +904,20 @@ components:
     from:
       name: from
       in: query
-      description: Start date, inclusive, read as Eastern time.
-      schema: { type: string, format: date }
+      description: |
+        A date such as 2026-09-01, from the start of that Eastern day, or
+        a time such as 2026-09-01T18:00, Eastern unless it carries an
+        offset such as -04:00.
+      schema: { type: string }
       example: "2026-07-01"
     to:
       name: to
       in: query
-      description: End date, inclusive, read as Eastern time.
-      schema: { type: string, format: date }
+      description: |
+        A date such as 2026-09-30, through the end of that Eastern day, or
+        a time such as 2026-09-30T06:00, which is included. Eastern unless
+        it carries an offset.
+      schema: { type: string }
     category:
       name: category
       in: query
