@@ -12,6 +12,7 @@ def test_the_heatmap_is_an_image_over_the_county(client):
     body = response.json
     assert body["image"].startswith("data:image/png;base64,")
     assert body["bandwidths"] == [1500]
+    assert body["optimized"] is False
     bounds = body["bounds"]
     assert -82.4 < bounds["west"] < bounds["east"] < -81.4
     assert 26.2 < bounds["south"] < bounds["north"] < 27.0
@@ -50,6 +51,19 @@ def test_the_heatmap_says_when_no_incident_matches(client):
 
 def test_the_heatmap_rejects_an_unknown_cluster_set(client):
     assert client.get("/api/v1/kde-heatmap?cluster_set=5").status_code == 400
+
+
+def test_the_heatmap_can_optimize_its_bandwidth(client):
+    response = client.get("/api/v1/kde-heatmap?optimize=true")
+    assert response.status_code == 200, response.json
+    assert response.json["optimized"] is True
+    [bandwidth] = response.json["bandwidths"]
+    assert 500 < bandwidth <= 10000
+
+
+def test_the_optimizer_picks_the_bandwidths_alone(client):
+    assert client.get("/api/v1/kde-heatmap?optimize=true&bandwidth=1500").status_code == 400
+    assert client.get("/api/v1/kde-heatmap?optimize=yes").status_code == 400
 
 
 def test_animation_frames_count_only_mapped_incidents_in_each_window(client):

@@ -7,7 +7,11 @@ at the candidate bandwidths, using the FFTKDE class from the KDEpy package.
 """
 
 import time
-from KDEHeatMap import KDEHeatMap
+# relative inside the API's ml.kde package; plain when kde_app.py runs from this folder
+try:
+    from .KDEHeatMap import KDEHeatMap
+except ImportError:
+    from KDEHeatMap import KDEHeatMap
 import numpy as np
 from scipy.optimize import minimize
 from scipy.interpolate import RegularGridInterpolator

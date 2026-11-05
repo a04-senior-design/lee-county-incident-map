@@ -165,6 +165,16 @@ def test_a_clusters_run_drives_the_cluster_level_heatmap(client):
     assert response.json["image"].startswith("data:image/png;base64,")
 
 
+def test_a_clusters_run_can_optimize_one_bandwidth_per_level(client):
+    run_id = clusters(client, "start_date=2026-06-15&end_date=2026-06-20")["run_id"]
+    default = client.get(f"/api/v1/kde-heatmap?cluster_set=1&run_id={run_id}").json
+    response = client.get(f"/api/v1/kde-heatmap?cluster_set=1&run_id={run_id}&optimize=true")
+    assert response.status_code == 200, response.json
+    bandwidths = response.json["bandwidths"]
+    assert len(bandwidths) == len(default["bandwidths"])
+    assert bandwidths == sorted(bandwidths, reverse=True)
+
+
 def test_the_cluster_level_heatmap_needs_a_run(client):
     response = client.get("/api/v1/kde-heatmap?cluster_set=1")
     assert response.status_code == 400
