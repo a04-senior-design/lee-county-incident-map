@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
 from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots
-from ml.kde import KDEHeatMap
+from ml.kde import BandwidthOptimizer, KDEHeatMap
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
 
@@ -97,7 +97,17 @@ def kde_heatmap():
     try:
         requested_bandwidths = [float(bw) for bw in request.args.getlist("bandwidth")]
     except ValueError:
-        return jsonify({"error": "Invalid bandwidth parameter"}), 400  
+        return jsonify({"error": "Invalid bandwidth parameter"}), 400
+
+    # the "Optimize Bandwidth(s)" button sends optimize=true; the radios and sliders leave it out
+    optimize = request.args.get("optimize", "").lower()
+    if optimize not in ("", "true", "false"):
+        return jsonify({"error": "optimize must be true or false"}), 400
+    optimize = optimize == "true"
+
+    # guard: the optimizer picks the bandwidths, so none can be sent with it
+    if optimize and requested_bandwidths:
+        return jsonify({"error": "Send either optimize=true or bandwidth, not both"}), 400
 
     try:
         cluster_set = int(request.args.get("cluster_set", DEFAULT_CLUSTER_SET))
@@ -138,17 +148,6 @@ def kde_heatmap():
         data_points_with_noise, _, _ = load_points()
         dbscan_cluster_levels = np.zeros(len(data_points_with_noise), dtype=int)
 
-    easting = data_points_with_noise[:, 0]
-    northing = data_points_with_noise[:, 1]
-
-    # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
-    padding = 100
-    x_min = np.min(easting) - padding
-    x_max = np.max(easting) + padding
-    y_min = np.min(northing) - padding
-    y_max = np.max(northing) + padding
-    increment = 300
-
     # one bandwidth per non-noise cluster level, ordered by ascending level (0, 1, 2) - least dense to most dense
     unique_cluster_levels = np.unique(dbscan_cluster_levels)
     num_clusters = np.count_nonzero(unique_cluster_levels != -1)
@@ -160,7 +159,32 @@ def kde_heatmap():
             "dbscan_status": dbscan_status,
         }), 400
 
-    if requested_bandwidths:
+    # the grid and KDEHeatMap are based only on the points that go into the KDE;
+    # for the "KDE Heat Map (by cluster density level)" analysis, points marked as noise from DBSCAN are left out;
+    # for the "KDE Heat Map (all points)" analysis, all points are marked with cluster levels == 0 (so there are no "noise" points)
+    is_not_noise = dbscan_cluster_levels != -1
+    non_noise_points = data_points_with_noise[is_not_noise]
+    non_noise_levels = dbscan_cluster_levels[is_not_noise]
+    easting = non_noise_points[:, 0]
+    northing = non_noise_points[:, 1]
+
+    x_min_no_padding = np.min(easting)
+    x_max_no_padding = np.max(easting)
+    y_min_no_padding = np.min(northing)
+    y_max_no_padding = np.max(northing)
+    increment = 300
+
+    if optimize:
+        # same points, levels and grid spacing as the heat map below, so the bandwidths fit the heat map drawn
+        optimizer = BandwidthOptimizer(
+            points=non_noise_points, cluster_levels=non_noise_levels,
+            x_min_no_padding=x_min_no_padding, y_min_no_padding=y_min_no_padding,
+            x_max_no_padding=x_max_no_padding, y_max_no_padding=y_max_no_padding,
+            increment=increment, lower_bound=MIN_BANDWIDTH, upper_bound=MAX_BANDWIDTH,
+        )
+        # plain floats, since the optimizer returns a numpy array, which jsonify can't serialize
+        bandwidths = [float(bw) for bw in optimizer.optimize_bandwidths()]
+    elif requested_bandwidths:
         # guard: the frontend must send exactly one bandwidth per non-noise cluster level
         if len(requested_bandwidths) != num_clusters:
             return jsonify({
@@ -178,7 +202,14 @@ def kde_heatmap():
     else:
         # initial page load: no values sent, so use the shared default for every level
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
-    
+
+    # define range of mesh grid (lattice structure) to represent the corresponding map coordinates;
+    # padded only after the bandwidths are known, so the padding can depend on them
+    padding = 100
+    x_min = x_min_no_padding - padding
+    x_max = x_max_no_padding + padding
+    y_min = y_min_no_padding - padding
+    y_max = y_max_no_padding + padding
 
     # each request gets its own run folder, so two users don't overwrite each other's image,
     # and the report can find this one by its run_id
@@ -186,7 +217,7 @@ def kde_heatmap():
     os.makedirs(output_dir)
 
     # instantiate a KDEHeatMap object
-    kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
+    kde_obj = KDEHeatMap(points=non_noise_points, cluster_levels=non_noise_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
     # generate the heat map overlay PNG image file
     bounds = kde_obj.generate_heatmap_image()
 
@@ -208,6 +239,7 @@ def kde_heatmap():
         "bounds": bounds_dict, 
         "legend": legend_data,
         "bandwidths": bandwidths,
+        "optimized": optimize,
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
         "cluster_set": cluster_set,
