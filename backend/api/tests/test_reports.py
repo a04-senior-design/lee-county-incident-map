@@ -58,6 +58,24 @@ def test_a_report_takes_the_same_filters_as_incidents(auth_client, headers, sent
     assert len(sent[0]["incidents"]) == 5
 
 
+def test_a_report_can_cover_hours(auth_client, headers, sent):
+    # 25-003, the only burglary, is 8 am Eastern on June 12
+    hour = "from=2026-06-12T07:30&to=2026-06-12T08:30&category=BURGLARY"
+    assert auth_client.get(f"{REPORTS}?{hour}", headers=headers).status_code == 200
+    [call] = sent
+    assert len(call["incidents"]) == 1
+    assert str(call["start"]) == str(call["end"]) == "2026-06-12"
+    later = "from=2026-06-12T08:30&to=2026-06-12T09:30&category=BURGLARY"
+    assert auth_client.get(f"{REPORTS}?{later}", headers=headers).status_code == 400
+
+
+def test_a_report_includes_its_end_time_like_the_analyses(auth_client, headers, sent):
+    # 25-003 is at exactly 8:00
+    exact = "from=2026-06-12T07:00&to=2026-06-12T08:00&category=BURGLARY"
+    assert auth_client.get(f"{REPORTS}?{exact}", headers=headers).status_code == 200
+    assert len(sent[0]["incidents"]) == 1
+
+
 @pytest.mark.parametrize("query", ["days=30", "from=2026-06-10", "to=2026-06-20"])
 def test_a_report_needs_from_and_to(auth_client, headers, query):
     response = auth_client.get(f"{REPORTS}?{query}", headers=headers)

@@ -12,21 +12,23 @@ MAX_ALERTS = 100
 METERS_PER_MILE = 1609.344
 MAX_AREAS = 10
 MAX_NAME = 100
+MAX_ADDRESS = 200
 MIN_RADIUS_MI = 0.1
 MAX_RADIUS_MI = 10
 # Lee County plus a margin, so an area on the county line still fits
 COUNTY = {"west": -82.4, "south": 26.2, "east": -81.4, "north": 27.0}
-FIELDS = ("name", "lat", "lon", "radius_mi", "categories", "alerts_enabled")
+# in UPDATE_AREA's order
+FIELDS = ("name", "address", "lat", "lon", "radius_mi", "categories", "alerts_enabled")
 
 bp = Blueprint("alerts", __name__)
 
-AREA_COLUMNS = "id, name, lat, lon, radius_mi, categories, alerts_enabled, created_at"
+AREA_COLUMNS = "id, name, address, lat, lon, radius_mi, categories, alerts_enabled, created_at"
 
 LIST_AREAS = f"SELECT {AREA_COLUMNS} FROM saved_areas WHERE user_id = %s ORDER BY id"
 
 CREATE_AREA = f"""
-    INSERT INTO saved_areas (user_id, name, lat, lon, radius_mi, categories, alerts_enabled)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO saved_areas (user_id, name, address, lat, lon, radius_mi, categories, alerts_enabled)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING {AREA_COLUMNS}
 """
 
@@ -34,6 +36,7 @@ CREATE_AREA = f"""
 UPDATE_AREA = f"""
     UPDATE saved_areas
        SET name = COALESCE(%s, name),
+           address = COALESCE(%s, address),
            lat = COALESCE(%s, lat),
            lon = COALESCE(%s, lon),
            radius_mi = COALESCE(%s, radius_mi),
@@ -129,7 +132,7 @@ def create_area():
             if count >= MAX_AREAS:
                 return jsonify({"error": f"at most {MAX_AREAS} saved areas"}), 409
             row = conn.execute(CREATE_AREA, (
-                g.user_id, fields["name"], fields["lat"], fields["lon"], fields["radius_mi"],
+                g.user_id, fields["name"], fields.get("address"), fields["lat"], fields["lon"], fields["radius_mi"],
                 fields.get("categories", []), fields.get("alerts_enabled", True),
             )).fetchone()
             conn.execute(START_ALERTS, (g.user_id,))
@@ -178,6 +181,12 @@ def _validate(conn, body: dict) -> dict:
         if not 1 <= len(name) <= MAX_NAME:
             raise ValueError(f"name must be 1 to {MAX_NAME} characters")
         fields["name"] = name
+
+    if "address" in body:
+        address = body["address"].strip() if isinstance(body["address"], str) else ""
+        if not 1 <= len(address) <= MAX_ADDRESS:
+            raise ValueError(f"address must be 1 to {MAX_ADDRESS} characters")
+        fields["address"] = address
 
     if "lat" in body:
         fields["lat"] = _number(body["lat"], "lat", COUNTY["south"], COUNTY["north"])

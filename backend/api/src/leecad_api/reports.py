@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 from report import generate_pdf
@@ -50,8 +50,10 @@ def report():
     if "days" in request.args or not request.args.get("from") or not request.args.get("to"):
         raise ValueError("a report needs from and to, not days")
     filters = parse_filters(request.args)
-    start_date = date.fromisoformat(request.args["from"])
-    end_date = date.fromisoformat(request.args["to"])
+    # generate_pdf takes the Eastern days the range touches; the incidents are already cut to its
+    # hours. The end is left out, so the last day is the one just before it
+    start_date = filters.start.astimezone(EASTERN).date()
+    end_date = (filters.end - timedelta(microseconds=1)).astimezone(EASTERN).date()
     if end_date - start_date >= timedelta(days=MAX_REPORT_DAYS):
         raise ValueError(f"a report covers at most {MAX_REPORT_DAYS} days")
     analyses = _analyses(request.args, filters)
