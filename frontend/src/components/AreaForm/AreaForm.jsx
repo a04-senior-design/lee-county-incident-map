@@ -35,6 +35,7 @@ function AreaForm({
   // form-------------------------
   const [noti, setNoti] = useState({
     name: '',
+    address: '',
     lat: null,
     lon: null,
     radius_mi: 5
@@ -63,6 +64,7 @@ function AreaForm({
           },
           body: JSON.stringify({
             name: noti.name,
+            address: noti.address,
             lat: noti.lat,
             lon: noti.lon,
             radius_mi: noti.radius_mi,
@@ -84,6 +86,7 @@ function AreaForm({
       showAlert('success', 'area saved successfully')
       setNoti({
         name: '',
+        address: '',
         lat: null,
         lon: null,
         radius_mi: 5
@@ -172,6 +175,7 @@ function AreaForm({
                       <ListItemButton
                         onClick={() => {
                           setAddressType(address.place_name)
+                          handleChange('address', address.place_name)
                           setAddressList(null)
                           checkBound([address.center])
                           handleChange('lat', address.center[1])
@@ -201,7 +205,7 @@ function AreaForm({
             currentPicked={currentPicked}
           />
         </Box>
-        <Box>
+        {/* <Box>
           <FormLabel id='radio-noti-time-group-label'>Time</FormLabel>
           <RadioGroup
             row
@@ -225,7 +229,7 @@ function AreaForm({
               label='monthly'
             />
           </RadioGroup>
-        </Box>
+        </Box> */}
         <Box>
           <FormLabel id='radio-noti-distance-group-label'>
             Distance (miles)

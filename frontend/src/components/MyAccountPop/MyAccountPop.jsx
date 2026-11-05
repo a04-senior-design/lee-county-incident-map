@@ -1,12 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import { useAuth } from '../../Context/AuthContext'
 import Typography from '@mui/material/Typography'
 import Card from '@mui/material/Card'
-import CardMedia from '@mui/material/CardMedia'
 import CardContent from '@mui/material/CardContent'
-import CardActions from '@mui/material/CardActions'
 import ModeSelect from '../ModeSelect/ModeSelect'
 import BorderColorIcon from '@mui/icons-material/BorderColor'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
@@ -28,12 +26,11 @@ function MyAccountPop({
   setAddressSearch
 }) {
   const [notiList, setNotiList] = useState()
-  const { user, token } = useAuth()
+  const { user, token, refreshToken } = useAuth()
   const [editCard, setEditCard] = useState(false)
   const [editCardContent, setEditCardContent] = useState(false)
   const [alertTrigger, setAlertTrigger] = useState(0) //just set a state to trigger the noti list render useeffect
-  //REF-----
-  const itemRef = useRef(null)
+
   const pickColor = (category) => {
     const key = category || ''
     for (const color in CATEGORY_COLORS) {
@@ -46,9 +43,17 @@ function MyAccountPop({
     if (!accountPop || !token) return
     const fetchNotiList = async () => {
       try {
-        const res = await fetch(`${url}/users/me/areas`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const send = (token) =>
+          fetch(`${url}/users/me/areas`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+
+        let res = await send(token)
+
+        if (res.status === 401) {
+          const newToken = await refreshToken()
+          if (newToken) res = await send(newToken)
+        }
         if (!res.ok) throw new Error('area list has problem')
         const data = await res.json()
         console.log(data)
@@ -61,10 +66,16 @@ function MyAccountPop({
   }, [accountPop, token, editCard, alertTrigger])
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`${url}/users/me/areas/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const send = (token) =>
+        fetch(`${url}/users/me/areas/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      let res = await send(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await send(newToken)
+      }
       if (!res.ok) throw new Error('area delete has problem')
       setNotiList((prev) => prev.filter((area) => area.id !== id))
     } catch (error) {
@@ -73,25 +84,28 @@ function MyAccountPop({
   }
   const editNoti = async (id, alert) => {
     try {
-      console.log('alert here ', alert)
-      const res = await fetch(`${url}/users/me/areas/${id}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          alerts_enabled: !alert
+      console.log('alert editing... ', alert)
+      const send = (token) =>
+        fetch(`${url}/users/me/areas/${id}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            alerts_enabled: !alert
+          })
         })
-      })
+      let res = await send(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await send(newToken)
+      }
       if (!res.ok) throw new Error('alert noti has problem')
       setAlertTrigger((e) => e + 1)
     } catch (error) {
       console.log(error.message)
     }
-  }
-  const showNotiPop = (item) => {
-    console.log('here')
   }
 
   return (
@@ -215,13 +229,15 @@ function MyAccountPop({
                       gutterBottom
                       variant='h5'
                       component='div'
+                      color='primary'
                       sx={{
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        fontWeight: 600
                       }}
                     >
-                      {item.name}
+                      {item.name.toUpperCase()}
                     </Typography>
                     <Box>
                       <Button
@@ -245,23 +261,23 @@ function MyAccountPop({
                     </Box>
                   </Box>
 
-                  {/* <Typography
-                    gutterBottom
-                    variant='body2'
-                    component='div'
+                  <Typography
+                    variant='h5'
                     sx={{
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden'
                     }}
                   >
-                    address here
-                  </Typography> */}
+                    {item.address}
+                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+
+                      mt: 1
                     }}
                   >
                     <Typography
@@ -286,8 +302,7 @@ function MyAccountPop({
                       {`${item.created_at.split('T')[0]}`}
                     </Typography>
                   </Box>
-                  <Typography variant='h5'>Address can be here. Ex: 1234 ABC Drive</Typography>
-                  <Typography variant='h5'>Time can be here. Ex: Bi-weekly</Typography>
+
                   <Box sx={{ display: 'flex', gap: 2, mt: '20px' }}>
                     <Typography
                       variant='span'
