@@ -58,7 +58,7 @@ function MapPage() {
     today.subtract(7, 'day').format('YYYY-MM-DD'),
     today.format('YYYY-MM-DD')
   ])
-  const [timeRange, setTimeRange] = useState(['12:00', '12:00'])
+  const [timeRange, setTimeRange] = useState(['00:00', '23:59'])
   const [start_date, end_date] = dateRange
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)

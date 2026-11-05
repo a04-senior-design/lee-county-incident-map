@@ -173,7 +173,7 @@ function BoardBar({
           startIcon={<AnimationIcon />}
           onClick={(e) => {
             handleActive(e)
-            window.open('/cluster-heatmap-animation-lab.html', '_blank')
+            window.location.href ='/cluster-heatmap-animation-lab.html', '_blank'
           }}
         >
           Animation
