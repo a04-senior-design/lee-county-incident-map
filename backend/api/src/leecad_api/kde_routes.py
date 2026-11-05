@@ -138,17 +138,6 @@ def kde_heatmap():
         data_points_with_noise, _, _ = load_points()
         dbscan_cluster_levels = np.zeros(len(data_points_with_noise), dtype=int)
 
-    easting = data_points_with_noise[:, 0]
-    northing = data_points_with_noise[:, 1]
-
-    # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
-    padding = 100
-    x_min = np.min(easting) - padding
-    x_max = np.max(easting) + padding
-    y_min = np.min(northing) - padding
-    y_max = np.max(northing) + padding
-    increment = 300
-
     # one bandwidth per non-noise cluster level, ordered by ascending level (0, 1, 2) - least dense to most dense
     unique_cluster_levels = np.unique(dbscan_cluster_levels)
     num_clusters = np.count_nonzero(unique_cluster_levels != -1)
@@ -159,6 +148,23 @@ def kde_heatmap():
             "error": "Cluster analysis classified every point as noise. Try larger epsilon values in cluster-lab.",
             "dbscan_status": dbscan_status,
         }), 400
+
+    # the grid and KDEHeatMap are based only on the points that go into the KDE;
+    # for the "KDE Heat Map (by cluster density level)" analysis, points marked as noise from DBSCAN are left out;
+    # for the "KDE Heat Map (all points)" analysis, all points are marked with cluster levels == 0 (so there are no "noise" points)
+    is_not_noise = dbscan_cluster_levels != -1
+    non_noise_points = data_points_with_noise[is_not_noise]
+    non_noise_levels = dbscan_cluster_levels[is_not_noise]
+    easting = non_noise_points[:, 0]
+    northing = non_noise_points[:, 1]
+
+    # define range of mesh grid (lattice structure) to represent the corresponding map coordinates
+    padding = 100
+    x_min = np.min(easting) - padding
+    x_max = np.max(easting) + padding
+    y_min = np.min(northing) - padding
+    y_max = np.max(northing) + padding
+    increment = 300
 
     if requested_bandwidths:
         # guard: the frontend must send exactly one bandwidth per non-noise cluster level
@@ -186,7 +192,7 @@ def kde_heatmap():
     os.makedirs(output_dir)
 
     # instantiate a KDEHeatMap object
-    kde_obj = KDEHeatMap(points=data_points_with_noise, cluster_levels=dbscan_cluster_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
+    kde_obj = KDEHeatMap(points=non_noise_points, cluster_levels=non_noise_levels, bandwidths=bandwidths, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max, increment=increment, output_dir=output_dir)
     # generate the heat map overlay PNG image file
     bounds = kde_obj.generate_heatmap_image()
 
