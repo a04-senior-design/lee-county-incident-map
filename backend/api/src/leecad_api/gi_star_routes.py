@@ -3,7 +3,6 @@ import tempfile
 import warnings
 
 import numpy as np
-import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
 from ml.generate_gi_star_snapshots import GI_STAR_CELL_SIZE, build_gi_star_snapshots, load_land_polygon
 from ml.gi_star.GiStarHeatMap import GiStarHeatMap
@@ -103,7 +102,7 @@ def gi_star_heatmap_animation():
             start_date, end_date, window_length, time_step = _parse_time_window_args(request.args)
             with current_app.pool.connection() as conn:
                 incidents = conn.execute(*queries.mapped_incidents_between(
-                    filters.parse_without_dates(request.args), pd.Timestamp(start_date), pd.Timestamp(end_date)
+                    filters.parse_without_dates(request.args), start_date, end_date
                 )).fetchall()
             frames, legend = build_gi_star_snapshots(
                 start_date=start_date,

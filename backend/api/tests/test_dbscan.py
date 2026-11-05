@@ -25,14 +25,14 @@ def status(client, run_id):
 
 
 def test_frames_count_only_mapped_incidents_in_each_window(client):
-    body = run(client, "start_date=2026-06-10&end_date=2026-06-20&window_length=5D&time_step=5D")
+    body = run(client, "start_date=2026-06-10&end_date=2026-06-19&window_length=5D&time_step=5D")
     assert [f["n_incidents"] for f in body["frames"]] == [3, 5]
     assert set(body["frames"][0]["levels"]) == {"street", "neighborhood", "district"}
     assert len(body["run_id"]) == 32
 
 
 def test_frames_take_the_same_filters_as_incidents(client):
-    body = run(client, "start_date=2026-06-10&end_date=2026-06-20&window_length=5D&time_step=5D"
+    body = run(client, "start_date=2026-06-10&end_date=2026-06-19&window_length=5D&time_step=5D"
                        "&source=lee_county&category=VIOLENT")
     assert [f["n_incidents"] for f in body["frames"]] == [1, 3]
 
@@ -131,6 +131,30 @@ def test_animation_runs_save_no_response(client):
 def test_clusters_refuse_more_than_sixty_days(client):
     response = client.get("/api/v1/clusters?start_date=2026-04-01&end_date=2026-06-20")
     assert response.status_code == 400
+
+
+def burglaries(client, start_date, end_date):
+    # 25-003 is the only burglary: 12:00 UTC on June 12, which is 8 am Eastern
+    body = run(client, f"start_date={start_date}&end_date={end_date}&window_length=1D&time_step=1D&category=BURGLARY")
+    return sum(f["n_incidents"] for f in body["frames"])
+
+
+def test_a_date_is_a_whole_eastern_day(client):
+    assert burglaries(client, "2026-06-12", "2026-06-12") == 1
+    assert burglaries(client, "2026-06-13", "2026-06-13") == 0
+
+
+def test_a_time_without_an_offset_is_eastern(client):
+    assert burglaries(client, "2026-06-12T07:30", "2026-06-12T08:30") == 1
+    # read as UTC, this hour would miss it
+    assert burglaries(client, "2026-06-12T11:30", "2026-06-12T12:30") == 0
+    assert burglaries(client, "2026-06-12T11:30-00:00", "2026-06-12T12:30-00:00") == 1
+
+
+def test_a_date_that_cannot_be_read_is_refused(client):
+    response = client.get("/api/v1/clusters?start_date=June 12&end_date=2026-06-12")
+    assert response.status_code == 400
+    assert "start_date" in response.json["error"]
 
 
 def test_a_clusters_run_drives_the_cluster_level_heatmap(client):

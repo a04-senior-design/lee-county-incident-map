@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 EASTERN = ZoneInfo("America/New_York")
@@ -34,6 +34,25 @@ def _eastern_midnight(value: str, name: str) -> datetime:
     except ValueError:
         raise ValueError(f"{name} must be a date like 2026-07-01") from None
     return datetime(day.year, day.month, day.day, tzinfo=EASTERN).astimezone(UTC)
+
+
+def eastern_time(value: str, name: str, end: bool = False) -> datetime:
+    # start_date and end_date on the KDE, Gi* and DBSCAN routes, matching the map's Eastern days:
+    # a date is the whole day, so as an end it runs to the day's last microsecond, since those
+    # routes include their end; a time without an offset is Eastern too
+    try:
+        day = date.fromisoformat(value)
+    except ValueError:
+        pass
+    else:
+        return datetime.combine(day, time.max if end else time.min, tzinfo=EASTERN)
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"{name} must be a date like 2026-07-01 or a time like 2026-07-01T14:30") from None
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=EASTERN)
+    return moment.astimezone(EASTERN)
 
 
 def _bbox(raw: str) -> tuple[float, float, float, float]:

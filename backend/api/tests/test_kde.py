@@ -3,7 +3,7 @@ import os
 from leecad_api import runs
 
 ANIMATION = "/api/v1/animation/kde-heatmap"
-JUNE = "start_date=2026-06-10&end_date=2026-06-20&window_length=5D&time_step=5D&bandwidth=1500"
+JUNE = "start_date=2026-06-10&end_date=2026-06-19&window_length=5D&time_step=5D&bandwidth=1500"
 
 
 def test_the_heatmap_is_an_image_over_the_county(client):
