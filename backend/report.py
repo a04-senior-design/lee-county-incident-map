@@ -4,6 +4,7 @@ import base64
 import math
 import datetime
 from collections import Counter
+from zoneinfo import ZoneInfo
 
 from PIL import Image as PILImage, ImageColor, ImageDraw
 
@@ -31,6 +32,7 @@ from reportlab.platypus import (
 _NAVY  = colors.HexColor("#1e3a5f")
 _LIGHT = colors.HexColor("#f0f4f8")
 _RULE  = colors.HexColor("#ddd")
+_EASTERN = ZoneInfo("America/New_York")
 
 # keyed on the category codes from /api/v1/incident-types, in lowercase
 _NATURE_COLORS = {
@@ -529,23 +531,26 @@ def _type_color(key):
     return _REST_COLOR if key == _REST else _NATURE_COLORS.get(key, "#7f8c8d")
 
 
-def _published_through(incidents, end_date):
-    """The last day the Sheriff's incident log reaches, when a recent report runs past it; else None.
-    Traffic comes from a live feed, everything else from a log published 48 hours late, so the
-    last days of a recent report hold Traffic only."""
-    if end_date < datetime.date.today() - datetime.timedelta(days=3):
-        return None  # an older report: the log has caught up
-
-    last = None
+def _published_through(incidents, start_date, end_date):
+    """The last day the Sheriff's incident log reaches, when the report runs past it; else None.
+    Traffic comes from a live feed, everything else from a log published 48 hours late and
+    fetched every 12 hours, so the last 3 days hold Traffic only. The log has reached at least
+    3 days ago even when a rare type, like Shots Fired, has nothing that recent."""
+    today = datetime.datetime.now(_EASTERN).date()
+    last = today - datetime.timedelta(days=3)
+    only_traffic = True
     for inc in incidents:
         if _type_key(inc) == "traffic":
             continue
+        only_traffic = False
         d = _parse_date(inc)
-        if d and (last is None or d.date() > last):
+        if d and d.date() > last:
             last = d.date()
 
-    if last is None or last >= end_date:
+    if last >= end_date:
         return None
+    if only_traffic and start_date <= last:
+        return None  # a Traffic-only report: nothing in it is waiting on the log
     return last
 
 
@@ -651,28 +656,43 @@ def _line_chart(incidents, start_date, end_date, top, published_through=None):
     fig.patch.set_facecolor(_BG)
     _style_axes(ax)
 
-    ax.stackplot(periods, [counts[k] for k in keys], colors=[_type_color(k) for k in keys],
-                 edgecolor="white", linewidth=0.3)
+    if len(periods) == 1:
+        # one day: an area needs two points, so stack a single bar
+        bottom = 0
+        for k in keys:
+            ax.bar(periods[0], counts[k][0], bottom=bottom, color=_type_color(k), width=0.5, edgecolor="none")
+            bottom += counts[k][0]
+    else:
+        ax.stackplot(periods, [counts[k] for k in keys], colors=[_type_color(k) for k in keys],
+                     edgecolor="white", linewidth=0.3)
     totals = sum(counts.values())
     complete = []  # each period's total, leaving out the days not yet published
     for period, period_total in zip(periods, totals):
         if published_through is None or period <= published_through:
             complete.append(period_total)
-    avg = sum(complete) / len(complete) if complete else 0
+    if not complete:
+        complete = list(totals)  # every day is waiting on the log: average them all
+    avg = sum(complete) / len(complete)
     ax.axhline(avg, color="#333", linestyle="--", linewidth=0.8)
     ax.text(periods[-1], avg, f" avg {avg:.0f}", va="bottom", ha="right", fontsize=7, color="#333")
     if published_through:
-        pending = datetime.datetime.combine(published_through, datetime.time(12))
-        ax.axvspan(pending, periods[-1], color="#999", alpha=0.15, linewidth=0)
-        ax.text(pending + (datetime.datetime.combine(periods[-1], datetime.time()) - pending) / 2,
-                ax.get_ylim()[1] * 0.95, "Traffic only:\nothers not yet published",
+        # half a day past each end, so a one-day report's bar is covered; the axis clips the rest
+        first = datetime.datetime.combine(periods[0], datetime.time()) - datetime.timedelta(hours=12)
+        last = datetime.datetime.combine(periods[-1], datetime.time()) + datetime.timedelta(hours=12)
+        pending = max(datetime.datetime.combine(published_through, datetime.time(12)), first)
+        ax.axvspan(pending, last, color="#999", alpha=0.15, linewidth=0)
+        ax.text(pending + (last - pending) / 2, ax.get_ylim()[1] * 0.95, "Not yet published\n(except Traffic)",
                 ha="center", va="top", fontsize=7, style="italic", color="#555")
 
     unit = "week" if weekly else "day"
     ax.set_title(f"Incidents per {unit}, split by type", fontsize=10.5, fontweight="bold", pad=10, loc="left")
     ax.set_ylabel(f"Incidents per {unit}", fontsize=8.5)
-    ax.set_xlim(periods[0], periods[-1])
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=10))
+    if len(periods) == 1:
+        ax.set_xlim(periods[0] - datetime.timedelta(days=1), periods[0] + datetime.timedelta(days=1))
+        ax.set_xticks([periods[0]])
+    else:
+        ax.set_xlim(periods[0], periods[-1])
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=10))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
 
     _legend_below(fig, keys)
@@ -888,19 +908,22 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
         story.append(Spacer(1, 0.05 * inch))
 
     # Trend over time
-    published = _published_through(incidents, end_date)
+    published = _published_through(incidents, start_date, end_date)
     if published:
-        first, days = published + datetime.timedelta(days=1), (end_date - published).days
+        first = max(published + datetime.timedelta(days=1), start_date)
+        days = (end_date - first).days + 1
         span = f"{first:%b %d}" if days == 1 else f"{first:%b %d} – {end_date:%b %d}"
-        pending_note = (f" <b>{span}</b> {'shows' if days == 1 else 'show'} Traffic only: the other types "
-                        "are not yet published for those days. Traffic comes from the Sheriff's live traffic feed; "
-                        "everything else comes from its incident log, which is published 48 hours late.")
+        is_are = "is" if days == 1 else "are"
+        pending_note = (f" <b>{span}</b> {is_are} not yet published for types other than Traffic. "
+                        "Traffic comes from the Sheriff's live traffic feed; everything else comes from its "
+                        "incident log, which is published 48 hours late.")
     trend_png, unit, per_period, periods, avg = _line_chart(incidents, start_date, end_date, top_types, published)
     if per_period.any():
         peak = int(per_period.argmax())
         when = f"the week of {periods[peak]:%b %d}" if unit == "week" else f"{periods[peak]:%A, %b %d}"
+        some_shaded = published and published >= start_date
         caption = (f"An average of <b>{avg:.1f}</b> incidents per {unit} (dashed line"
-                   f"{', not counting the shaded days' if published else ''}). "
+                   f"{', not counting the shaded days' if some_shaded else ''}). "
                    f"The busiest {unit} was <b>{when}</b>, with {int(per_period[peak]):,}.")
         if published:
             caption += pending_note
@@ -918,8 +941,8 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
                    f"({int(per_hour[h]):,} incidents) and the busiest day is <b>{day}</b> "
                    f"({int(per_day.max()):,}). Times are Eastern.")
         if published:
-            caption += (f" {span} {'holds' if days == 1 else 'hold'} Traffic only so far, "
-                        "so the days of the week they fall on are short of the other types.")
+            caption += (f" {span} {is_are} not yet published for types other than Traffic, "
+                        "so the days of the week they fall on are short of those types.")
     else:
         caption = "No incidents with a usable time in this period."
     story.append(chart_block("Incident Timing", timing_png, caption))
