@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots_from_dbscan
+from test_kde import padding_grows_with_bandwidth
 
 from leecad_api import runs
 
@@ -80,6 +81,18 @@ def test_the_kde_animation_frames_share_one_color_scale(tmp_path):
     both = legend("both", tight, loose)
     assert both["vmax"] == legend("tight", tight)["vmax"]
     assert both["vmin"] == legend("loose", loose)["vmin"]
+
+
+def test_the_cluster_level_animation_is_padded_by_the_bandwidth(tmp_path):
+    rng = np.random.default_rng(0)
+    write_frames(tmp_path, np.array([700000.0, 800000.0]) + rng.normal(0, 2000, (20, 2)))
+
+    def bounds_at(bw):
+        out = tmp_path / f"out_{bw}"
+        frames, _ = build_kde_heatmap_snapshots_from_dbscan(bandwidths=[bw], densities_dir=tmp_path, output_dir=out)
+        return frames[0]["bounds"]
+
+    padding_grows_with_bandwidth(bounds_at)
 
 
 def test_each_run_keeps_its_own_results(client):
