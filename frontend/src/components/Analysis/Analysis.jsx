@@ -189,7 +189,8 @@ const Analysis = ({
   drawArea,
   reportMapState,
   setReportMapState,
-  selectedNatures
+  selectedNatures,
+  showAlert
 }) => {
   const map = useMap()
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
@@ -419,13 +420,14 @@ const Analysis = ({
         if (data.cluster_set !== undefined && data.cluster_set !== clusterSet) {
           setCurrentClusterSet(data.cluster_set)
         }
+        if(optimize)showAlert('success', 'Bandwidth Optimized successfully!')
       })
       .catch((err) => {
         if (id !== kdeRequestRef.current) return
         console.error('KDEHeatmap fetch failed: ', err)
 
         if (err.data) setDbscanStatus(err.data.dbscan_status ?? null)
-
+        showAlert('error', err.message)
         // the run expired (the server keeps runs for 1 hour) or was never made:
         // forget it and fall back to the plain heat map
         if (
