@@ -465,7 +465,10 @@ paths:
         Counts the incidents in a grid of 2500 ft cells and colors each cell
         by its Gi* z-score: how much more (or less) busy it and its
         neighbors are than the county as a whole. Cells whose center is in
-        the water are left out unless they hold an incident. Dates and
+        the water are left out unless they hold an incident. The grid covers
+        all of Lee County, the same whichever incidents are in it, or with a
+        bbox just the bbox, cut to the county; a bbox outside the county is
+        refused. Dates and
         filters work as on /api/v1/kde-heatmap. The response is kept for an
         hour under the run_id it returns, for /api/v1/reports?gi_star_run=.
       parameters:
