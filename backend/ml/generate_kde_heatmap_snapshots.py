@@ -20,7 +20,8 @@ KDE_SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "tmp_kde_heatma
 
 def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, bandwidth, incidents=None, output_dir=KDE_SNAPSHOT_DIR):
 	"""Build one KDE heat map snapshot per time window, for the heat map
-	animation.
+	animation. This method is only used for the "KDE Heat Map (all points)"
+	option, which uses only one bandwidth.
 
 	Windows come from ml.time_windows.build_time_windows(), which applies
 	the defaults for any argument left as None. For each window, the
