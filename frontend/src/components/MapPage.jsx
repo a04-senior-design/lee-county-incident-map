@@ -220,7 +220,7 @@ function MapPage() {
             from: fromDay,
             to: toDay,
             mapped: 'true',
-            limit: '5000'
+            limit: '3000'
             //bbox: useArea && bbox ? bbox : LEE_COUNTY_BBOX
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name

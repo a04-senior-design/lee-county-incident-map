@@ -351,7 +351,8 @@ const Analysis = ({
   function fetchKDEHeatmap(
     bandwidthsParam,
     clusterSet,
-    runId = runIdRef.current
+    runId = runIdRef.current,
+    optimize = false
   ) {
     if (noTypes) {
       setKdeData(null)
@@ -378,7 +379,9 @@ const Analysis = ({
           : selectedNatures
       )
     }
-    if (bandwidthsParam) {
+    if (optimize) {
+      params.append('optimize', 'true') // never send bandwidth together with this
+    } else if (bandwidthsParam) {
       bandwidthsParam.forEach((bw) => params.append('bandwidth', bw))
     }
     if (bbox) params.append('bbox', bbox)
@@ -389,6 +392,13 @@ const Analysis = ({
 
     fetch(url)
       .then(async (res) => {
+        if (res.status === 504) {
+          const err = new Error(
+            'Optimizing took too long and the server timed out.'
+          )
+          err.data = {}
+          throw err
+        }
         const data = await res.json()
 
         if (!res.ok) {
@@ -500,7 +510,7 @@ const Analysis = ({
 
     debounceTimerRef.current = setTimeout(() => {
       fetchKDEHeatmap(nextBandwidths, currentClusterSet)
-    }, 400)
+    }, 500)
   }
 
   function handleBandwidthInput(i, raw) {
@@ -516,6 +526,7 @@ const Analysis = ({
   }
 
   // Returns the slider rows as JSX (was DOM code)
+  const [optimizing, setOptimizing] = useState(false)
   function buildSliders() {
     return (
       <>
@@ -536,8 +547,8 @@ const Analysis = ({
               className='bandwidth-slider'
               min={kdeData?.min_bandwidth}
               max={kdeData?.max_bandwidth}
-              step={100}
-              value={bw}
+              step={1}
+              value={Math.round(bw)}
               onChange={(e) => handleBandwidthInput(i, e.target.value)}
             />
           </Box>
@@ -557,6 +568,28 @@ const Analysis = ({
             Constraint: {bandwidths.map((_, i) => `Level ${i}`).join(' >= ')}
           </Typography>
         )}
+        <Button
+          color='success'
+          variant='outlined'
+          onClick={async () => {
+            clearTimeout(debounceTimerRef.current)
+            setOptimizing(true)
+            try {
+              await fetchKDEHeatmap(
+                null,
+                currentClusterSet,
+                runIdRef.current,
+                true
+              )
+            } finally {
+              setOptimizing(false)
+            }
+          }}
+        >
+          {optimizing
+            ? 'Optimizing… this can take a while'
+            : 'Optimized Bandwidth'}
+        </Button>
       </>
     )
   }
@@ -641,8 +674,14 @@ const Analysis = ({
     const legend = data.legend
     const gradientCss = `linear-gradient(to right, ${legend.colors.join(', ')})`
 
+    const lastIdx = legend.ticks.length - 1
     const tickLabels = legend.ticks
-      .map((t) => `<span>${Number(t.toPrecision(2))}</span>`)
+      .map((t, i) => {
+        const min = i === 0 ? ' <=' : ''
+        const max = i === lastIdx ? '>= ' : ''
+
+        return `<span>${max}${Number(t.toPrecision(2))}${min}</span>`
+      })
       .join('')
 
     const legendControl = L.control({ position: 'bottomright' })
