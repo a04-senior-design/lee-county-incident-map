@@ -11,13 +11,17 @@ from ml.time_windows import build_time_windows
 from ml.kde import KDEHeatMap
 
 MAX_SNAPSHOTS = 30
+# grid padding, in multiples of the largest bandwidth: 3.035 bandwidths out a point's kernel is
+# down to 1% of its peak (e^(-3.035^2/2) = 0.01), so the heat map fades out before the image edge
+PADDING_PER_BANDWIDTH = 3.035
 
 # folder where the snapshot PNGs are written; app.py serves images from here
 KDE_SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "..", "tmp_kde_heatmap_snapshots")
 
 def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, bandwidth, incidents=None, output_dir=KDE_SNAPSHOT_DIR):
 	"""Build one KDE heat map snapshot per time window, for the heat map
-	animation.
+	animation. This method is only used for the "KDE Heat Map (all points)"
+	option, which uses only one bandwidth.
 
 	Windows come from ml.time_windows.build_time_windows(), which applies
 	the defaults for any argument left as None. For each window, the
@@ -117,7 +121,7 @@ def build_kde_heatmap_snapshots(start_date, end_date, window_length, time_step, 
 
 		cluster_levels = np.zeros(len(points), dtype=int)
 		bandwidths = [bandwidth]
-		padding = 100
+		padding = PADDING_PER_BANDWIDTH * bandwidth
 
 		x_min = np.min(points[:,0]) - padding
 		y_min = np.min(points[:,1]) - padding
@@ -358,7 +362,7 @@ def build_kde_heatmap_snapshots_from_dbscan(bandwidths, densities_dir=DBSCAN_ANI
 		for level in frame_levels:
 			frame_bandwidths.append(bandwidth_for_level[int(level)])
 
-		padding = 100
+		padding = PADDING_PER_BANDWIDTH * max(frame_bandwidths)
 		x_min = np.min(clustered_points[:, 0]) - padding
 		y_min = np.min(clustered_points[:, 1]) - padding
 		x_max = np.max(clustered_points[:, 0]) + padding
