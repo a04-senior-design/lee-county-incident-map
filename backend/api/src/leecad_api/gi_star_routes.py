@@ -2,10 +2,10 @@ import os
 import tempfile
 import warnings
 
-import numpy as np
 from flask import Blueprint, current_app, jsonify, request
 from ml.generate_gi_star_snapshots import GI_STAR_CELL_SIZE, build_gi_star_snapshots, load_land_polygon
 from ml.gi_star.GiStarHeatMap import GiStarHeatMap
+from pyproj import Transformer
 
 from leecad_api import filters, queries, runs
 from leecad_api.kde_routes import _parse_time_window_args, _png_to_base64, load_points
@@ -15,12 +15,30 @@ bp = Blueprint("gi_star", __name__)
 MIN_DISTANCE_BAND = 500
 MAX_DISTANCE_BAND = 10000
 DEFAULT_DISTANCE_BAND = 2500
+# (x_min, y_min, x_max, y_max) in EPSG:2882 feet: all of Lee County's land, with about two
+# miles to spare, from LEE-213
+COUNTY_BOUNDS = (557116.6, 709422.7, 807439.1, 905588.2)
+TO_FEET = Transformer.from_crs("EPSG:4326", "EPSG:2882", always_xy=True)
 
 # loaded once per worker, since it doesn't change
 LAND_POLYGON = load_land_polygon()
 
 # libpysal warns on every request about land cells with no neighbor inside the distance band
 warnings.filterwarnings("ignore", message="The weights matrix is not fully connected")
+
+
+def _grid_bounds(bbox):
+    # without a drawn box the grid is the whole county, so it doesn't move with the incidents;
+    # with one it is the box, cut to the county so a huge box can't build a huge grid
+    if bbox is None:
+        return COUNTY_BOUNDS
+    west, south, east, north = bbox
+    xs, ys = TO_FEET.transform([west, east, east, west], [south, south, north, north])
+    x_min, y_min = max(min(xs), COUNTY_BOUNDS[0]), max(min(ys), COUNTY_BOUNDS[1])
+    x_max, y_max = min(max(xs), COUNTY_BOUNDS[2]), min(max(ys), COUNTY_BOUNDS[3])
+    if x_min >= x_max or y_min >= y_max:
+        raise ValueError("the drawn box is outside Lee County")
+    return x_min, y_min, x_max, y_max
 
 
 @bp.get("/api/v1/gi-star-heatmap")
@@ -35,15 +53,7 @@ def gi_star_heatmap():
     distance_band = max(MIN_DISTANCE_BAND, min(MAX_DISTANCE_BAND, requested_distance_band))
 
     data_points, _, _ = load_points()
-    easting = data_points[:, 0]
-    northing = data_points[:, 1]
-
-    # define the range of the grid to represent the corresponding map coordinates
-    padding = GI_STAR_CELL_SIZE
-    x_min = np.min(easting) - padding
-    x_max = np.max(easting) + padding
-    y_min = np.min(northing) - padding
-    y_max = np.max(northing) + padding
+    x_min, y_min, x_max, y_max = _grid_bounds(filters.parse_without_dates(request.args).bbox)
 
     # each request gets its own run folder, so two users don't overwrite each other's image,
     # and the report can find this one by its run_id

@@ -8,7 +8,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
-from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots
+from ml.generate_kde_heatmap_snapshots import PADDING_PER_BANDWIDTH, build_kde_heatmap_snapshots
 from ml.kde import BandwidthOptimizer, KDEHeatMap
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
@@ -230,8 +230,8 @@ def kde_heatmap():
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
 
     # define range of mesh grid (lattice structure) to represent the corresponding map coordinates;
-    # padded only after the bandwidths are known, so the padding can depend on them
-    padding = 100
+    # padded only after the bandwidths are known, since the padding depends on them
+    padding = PADDING_PER_BANDWIDTH * max(bandwidths)
     x_min = x_min_no_padding - padding
     x_max = x_max_no_padding + padding
     y_min = y_min_no_padding - padding

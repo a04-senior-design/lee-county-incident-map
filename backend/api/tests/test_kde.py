@@ -2,11 +2,20 @@ import os
 from collections import OrderedDict
 
 import numpy as np
+from pyproj import Transformer
 
 from leecad_api import kde_routes, runs
 
 ANIMATION = "/api/v1/animation/kde-heatmap"
 JUNE = "start_date=2026-06-10&end_date=2026-06-19&window_length=5D&time_step=5D&bandwidth=1500"
+TO_FEET = Transformer.from_crs("EPSG:4326", "EPSG:2882", always_xy=True)
+
+
+def padding_grows_with_bandwidth(bounds_at):
+    # 1500 to 5000 ft moves the west edge out 3.035 * 3500 ft, give or take a 300 ft cell or two
+    # from the grid's spacing and the image's reprojection
+    west = {bw: TO_FEET.transform(bounds_at(bw)["west"], bounds_at(bw)["south"])[0] for bw in (1500, 5000)}
+    assert abs(west[1500] - west[5000] - 3.035 * 3500) < 600
 
 
 def test_the_heatmap_is_an_image_over_the_county(client):
@@ -123,6 +132,16 @@ def test_a_full_cache_drops_the_least_recently_used(client, monkeypatch):
 def test_the_optimizer_picks_the_bandwidths_alone(client):
     assert client.get("/api/v1/kde-heatmap?optimize=true&bandwidth=1500").status_code == 400
     assert client.get("/api/v1/kde-heatmap?optimize=yes").status_code == 400
+
+
+def test_the_heatmap_is_padded_by_its_bandwidth(client):
+    padding_grows_with_bandwidth(lambda bw: client.get(f"/api/v1/kde-heatmap?bandwidth={bw}").json["bounds"])
+
+
+def test_animation_frames_are_padded_by_the_bandwidth(client):
+    june = JUNE.replace("&bandwidth=1500", "")
+    padding_grows_with_bandwidth(
+        lambda bw: client.get(f"{ANIMATION}?{june}&bandwidth={bw}").json["frames"][0]["bounds"])
 
 
 def test_animation_frames_count_only_mapped_incidents_in_each_window(client):
