@@ -1,6 +1,11 @@
-# KDEHeatMap Unit Tests
+# KDEHeatMap and BandwidthOptimizer Unit Tests
 
-Unit tests for the `KDEHeatMap` class in `KDEHeatMap.py`. The 29 test cases (TC-01 to TC-29) are described in the **KDEHeatMap Unit Test Plan**, which gives the setup and expected result of each one.
+Unit tests for two classes that share this folder and its test data:
+
+- `KDEHeatMap` in `KDEHeatMap.py`: 29 test cases (TC-01 to TC-29), described in the **KDEHeatMap Unit Test Plan**.
+- `BandwidthOptimizer` in `BandwidthOptimizer.py`: 8 test cases (BW-01 to BW-08), described in the **BandwidthOptimizer Unit Test Plan**.
+
+Each plan gives the setup and expected result of every case. The two test files run independently.
 
 ## Folder layout
 
@@ -8,9 +13,11 @@ Unit tests for the `KDEHeatMap` class in `KDEHeatMap.py`. The 29 test cases (TC-
 kde_unit_test/
 ├── README.md
 ├── requirements.txt
-├── KDEHeatMap.py
-├── test_KDEHeatMap.py
 ├── make_fixture.py
+├── KDEHeatMap.py
+├── BandwidthOptimizer.py
+├── test_KDEHeatMap.py
+├── test_BandwidthOptimizer.py
 └── test_data/
     ├── two_clusters.csv
     ├── late-paper-81460214_production_neondb_2026-07-06_13-14-24.csv
@@ -19,11 +26,11 @@ kde_unit_test/
     └── density_scenario_3levels.txt
 ```
 
-`KDEHeatMap.py` and the `test_data` folder must sit next to `test_KDEHeatMap.py`. The tests find them relative to the test file, so the folder itself can be anywhere.
+`KDEHeatMap.py`, `BandwidthOptimizer.py` and the `test_data` folder must sit next to the test files. The tests find them relative to the test file, so the folder itself can be anywhere. `BandwidthOptimizer.py` uses `KDEHeatMap.py`, so the BandwidthOptimizer tests need both.
 
 ## Setup
 
-The tests need the same packages as `KDEHeatMap.py` (numpy, matplotlib, KDEpy, rasterio), plus pandas and pyproj for the real-data test, and pytest with its coverage plugin. All of them are listed in `requirements.txt`.
+All the packages are listed in `requirements.txt`, including scipy, which `BandwidthOptimizer.py` uses.
 
 To set up a virtual environment in this folder and install them:
 
@@ -41,20 +48,28 @@ From the `kde_unit_test` folder:
 
 | To | Run |
 | --- | --- |
-| Run every test, one line each | `python3 -m pytest test_KDEHeatMap.py -v` |
-| Run the tests whose names contain a keyword | `python3 -m pytest test_KDEHeatMap.py -k bandwidth -v` |
-| Run a single test case | `python3 -m pytest test_KDEHeatMap.py::test_tc12_volume -v` |
-| Measure statement and branch coverage | `python3 -m pytest test_KDEHeatMap.py --cov=KDEHeatMap --cov-branch --cov-report=term-missing` |
+| Run every KDEHeatMap test | `python3 -m pytest test_KDEHeatMap.py -v` |
+| Run every BandwidthOptimizer test | `python3 -m pytest test_BandwidthOptimizer.py -v` |
+| Run the BandwidthOptimizer tests without the slow real-data case | `python3 -m pytest test_BandwidthOptimizer.py -k "not bw08" -v` |
+| Run both files together | `python3 -m pytest -v` |
+| Run a single test case | `python3 -m pytest test_BandwidthOptimizer.py::test_bw03_bandwidth_unpacking -v` |
+| Measure KDEHeatMap coverage | `python3 -m pytest test_KDEHeatMap.py --cov=KDEHeatMap --cov-branch --cov-report=term-missing` |
+| Measure BandwidthOptimizer coverage | `python3 -m pytest test_BandwidthOptimizer.py --cov=BandwidthOptimizer --cov-branch --cov-report=term-missing` |
 
-## Expected result
+## Expected results
 
-```
-42 passed
-```
+| Test file | Result | Time |
+| --- | --- | --- |
+| `test_KDEHeatMap.py` | `42 passed` | A few seconds |
+| `test_BandwidthOptimizer.py` | `23 passed` | About a minute, mostly BW-08 |
+| Both together | `65 passed` | About a minute |
 
-pytest reports 42 tests for the 29 cases because seven cases (TC-02, TC-04, TC-05, TC-07, TC-08, TC-09 and TC-29) each try several inputs, and each input is reported on its own line. The label in brackets after a test name, such as `test_tc29_real_incident_data[2levels]`, shows which input ran.
+pytest reports more tests than there are cases because some cases try several inputs, and each input is reported on its own line. The label in brackets after a test name, such as `test_bw08_real_incident_data[2levels]`, shows which input ran.
 
-The coverage run should report `100%` for `KDEHeatMap.py`.
+- KDEHeatMap: TC-02, TC-04, TC-05, TC-07, TC-08, TC-09 and TC-29.
+- BandwidthOptimizer: BW-01, BW-04, BW-05, BW-07 and BW-08. BW-04 is split into two test functions: inputs (a) to (d), and the isolated point (e).
+
+Each coverage run should report `100%` of statements and branches.
 
 In the output, `PASSED` (or `.`) means pass and `FAILED` (or `F`) means fail. A failing test prints the line that failed and the values it compared.
 
@@ -75,4 +90,4 @@ The random seed is fixed, so the script always produces the identical file.
 ## Notes
 
 - If a file named `test_kde.py` is in the same folder, rename it (for example to `kde_demo.py`). pytest runs every file named `test_*.py`, and that file is a demo script, not a test.
-- The warnings summary at the end of a run comes from matplotlib's notice that `cmap.set_bad` will be deprecated. It is raised inside `KDEHeatMap.py` and does not affect any result.
+- BW-04 compares the class's score with an exact leave-one-out calculation written in the test, and BW-06 compares the optimizer with `brute_force_optimizer`. If either fails after a change to `BandwidthOptimizer.py` or `KDEHeatMap.py`, the objective or the search has changed.
