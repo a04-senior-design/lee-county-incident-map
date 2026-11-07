@@ -203,8 +203,8 @@ class GiStarHeatMap:
             (0.958, (1, 0, 0, 1)),        # Z =  2.75 bright red
             (1.0,   (1, 0, 0, 1)),        # Z =  3.0: still bright red
         ]
-        cmap = LinearSegmentedColormap.from_list('gi_star_fade', colors)
-        cmap.set_bad(alpha=0)  # NaN (no data) pixels are fully transparent
+        # NaN (no data) pixels are fully transparent
+        cmap = LinearSegmentedColormap.from_list('gi_star_fade', colors).with_extremes(bad=(0, 0, 0, 0))
 
         # diverging norm centered at 0 so blue/red are symmetric (unchanged)
         if z_abs_max is None:
@@ -296,8 +296,7 @@ class GiStarHeatMap:
 
         # set the figure size to 8x8
         fig, ax = plt.subplots(figsize=(8, 8))
-        cmap = heat_cmap.copy()
-        cmap.set_bad(alpha=0)
+        cmap = heat_cmap.with_extremes(bad=(0, 0, 0, 0))
 
         # diverging norm centered at 0 so blue/red are symmetric around "not significant"
         finite_z = z_grid[np.isfinite(z_grid)]
@@ -363,6 +362,6 @@ def main():
 
     
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
 
