@@ -27,18 +27,39 @@ def test_project_mappable_empty_list_returns_none():
     assert _project_mappable([]) == (None, None, None)
     
 # input for DBSCANCluster
-cluster_points = np.array([
+cluster_points_one_level = np.array([
     [0, 0], [10, 0], [0, 10], [10, 10], # Group A: tight
     [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
     [50000, 50000] # lone outlier
 ])
-cluster_levels = [{"epsilon": 50, "min_pts": 4}]
-    
-def test_dbscan_cluster_labels():
-    dbscan = DBSCANCluster(points=cluster_points, levels=cluster_levels)
-    labels = dbscan.labels_per_level[0]
+cluster_levels_one_level = [{"epsilon": 50, "min_pts": 4}]
+dbscan_one_level = DBSCANCluster(points=cluster_points_one_level, levels=cluster_levels_one_level)
+
+def test_dbscan_one_level_cluster_labels():
+    labels = dbscan_one_level.labels_per_level[0]
     
     assert len(np.unique(labels[0:4])) == 1 # Group A only
     assert len(np.unique(labels[0: 8])) == 2 # Group A + B
     assert len(np.unique(labels)) == 3 # Group A + B + other label
     assert labels[8] == -1 # check outlier marked as outlier
+    
+def test_dbscan_one_level_cluster_noise_mask_flags_outlier():
+    assert dbscan_one_level.noise_mask.sum() == 1 # Exactly one noise point
+
+cluster_points_two_level = np.array([
+    [0, 0], [5, 0], [0, 5], [5, 5], # Group A: tight
+    [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
+    [50000, 50000] # lone outlier
+])
+cluster_levels_two_level = [{"epsilon": 50, "min_pts": 4}, {"epsilon": 8, "min_pts": 4}] # use 2 cluster levels
+dbscan_two_level = DBSCANCluster(points=cluster_points_two_level, levels=cluster_levels_two_level)
+
+def test_dbscan_two_level_cluster_labels():
+    density_levels = dbscan_two_level.density_levels
+    
+    assert len(np.unique(density_levels[0:4])) == 1
+    assert len(np.unique(density_levels[0:8])) == 2
+    assert len(np.unique(density_levels)) == 3
+    
+    assert density_levels[0] > density_levels[4] # group A tighter than B, so higher density level
+    assert density_levels[4] > density_levels[8] # group B is labled, outlier is -1, so should be higher
