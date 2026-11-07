@@ -18,7 +18,7 @@ function AppAlert({ AlertContent, SetAlertContent }) {
       <Snackbar
         anchorOrigin={{ vertical, horizontal }}
         open={open}
-        autoHideDuration={3500}
+        autoHideDuration={5500}
         onClose={handleClose}
         message='Note archived'
         key={key}

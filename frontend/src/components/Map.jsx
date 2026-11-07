@@ -329,7 +329,7 @@ function Map({
       //console.log('success')
       setIsInside(true)
       if (setRoutePair) setRoutePair([latitude, longitude]) //this line is for route safety
-      console.log('setroute: ', setRoutePair)
+      //console.log('setroute: ', setRoutePair)
       setSelectedAddress([latitude, longitude])
       //generate alert
       SetAlertContent((prev) => ({
@@ -363,9 +363,9 @@ function Map({
       )
 
       const data = await res.json()
-      console.log('has data:', data)
+      //console.log('has data:', data)
       if (data.features.length > 0) {
-        console.log(data.features)
+        //console.log(data.features)
         setList(data.features)
         //console.log(addressList)
         //console.log('has list:', addressList)

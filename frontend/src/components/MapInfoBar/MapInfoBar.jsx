@@ -24,7 +24,8 @@ function MapInfoBar({
   setDateRange,
   isLoading,
   setTimeRange,
-  timeRange
+  timeRange,
+  setAlertContent
 }) {
   const [anchorEl, setAnchorEl] = useState(null)
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -189,7 +190,7 @@ function MapInfoBar({
         variant='outlined'
         onClick={handleClick}
         label={
-          allType
+          allType && selectedNatures.length !== 0
             ? 'All types ▾'
             : selectedNatures.length !== 0
               ? `${selectedNatures.length} types ▾`
@@ -245,7 +246,9 @@ function MapInfoBar({
               selectedNatures.length < natures.length
             }
           />
-          <Typography variant='body1'>ALL TYPES</Typography>
+          <Typography variant='body1'>
+            {selectedNatures.length !== 0 ? 'ALL TYPES' : 'NO TYPE'}
+          </Typography>
         </MenuItem>
         <Divider />
         {natures

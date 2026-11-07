@@ -127,8 +127,8 @@ function BoardBar({
           startIcon={<SelectAllIcon />}
           onClick={(e) => {
             setSelectedId(null)
-
-            setDrawArea(true)
+            setAreaBounds(null)
+            setDrawArea(!drawArea)
           }}
         >
           Areas Filter
@@ -173,7 +173,8 @@ function BoardBar({
           startIcon={<AnimationIcon />}
           onClick={(e) => {
             handleActive(e)
-            window.location.href ='/cluster-heatmap-animation-lab.html', '_blank'
+            ;((window.location.href = '/cluster-heatmap-animation-lab.html'),
+              '_blank')
           }}
         >
           Animation
@@ -221,10 +222,17 @@ function BoardBar({
           ]}
           startIcon={<RouteIcon />}
           onClick={(e) => {
-            setRouteOn(!routeOn)
             setSelectedId(null)
             setAddressSearch(false)
             setIsPulled(false)
+            if (analysisOn)
+              SetAlertContent((prev) => ({
+                ...prev,
+                open: true,
+                severity: 'error',
+                content: 'Go back to view mode to open Route Grader panel'
+              }))
+            else setRouteOn(!routeOn)
           }}
         >
           Route Grader

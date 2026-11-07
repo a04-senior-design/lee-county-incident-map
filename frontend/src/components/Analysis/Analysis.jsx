@@ -679,10 +679,10 @@ const Analysis = ({
     const lastIdx = legend.ticks.length - 1
     const tickLabels = legend.ticks
       .map((t, i) => {
-        const min = i === 0 ? ' <=' : ''
+        const prefix = i === 0 ? ' <= ' :i === lastIdx ? '>= ' : ''
         const max = i === lastIdx ? '>= ' : ''
 
-        return `<span>${max}${Number(t.toPrecision(2))}${min}</span>`
+        return `<span>${prefix}${Number(t.toPrecision(2))}</span>`
       })
       .join('')
 

@@ -67,7 +67,7 @@ function MapPage() {
 
   const newStartDate = `${start_date}T${start_hour}`
   const newEndDate = `${end_date}T${end_hour}`
-  console.log('new start and end date: ', newStartDate, newEndDate)
+  //console.log('new start and end date: ', newStartDate, newEndDate)
 
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
@@ -236,35 +236,35 @@ function MapPage() {
           all = all.concat(page.incidents)
           const withCoords = all.filter((i) => i.lat != null && i.lon != null)
 
-          // 1. suspicious coordinates (rough Lee County bounds, deliberately generous)
-          console.log(
-            'odd coords:',
-            withCoords.filter(
-              (i) =>
-                i.lat < 26.0 || i.lat > 27.2 || i.lon < -82.4 || i.lon > -81.2
-            ).length
-          )
+          // suspicious coordinates (rough Lee County bounds, deliberately generous)
+          // console.log(
+          //   'odd coords:',
+          //   withCoords.filter(
+          //     (i) =>
+          //       i.lat < 26.0 || i.lat > 27.2 || i.lon < -82.4 || i.lon > -81.2
+          //   ).length
+          // )
 
-          // 2. count per day, to see if the first or last day is short
-          const byDay = {}
-          withCoords.forEach((i) => {
-            const d = i.occurred_at.slice(0, 10)
-            byDay[d] = (byDay[d] || 0) + 1
-          })
-          console.table(byDay)
-          const ids = all.map((i) => i.source_incident_id)
-          console.log({
-            raw: all.length,
-            uniqueIds: new Set(ids).size,
-            noId: ids.filter((id) => id == null).length,
-            noCoords: all.filter((i) => i.lat == null || i.lon == null).length,
-            noCategory: all.filter((i) => !i.category).length
-          })
+          // const byDay = {}
+          // withCoords.forEach((i) => {
+          //   const d = i.occurred_at.slice(0, 10)
+          //   byDay[d] = (byDay[d] || 0) + 1
+          // })
+          // console.table(byDay)
+          // const ids = all.map((i) => i.source_incident_id)
+          // console.log({
+          //   raw: all.length,
+          //   uniqueIds: new Set(ids).size,
+          //   noId: ids.filter((id) => id == null).length,
+          //   noCoords: all.filter((i) => i.lat == null || i.lon == null).length,
+          //   noCategory: all.filter((i) => !i.category).length
+          // })
           cursor = page.next_cursor
           count++
         } while (count < 1)
         setIsLoading(false)
         setAllIncidents(all)
+        //console.log('all inc: ', all)
         setSelectedNatures(
           [...new Set(all.map((inc) => inc.category || 'Unknown'))].sort()
         )
@@ -276,51 +276,16 @@ function MapPage() {
     fetchAll()
     return () => controller.abort()
   }, [dateRange, bbox, timeRange])
-  // useEffect(() => {
-  //   const [fromDay, toDay] = dateRange
-  //   if (!fromDay || !toDay) return
-
-  //   async function fetchData() {
-  //     try {
-  //       console.log('fromDay:', fromDay)
-  //       console.log('toDay:', toDay)
-  //       console.log('await....')
-  //       const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`
-  //       //console.log('API URL:', url)
-  //       const res = await fetch(url)
-  //       if (!res.ok) {
-  //         const errorText = await res.text()
-  //         throw new Error(`HTTP ${res.status}: ${errorText}`)
-  //       }
-
-  //       const incidentList = await res.json()
-
-  //       console.log('incidentList =', incidentList)
-
-  //       setAllIncidents(incidentList.incidents)
-
-  //       const newNatures = [
-  //         ...new Set(
-  //           incidentList.incidents.map((inc) => inc.category || 'Unknown')
-  //         )
-  //       ].sort()
-
-  //       setSelectedNatures(newNatures)
-
-  //       console.log('fetched successfully')
-  //     } catch (err) {
-  //       console.error(err)
-  //     }
-  //   }
-
-  //   fetchData()
-  // }, [dateRange])
-
-  // useEffect(() => {
-  //   setSelectedNatures(natures)
-  // }, [allIncidents, daysAgo])
-  //derived value
-  //console.log('MapPage render')
+  useEffect(() => {
+    if (allIncidents.length === 0)
+      SetAlertContent({
+        open: true,
+        vertical: 'bottom',
+        horizontal: 'center',
+        severity: 'warning',
+        content: 'No incident found!'
+      })
+  }, [allIncidents])
   const filteredByDays = allIncidents
   const natures = [
     ...new Set(filteredByDays.map((inc) => inc.category || 'Unknown'))
@@ -438,6 +403,7 @@ function MapPage() {
         reportLoading={reportLoading}
         setReportMapState={setReportMapState}
         drawArea={drawArea}
+        setAreaBounds={setAreaBounds}
       />
 
       <Box
@@ -543,6 +509,7 @@ function MapPage() {
               isLoading={isLoading}
               timeRange={timeRange}
               setTimeRange={setTimeRange}
+              SetAlertContent={SetAlertContent}
             />
           </Box>
           <Box
