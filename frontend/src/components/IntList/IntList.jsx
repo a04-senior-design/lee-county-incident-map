@@ -87,7 +87,7 @@ function IntList({
           }}
         >
           <Tab
-            label='With Location'
+            label='Incident List'
             {...a11yProps(0)}
             sx={{
               '&.Mui-selected': {
@@ -96,7 +96,7 @@ function IntList({
               }
             }}
           />
-          <Tab
+          {/* <Tab
             label='Without Location'
             {...a11yProps(1)}
             sx={{
@@ -105,7 +105,7 @@ function IntList({
                 fontWeight: 700
               }
             }}
-          />
+          /> */}
         </Tabs>
       </Box>
       <CustomTabPanel value={value} index={0}>
@@ -118,7 +118,7 @@ function IntList({
           incidentColors={incidentColors}
         />
       </CustomTabPanel>
-      <CustomTabPanel value={value} index={1}>
+      {/* <CustomTabPanel value={value} index={1}>
         <IntListContent
           incidentList={listWithoutLocation}
           getLocation={getLocation}
@@ -127,7 +127,7 @@ function IntList({
           setNoLocationMove={setNoLocationMove}
           incidentColors={incidentColors}
         />
-      </CustomTabPanel>
+      </CustomTabPanel> */}
     </Box>
   )
   //console.log(listWithLocation)

@@ -180,15 +180,30 @@ function buildClusterLegend(levelData, levelVisible) {
 
 // startDate / endDate: optional 'YYYY-MM-DD' strings for /clusters.
 // Leave them out and the server uses the last 30 days. The server caps a range at 60 days.
-const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
+const Analysis = ({
+  active,
+  startDate,
+  endDate,
+  setIsLoading,
+  areaBounds,
+  drawArea,
+  reportMapState,
+  setReportMapState,
+  selectedNatures,
+  showAlert
+}) => {
   const map = useMap()
-
+  const bbox = areaBounds ? areaBounds.toBBoxString() : null
+  const natureKey = Array.isArray(selectedNatures)
+    ? selectedNatures.join(',')
+    : (selectedNatures ?? '')
+  const noTypes = Array.isArray(selectedNatures) && selectedNatures.length === 0
   //Mode --------------
   const [mode, setMode] = useState('kde-heatmap')
   const [currentClusterSet, setCurrentClusterSet] = useState(0)
   const [clusterSetLabels, setClusterSetLabels] = useState([])
   const [dataVersion, setDataVersion] = useState(0) // bumps when the date range changes
-
+  const [dbscanRunId, setDbscanRunId] = useState(null)
   // KDE
   const [kdeData, setKdeData] = useState(null) // last KDE response
   const [dbscanStatus, setDbscanStatus] = useState(null)
@@ -207,6 +222,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   const [distanceBand, setDistanceBand] = useState(2500) // was `sliders` / `valueLabels`
   const distanceBandTimeBound = useRef(null)
   //REF
+  const gistarRequestRef = useRef(0)
   const applyRef = useRef(null)
   const debounceTimerRef = useRef(null)
   const clustersLoadedRef = useRef(false)
@@ -220,8 +236,76 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   //prevent when using the slider on the lab, the map can be dragged
   const topBarRef = useRef(null)
   const secondBarRef = useRef(null)
+  const thirdBarRef = useRef(null)
+  //State valid-----------------------------------------------
+  const [currentStateValid, setCurrentStateValid] = useState([])
+  const kdeValid = kdeData
+    ? kdeData.cluster_set === 1
+      ? 'cluster'
+      : 'all'
+    : null
+  const clusterValid = LEVEL_DRAW_ORDER.some((l) => levelData[l])
+  const gistarValid = !!GISData
+
   useEffect(() => {
-    const els = [topBarRef.current, secondBarRef.current].filter(Boolean)
+    if (active) return
+    // leaving Analysis Mode: back to "no valid maps" (diagram: ⊗)
+    setKdeData(null)
+    setGISData(null)
+    setLevelData(EMPTY_LEVELS)
+    setDbscanStatus('missing')
+    setCurrentClusterSet(0)
+    setMode('kde-heatmap') // re-entering starts at KDE (all points), like the diagram's A
+    setLevelVisible(ALL_VISIBLE)
+    setLevelSliders(DEFAULT_LEVEL_SLIDERS)
+    runIdRef.current = null
+    setDbscanRunId(null)
+
+    clustersLoadedRef.current = false
+    lastRangeRef.current = '' // so the range effect refetches on re-entry
+    lastKdeKeyRef.current = ''
+    kdeRequestRef.current++ // ignore requests still in flight
+    gistarRequestRef.current++
+    dbscanRequestRef.current++
+  }, [active])
+
+  useEffect(() => {
+    setReportMapState(
+      active
+        ? {
+            kde: kdeValid,
+            clusters: clusterValid,
+            giStar: gistarValid,
+            kdeRunId: kdeData?.run_id ?? null,
+            dbscanRunId: clusterValid ? dbscanRunId : null,
+            giStarRunId: GISData?.run_id ?? null
+          }
+        : {
+            kde: null,
+            clusters: false,
+            giStar: false,
+            kdeRunId: null,
+            dbscanRunId: null,
+            giStarRunId: null
+          }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    active,
+    kdeValid,
+    clusterValid,
+    gistarValid,
+    kdeData,
+    GISData,
+    dbscanRunId
+  ])
+
+  useEffect(() => {
+    const els = [
+      topBarRef.current,
+      secondBarRef.current,
+      thirdBarRef.current
+    ].filter(Boolean)
 
     els.forEach((el) => {
       L.DomEvent.disableScrollPropagation(el)
@@ -242,28 +326,40 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   useEffect(() => {
     if (!active) return
 
-    const range = `${startDate ?? ''}|${endDate ?? ''}`
+    const range = `${startDate ?? ''}|${endDate ?? ''}|${bbox ?? ''}|${natureKey}`
     if (range === lastRangeRef.current) return // same range, nothing to refetch
     lastRangeRef.current = range
 
     setKdeData(null) // avoid showing the old heat map while the new one loads
-
+    setGISData(null)
     // the old cluster run was for the old range, so drop it
     runIdRef.current = null
+    setDbscanRunId(null)
     clustersLoadedRef.current = false
     setLevelData(EMPTY_LEVELS)
     setDbscanStatus('missing')
     setCurrentClusterSet(0)
 
     setDataVersion((v) => v + 1) // makes the KDE and cluster effects fetch again
-  }, [startDate, endDate, active])
+  }, [startDate, endDate, active, bbox, natureKey])
 
   // ---------- KDE ----------
+  // >= 100: nearest whole number. < 100: two significant digits.
+  function formatTick(t) {
+    if (Math.abs(t) >= 100) return Math.round(t)
+    return Number(t.toPrecision(2))
+  }
   function fetchKDEHeatmap(
     bandwidthsParam,
     clusterSet,
-    runId = runIdRef.current
+    runId = runIdRef.current,
+    optimize = false
   ) {
+    if (noTypes) {
+      setKdeData(null)
+
+      return
+    }
     setIsLoading(true)
     const params = new URLSearchParams()
 
@@ -276,11 +372,20 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     if (startDate) params.append('start_date', startDate)
     if (endDate) params.append('end_date', endDate)
-
-    if (bandwidthsParam) {
+    if (selectedNatures?.length) {
+      params.append(
+        'category',
+        Array.isArray(selectedNatures)
+          ? selectedNatures.join(',')
+          : selectedNatures
+      )
+    }
+    if (optimize) {
+      params.append('optimize', 'true') // never send bandwidth together with this
+    } else if (bandwidthsParam) {
       bandwidthsParam.forEach((bw) => params.append('bandwidth', bw))
     }
-
+    if (bbox) params.append('bbox', bbox)
     const query = params.toString()
     const url = query ? `${API}/kde-heatmap?${query}` : `${API}/kde-heatmap`
 
@@ -288,6 +393,13 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     fetch(url)
       .then(async (res) => {
+        if (res.status === 504) {
+          const err = new Error(
+            'Optimizing took too long and the server timed out.'
+          )
+          err.data = {}
+          throw err
+        }
         const data = await res.json()
 
         if (!res.ok) {
@@ -308,13 +420,14 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
         if (data.cluster_set !== undefined && data.cluster_set !== clusterSet) {
           setCurrentClusterSet(data.cluster_set)
         }
+        if(optimize)showAlert('success', 'Bandwidth Optimized successfully!')
       })
       .catch((err) => {
         if (id !== kdeRequestRef.current) return
         console.error('KDEHeatmap fetch failed: ', err)
 
         if (err.data) setDbscanStatus(err.data.dbscan_status ?? null)
-
+        showAlert('error', err.message)
         // the run expired (the server keeps runs for 1 hour) or was never made:
         // forget it and fall back to the plain heat map
         if (
@@ -322,6 +435,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
           (err.data?.dbscan_status === 'missing' || /run_id/i.test(err.message))
         ) {
           runIdRef.current = null
+          setDbscanRunId(null)
           clustersLoadedRef.current = false
           setDbscanStatus('missing')
           setCurrentClusterSet(0)
@@ -360,7 +474,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
     const gradientCss = `linear-gradient(to right, ${legend.colors.join(', ')})`
 
     const tickLabels = legend.ticks
-      .map((t) => `<span>${Number(t.toPrecision(2))}</span>`)
+      .map((t) => `<span>${formatTick(t)}</span>`)
       .join('')
 
     const legendControl = L.control({ position: 'bottomright' })
@@ -398,7 +512,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     debounceTimerRef.current = setTimeout(() => {
       fetchKDEHeatmap(nextBandwidths, currentClusterSet)
-    }, 400)
+    }, 500)
   }
 
   function handleBandwidthInput(i, raw) {
@@ -414,6 +528,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   }
 
   // Returns the slider rows as JSX (was DOM code)
+  const [optimizing, setOptimizing] = useState(false)
   function buildSliders() {
     return (
       <>
@@ -435,7 +550,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
               min={kdeData?.min_bandwidth}
               max={kdeData?.max_bandwidth}
               step={1}
-              value={bw}
+              value={Math.round(bw)}
               onChange={(e) => handleBandwidthInput(i, e.target.value)}
             />
           </Box>
@@ -455,25 +570,66 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
             Constraint: {bandwidths.map((_, i) => `Level ${i}`).join(' >= ')}
           </Typography>
         )}
+        <Button
+          color='success'
+          variant='outlined'
+          onClick={async () => {
+            clearTimeout(debounceTimerRef.current)
+            setOptimizing(true)
+            try {
+              await fetchKDEHeatmap(
+                null,
+                currentClusterSet,
+                runIdRef.current,
+                true
+              )
+            } finally {
+              setOptimizing(false)
+            }
+          }}
+        >
+          {optimizing
+            ? 'Optimizing… this can take a while'
+            : 'Optimized Bandwidth'}
+        </Button>
       </>
     )
   }
   //GIStar---------------------------------------------------------------
   async function fetchGIStar(value = distanceBand) {
+    if (noTypes) {
+      setGISData(null)
+      return
+    }
+    const id = ++gistarRequestRef.current
+
     setIsLoading(true)
     try {
-      const res = await fetch(
-        `${API}/gi-star-heatmap?start_date=${startDate}&end_date=${endDate}&distance_band=${value}`
-      )
+      const params = new URLSearchParams({ distance_band: value })
+      if (startDate) params.append('start_date', startDate)
+      if (endDate) params.append('end_date', endDate)
+      if (selectedNatures?.length) {
+        params.append(
+          'category',
+          Array.isArray(selectedNatures)
+            ? selectedNatures.join(',')
+            : selectedNatures
+        )
+      }
+      if (bbox) params.append('bbox', bbox)
+
+      const res = await fetch(`${API}/gi-star-heatmap?${params}`)
       if (!res.ok) throw new Error('something wrong with gistar')
       const data = await res.json()
-      console.log(data)
+
+      if (id !== gistarRequestRef.current) return // stale response
+
       setGISData(data)
       setDistanceBand(data.distance_band)
     } catch (error) {
       console.log(error.message)
     } finally {
-      setIsLoading(false)
+      if (id === gistarRequestRef.current) setIsLoading(false)
     }
   }
   function build_GI_Sliders() {
@@ -520,8 +676,14 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
     const legend = data.legend
     const gradientCss = `linear-gradient(to right, ${legend.colors.join(', ')})`
 
+    const lastIdx = legend.ticks.length - 1
     const tickLabels = legend.ticks
-      .map((t) => `<span>${Number(t.toPrecision(2))}</span>`)
+      .map((t, i) => {
+        const prefix = i === 0 ? ' <= ' :i === lastIdx ? '>= ' : ''
+        const max = i === lastIdx ? '>= ' : ''
+
+        return `<span>${prefix}${Number(t.toPrecision(2))}</span>`
+      })
       .join('')
 
     const legendControl = L.control({ position: 'bottomright' })
@@ -549,7 +711,8 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
   useEffect(() => {
     if (!active || mode !== 'gistar-heatmap') return
     fetchGIStar()
-  }, [active, mode, startDate, endDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, mode, startDate, endDate, bbox, natureKey])
 
   useEffect(() => {
     if (!active || mode !== 'gistar-heatmap' || !GISData) return
@@ -564,7 +727,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
     visible = levelVisible,
     sliderValues = levelSliders
   ) {
-    setIsLoading(true)
+    if (noTypes) {
+      setLevelData(EMPTY_LEVELS)
+      setDbscanError('Select at least one incident type')
+      setStatus('error')
+      return
+    }
     const params = {}
 
     const enabledLevels = LEVEL_DRAW_ORDER.filter((level) => visible[level])
@@ -574,12 +742,17 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       setStatus('error')
       return
     }
-
+    setIsLoading(true)
     params.levels = enabledLevels.join(',')
 
     if (startDate) params.start_date = startDate
     if (endDate) params.end_date = endDate
-
+    if (selectedNatures?.length) {
+      params.category = Array.isArray(selectedNatures)
+        ? selectedNatures.join(',')
+        : selectedNatures
+    }
+    if (bbox) params.bbox = bbox
     enabledLevels.forEach((level) => {
       const { eps } = levelToParams(level, sliderValues[level])
       params[`${level}_eps`] = eps
@@ -589,7 +762,6 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
 
     setStatus('loading')
     setDbscanError('')
-
     const qs = new URLSearchParams(params).toString()
 
     try {
@@ -603,16 +775,19 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       }
       const snapshot = body.frames && body.frames.length ? body.frames[0] : null
       const next = { ...EMPTY_LEVELS }
-
       if (snapshot) {
         enabledLevels.forEach((level) => {
           if (snapshot.levels[level]) next[level] = snapshot.levels[level]
         })
       }
+      const hasClusters = Object.values(next).some(
+        (level) => level?.metadata?.n_clusters > 0
+      )
+      setDbscanStatus(hasClusters ? 'available' : 'no_cluster_levels')
 
       // keep this run: /kde-heatmap needs it for the "Includes cluster analysis" option
       runIdRef.current = body.run_id ?? null
-
+      setDbscanRunId(body.run_id ?? null)
       setLevelData(next) // stats + layers + legend all derive from this
       setStatus('ready')
       clustersLoadedRef.current = true
@@ -621,10 +796,24 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       // (this updates dbscan_status and enables "Includes cluster analysis").
       // Old bandwidths may no longer match the levels -> send null and let the backend pick defaults.
       // Cluster set 0 always has exactly one level, so its value is still valid.
-      const refreshBandwidths =
-        currentClusterSet === 1 || !bandwidths.length ? null : bandwidths
+      // const refreshBandwidths =
+      //   currentClusterSet === 1 || !bandwidths.length ? null : bandwidths
 
-      fetchKDEHeatmap(refreshBandwidths, currentClusterSet, runIdRef.current)
+      // fetchKDEHeatmap(refreshBandwidths, currentClusterSet, runIdRef.current)
+      if (currentClusterSet === 1) {
+        // B was built from the old run, so it is no longer valid (diagram: C only)
+        kdeRequestRef.current++ // ignore any KDE response still in flight
+        setKdeData(null)
+        setCurrentClusterSet(0)
+      }
+      //  else {
+      //   // A stays valid; refresh it so dbscan_status stays current
+      //   fetchKDEHeatmap(
+      //     !bandwidths.length ? null : bandwidths,
+      //     currentClusterSet,
+      //     runIdRef.current
+      //   )
+      // }
     } catch (err) {
       if (id !== dbscanRequestRef.current) return
       console.error('DBSCAN fetch failed:', err)
@@ -742,7 +931,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
     <>
       <Box sx={{ display: 'flex' }}></Box>
       <Box
+        className='analysis-bar'
         ref={topBarRef}
+        onMouseEnter={() => map.dragging.disable()}
+        onMouseLeave={() => {
+          if (!drawArea) map.dragging.enable()
+        }}
         sx={[
           {
             position: 'relative',
@@ -763,11 +957,7 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
             })
         ]}
       >
-        <FormControl
-          sx={{
-            
-          }}
-        >
+        <FormControl sx={{}}>
           <FormLabel>Cluster and Heat Map Lab: </FormLabel>
 
           <RadioGroup
@@ -806,9 +996,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
       </Box>
 
       <Box
+        className='analysis-bar'
         ref={secondBarRef}
         onMouseEnter={() => map.dragging.disable()}
-        onMouseLeave={() => map.dragging.enable()}
+        onMouseLeave={() => {
+          if (!drawArea) map.dragging.enable()
+        }}
         sx={[
           {
             background: 'rgba(24, 24, 44, 0.95)',
@@ -825,7 +1018,8 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
           },
           (theme) =>
             theme.applyStyles('light', {
-              backgroundColor: 'white'
+              backgroundColor: 'white',
+              borderBottom: '1px solid rgba(66, 62, 62, 0.64)'
             })
         ]}
         id='secondary-bar'
@@ -936,6 +1130,12 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                     <Slider
                       sx={{ width: '60%' }}
                       valueLabelDisplay='auto'
+                      // valueLabelFormat={(v) =>
+                      //   `${levelToParams(level, v).eps.toLocaleString()} ft`
+                      // }
+                      valueLabelFormat={(v) =>
+                        `${levelToParams(level, v).eps.toLocaleString()} ft`
+                      }
                       aria-label='Default'
                       id={`slider-${level}`}
                       data-level={level}
@@ -968,7 +1168,21 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
                       Dense
                     </Typography>
                   </Box>
-
+                  <Typography
+                    sx={{
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      textAlign: 'center'
+                    }}
+                    color='text'
+                  >
+                    ε ={' '}
+                    {levelToParams(
+                      level,
+                      levelSliders[level] ?? 50
+                    ).eps.toLocaleString()}{' '}
+                    ft
+                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
@@ -1056,6 +1270,68 @@ const Analysis = ({ active, startDate, endDate, setIsLoading }) => {
         <div id='bandwidth-controls'>{buildSliders()}</div>
 
         <div id='gistar-controls'>{build_GI_Sliders()}</div>
+      </Box>
+      <Box
+        onMouseEnter={() => map.dragging.disable()}
+        onMouseLeave={() => {
+          if (!drawArea) map.dragging.enable()
+        }}
+        ref={thirdBarRef}
+        className='analysis-bar'
+        sx={[
+          {
+            position: 'relative',
+            flexShrink: '0',
+            display: active ? 'flex' : 'none',
+            alignItems: 'center',
+            gap: '1.5rem',
+            padding: '0.6rem 1.2rem',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.64)',
+            background: 'rgba(15, 15, 30, 0.95)',
+            zIndex: 1000,
+            cursor: 'default',
+            py: 0.5
+          },
+          (theme) =>
+            theme.applyStyles('light', {
+              backgroundColor: 'white',
+              borderBottom: '1px solid rgba(66, 62, 62, 0.64)'
+            })
+        ]}
+      >
+        <Typography sx={{ fontSize: '16px', fontWeight: 600 }} color='primary'>
+          Valid map in report:
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+          KDE heat map:{' '}
+          <Button
+            size='small'
+            variant='contained'
+            color={reportMapState.kde ? 'success' : 'warning'}
+          >
+            {` ${reportMapState.kde === 'all' ? 'Valid (All points)' : reportMapState.kde === 'cluster' ? 'Valid (By Cluster)' : 'Invalid'}`}
+          </Button>
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+          Cluster Analysis:{' '}
+          <Button
+            size='small'
+            variant='contained'
+            color={reportMapState.clusters ? 'success' : 'warning'}
+          >
+            {` ${reportMapState.clusters ? 'Valid ' : 'Invalid'}`}
+          </Button>
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+          Getis-Ord Gi*:{' '}
+          <Button
+            size='small'
+            variant='contained'
+            color={reportMapState.giStar ? 'success' : 'warning'}
+          >
+            {`${reportMapState.giStar ? 'Valid ' : 'Invalid'}`}
+          </Button>
+        </Typography>
       </Box>
     </>
   )

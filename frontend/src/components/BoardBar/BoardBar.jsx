@@ -10,6 +10,8 @@ import AnimationIcon from '@mui/icons-material/Animation'
 import { useAuth } from '../../Context/AuthContext'
 import RouteIcon from '@mui/icons-material/Route'
 import AddAlertIcon from '@mui/icons-material/AddAlert'
+import ReportBtn from './ReportBtn/ReportBtn'
+import SelectAllIcon from '@mui/icons-material/SelectAll'
 function BoardBar({
   filteredListWithLocation,
   filteredListWithoutLocation,
@@ -28,8 +30,13 @@ function BoardBar({
   setRouteOn,
   setSelectedId,
   isLoading,
-  accountPop,
-  SetAlertContent
+  setAreaBounds,
+  SetAlertContent,
+  drawArea,
+  setDrawArea,
+  handleReport,
+  reportLoading,
+  setReportMapState
 }) {
   // const [activeBtn, setActiveBtn] = useState({
   //   search: false,
@@ -39,64 +46,12 @@ function BoardBar({
   // })
   const { user, token } = useAuth()
   const [activeBtn, setActiveBtn] = useState(null)
-  const [reportBtn, setReportBtn] = useState(false)
   const handleActive = (e) => {
     const value = e.currentTarget.value
     setActiveBtn(value)
     console.log('value ', value)
   }
-  const API_URL = import.meta.env.VITE_API_BASE_URL
-  const [reportLoading, setReportLoading] = useState(false)
 
-  const handleReport = async () => {
-    setReportLoading(true)
-    const [from, to] = dateRange
-    const incidents = filteredListWithLocation.map((i) => ({
-      nature: i.category,
-      city: i.city, // still need to confirm this field name
-      lat: i.lat,
-      lng: i.lon,
-      occuredDate: i.occurred_at
-    }))
-
-    setReportLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/reports?from=${from}&to=${to}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (res.status === 401 || res.status === 403) {
-        SetAlertContent((prev) => ({
-          ...prev,
-          open: true,
-          severity: 'error',
-          content: 'Your session has expired. Please refresh the page.'
-        }))
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Server error ${res.status}`)
-      }
-      const blob = await res.blob()
-      console.log('res here', res)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `lee-county-report-${from}_to_${to}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      SetAlertContent((prev) => ({
-        ...prev,
-        open: true,
-        severity: 'error',
-        content: `Report generation failed: Your session has expired. Please refresh the page.`
-      }))
-      // alert(`Report generation failed: Your session has expired. Please refresh the page.`)
-    } finally {
-      setReportLoading(false)
-      setReportBtn(false)
-    }
-  }
   return (
     <Box
       sx={[
@@ -160,6 +115,26 @@ function BoardBar({
         </Button>
         <Button
           disabled={user ? false : true}
+          variant={drawArea ? 'contained' : 'text'}
+          color={drawArea ? 'warning' : 'primary'}
+          sx={[
+            (theme) =>
+              theme.applyStyles('dark', {
+                color: 'rgba(255, 255, 255, 0.92)'
+              }),
+            { padding: '8px 20px' }
+          ]}
+          startIcon={<SelectAllIcon />}
+          onClick={(e) => {
+            setSelectedId(null)
+            setAreaBounds(null)
+            setDrawArea(!drawArea)
+          }}
+        >
+          Areas Filter
+        </Button>
+        <Button
+          disabled={user ? false : true}
           variant={activeBtn === 'analysis' ? 'contained' : 'text'}
           color={activeBtn === 'analysis' ? 'info' : 'primary'}
           sx={[
@@ -198,17 +173,26 @@ function BoardBar({
           startIcon={<AnimationIcon />}
           onClick={(e) => {
             handleActive(e)
-            window.open('/cluster-heatmap-animation-lab.html', '_blank')
+            ;((window.location.href = '/cluster-heatmap-animation-lab.html'),
+              '_blank')
           }}
         >
           Animation
         </Button>
+        {/* <ReportBtn
+          dateRange={dateRange}
+          isLoading={isLoading}
+          SetAlertContent={SetAlertContent}
+          setDrawArea={setDrawArea}variant={reportBtn ? 'contained' : 'text'}
+          color={reportBtn ? 'info' : 'primary'}
+          setAreaBounds={setAreaBounds}
+          handleReport={handleReport}
+          reportLoading={reportLoading}
+        /> */}
         <Button
           loading={reportLoading}
           loadingPosition='start'
           disabled={user && !isLoading ? false : true}
-          variant={reportBtn ? 'contained' : 'text'}
-          color={reportBtn ? 'info' : 'primary'}
           value='report'
           sx={[
             (theme) =>
@@ -218,14 +202,13 @@ function BoardBar({
             { padding: '8px 20px' }
           ]}
           startIcon={<TextSnippetIcon />}
-          onClick={(e) => {
-            setReportBtn(true)
-            handleActive(e)
-            handleReport()
+          onClick={async () => {
+            await handleReport(true)
           }}
         >
-          User Reports
+          Generate Reports
         </Button>
+
         <Button
           disabled={user ? false : true}
           variant={routeOn ? 'contained' : 'text'}
@@ -239,10 +222,17 @@ function BoardBar({
           ]}
           startIcon={<RouteIcon />}
           onClick={(e) => {
-            setRouteOn(!routeOn)
             setSelectedId(null)
             setAddressSearch(false)
             setIsPulled(false)
+            if (analysisOn)
+              SetAlertContent((prev) => ({
+                ...prev,
+                open: true,
+                severity: 'error',
+                content: 'Go back to view mode to open Route Grader panel'
+              }))
+            else setRouteOn(!routeOn)
           }}
         >
           Route Grader

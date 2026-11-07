@@ -1,19 +1,36 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import { useAuth } from '../../Context/AuthContext'
 import Typography from '@mui/material/Typography'
 import Card from '@mui/material/Card'
-import CardMedia from '@mui/material/CardMedia'
 import CardContent from '@mui/material/CardContent'
-import CardActions from '@mui/material/CardActions'
 import ModeSelect from '../ModeSelect/ModeSelect'
+import BorderColorIcon from '@mui/icons-material/BorderColor'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import EditForm from './EditForm/EditForm'
 const url = import.meta.env.VITE_API_BASE_URL
 
-function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
+function MyAccountPop({
+  accountPop,
+  setAccountPop,
+  CATEGORY_COLORS,
+  searching,
+  addressType,
+  addressList,
+  checkBound,
+  setAddressList,
+  setAddressType,
+  showAlert,
+  addressSearch,
+  setAddressSearch
+}) {
   const [notiList, setNotiList] = useState()
-  const { user, token } = useAuth()
+  const { user, token, refreshToken } = useAuth()
+  const [editCard, setEditCard] = useState(false)
+  const [editCardContent, setEditCardContent] = useState(false)
+  const [alertTrigger, setAlertTrigger] = useState(0) //just set a state to trigger the noti list render useeffect
+
   const pickColor = (category) => {
     const key = category || ''
     for (const color in CATEGORY_COLORS) {
@@ -26,9 +43,17 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
     if (!accountPop || !token) return
     const fetchNotiList = async () => {
       try {
-        const res = await fetch(`${url}/users/me/areas`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const send = (token) =>
+          fetch(`${url}/users/me/areas`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+
+        let res = await send(token)
+
+        if (res.status === 401) {
+          const newToken = await refreshToken()
+          if (newToken) res = await send(newToken)
+        }
         if (!res.ok) throw new Error('area list has problem')
         const data = await res.json()
         console.log(data)
@@ -38,19 +63,51 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
       }
     }
     fetchNotiList()
-  }, [accountPop, token])
+  }, [accountPop, token, editCard, alertTrigger])
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`${url}/users/me/areas/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const send = (token) =>
+        fetch(`${url}/users/me/areas/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      let res = await send(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await send(newToken)
+      }
       if (!res.ok) throw new Error('area delete has problem')
       setNotiList((prev) => prev.filter((area) => area.id !== id))
     } catch (error) {
       console.log(error.message)
     }
   }
+  const editNoti = async (id, alert) => {
+    try {
+      console.log('alert editing... ', alert)
+      const send = (token) =>
+        fetch(`${url}/users/me/areas/${id}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            alerts_enabled: !alert
+          })
+        })
+      let res = await send(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await send(newToken)
+      }
+      if (!res.ok) throw new Error('alert noti has problem')
+      setAlertTrigger((e) => e + 1)
+    } catch (error) {
+      console.log(error.message)
+    }
+  }
+
   return (
     <Box
       sx={{
@@ -69,7 +126,6 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
         sx={[
           {
             width: 'clamp(380px, 40vw, 600px)',
-            height: '60vh',
             background: 'white',
             borderRadius: '16px',
             p: 1,
@@ -173,42 +229,55 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                       gutterBottom
                       variant='h5'
                       component='div'
+                      color='primary'
                       sx={{
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        fontWeight: 600
                       }}
                     >
-                      {item.name}
+                      {item.name.toUpperCase()}
                     </Typography>
-                    <Button
-                      onClick={() => {
-                        if (window.confirm(`Delete "${item.name}"?`)) {
-                          handleDelete(item.id)
-                        }
-                      }}
-                    >
-                      <DeleteOutlineIcon color='error' />
-                    </Button>
+                    <Box>
+                      <Button
+                        variant=''
+                        onClick={() => {
+                          setEditCard(true)
+                          setEditCardContent(item)
+                        }}
+                      >
+                        <BorderColorIcon color='primary' />
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm(`Delete "${item.name}"?`)) {
+                            handleDelete(item.id)
+                          }
+                        }}
+                      >
+                        <DeleteOutlineIcon color='error' />
+                      </Button>
+                    </Box>
                   </Box>
 
-                  {/* <Typography
-                    gutterBottom
-                    variant='body2'
-                    component='div'
+                  <Typography
+                    variant='h5'
                     sx={{
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden'
                     }}
                   >
-                    address here
-                  </Typography> */}
+                    {item.address}
+                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+
+                      mt: 1
                     }}
                   >
                     <Typography
@@ -233,6 +302,7 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                       {`${item.created_at.split('T')[0]}`}
                     </Typography>
                   </Box>
+
                   <Box sx={{ display: 'flex', gap: 2, mt: '20px' }}>
                     <Typography
                       variant='span'
@@ -261,6 +331,15 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
                       ))}
                     </Box>
                   </Box>
+
+                  <Button
+                    sx={{ mt: '10px' }}
+                    onClick={() => editNoti(item.id, item.alerts_enabled)}
+                    color={item.alerts_enabled ? 'success' : 'error'}
+                    variant='outlined'
+                  >
+                    Alert Enable: {item.alerts_enabled ? 'On' : 'Off'}
+                  </Button>
                 </CardContent>
                 {/* <CardActions>
                   <Button size='small'>Share</Button>
@@ -277,6 +356,24 @@ function MyAccountPop({ accountPop, setAccountPop, CATEGORY_COLORS }) {
           </Box>
         </Box>
       </Box>
+      {editCard && (
+        <Box sx={{ position: 'absolute', zIndex: 10000, top: '30%' }}>
+          <EditForm
+            item={editCardContent}
+            searching={searching}
+            addressType={addressType}
+            addressList={addressList}
+            checkBound={checkBound}
+            setAddressList={setAddressList}
+            setAddressType={setAddressType}
+            showAlert={showAlert}
+            addressSearch={addressSearch}
+            setAddressSearch={setAddressSearch}
+            editCard={editCard}
+            setEditCard={setEditCard}
+          />
+        </Box>
+      )}
     </Box>
   )
 }

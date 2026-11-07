@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import './MapPage.css'
 import Map from './Map'
 import AppBar from './AppBar/AppBar'
@@ -12,7 +12,8 @@ import dayjs from 'dayjs'
 import { useAuth } from '../Context/AuthContext'
 import MyAccountPop from './MyAccountPop/MyAccountPop'
 const today = dayjs()
-
+// Lee County, FL extent: west,south,east,north (lng,lat,lng,lat)
+const LEE_COUNTY_BBOX = '-82.335044,26.315610,-81.560813,26.790092'
 function cleanDuplicateId(incidentList) {
   const bucket = new Set()
   const newList = incidentList.filter((inc) => {
@@ -53,11 +54,21 @@ function MapPage() {
   const [selectedNatures, setSelectedNatures] = useState([])
   const [locationMove, setLocationMove] = useState(null) //state to get lat, lng when user click on the item
   const [idPopup, setIdPopup] = useState(null) //state to get the id when user click on incident on the list
+
+  // ── Time ──────────────────────────────────────────────────────────────────
   const [dateRange, setDateRange] = useState([
     today.subtract(7, 'day').format('YYYY-MM-DD'),
     today.format('YYYY-MM-DD')
   ])
+  const [timeRange, setTimeRange] = useState(['00:00', '23:59'])
   const [start_date, end_date] = dateRange
+
+  const [start_hour, end_hour] = timeRange
+
+  const newStartDate = `${start_date}T${start_hour}`
+  const newEndDate = `${end_date}T${end_hour}`
+  //console.log('new start and end date: ', newStartDate, newEndDate)
+
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
   const [isPulled, setIsPulled] = useState(false) //pull out the interactive list
@@ -71,6 +82,99 @@ function MapPage() {
     severity: '',
     content: ''
   })
+  //── Report ───────────────────────────────────────────────────────────
+  const [reportMapState, setReportMapState] = useState({
+    kde: null,
+    clusters: false,
+    giStar: false,
+    kdeRunId: null,
+    dbscanRunId: null,
+    giStarRunId: null
+  })
+  const [drawArea, setDrawArea] = useState(false)
+  const [areaBounds, setAreaBounds] = useState(null)
+  const bbox = areaBounds ? areaBounds.toBBoxString() : null
+  const effectiveBbox = bbox ?? LEE_COUNTY_BBOX
+  const { token, refreshToken } = useAuth()
+  const API_URL = import.meta.env.VITE_API_BASE_URL
+  const [reportLoading, setReportLoading] = useState(false)
+  const noTypes = Array.isArray(selectedNatures) && selectedNatures.length === 0
+
+  const handleReport = async (useArea = true) => {
+    if (noTypes) {
+      SetAlertContent((prev) => ({
+        ...prev,
+        open: true,
+        severity: 'error',
+        content: 'Choose at least 1 type!'
+      }))
+
+      return
+    }
+
+    const [from, to] = [newStartDate, newEndDate]
+    setReportLoading(true)
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams({
+        from,
+        to,
+        //bbox: useArea && bbox ? bbox : LEE_COUNTY_BBOX
+        category: selectedNatures
+      })
+      if (useArea && bbox) params.append('bbox', bbox)
+      if (reportMapState.dbscanRunId)
+        params.append('dbscan_run', reportMapState.dbscanRunId)
+      if (reportMapState.kdeRunId)
+        params.append('kde_run', reportMapState.kdeRunId)
+      if (reportMapState.giStarRunId)
+        params.append('gi_star_run', reportMapState.giStarRunId)
+
+      const request = (token) =>
+        fetch(`${database}/reports?${params}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+      let res = await request(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await request(newToken)
+      }
+      if (res.status === 401 || res.status === 403) {
+        SetAlertContent((prev) => ({
+          ...prev,
+          open: true,
+          severity: 'error',
+          content: 'Your session has expired. Please refresh the page.'
+        }))
+        return
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Server error ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `lee-county-report-${from}_to_${to}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      SetAlertContent((prev) => ({
+        ...prev,
+        open: true,
+        severity: 'error',
+        content: `Report generation failed: ${err.message}`
+      }))
+    } finally {
+      setReportLoading(false)
+      setIsLoading(false)
+    }
+  }
+  const onAreaDrawn = useCallback((b) => {
+    setAreaBounds(b)
+  }, [])
   //── Overlay ───────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false)
   const [accountPop, setAccountPop] = useState(false)
@@ -100,12 +204,12 @@ function MapPage() {
 
   const [selectedId, setSelectedId] = useState(null)
   useEffect(() => {
-    const [fromDay, toDay] = dateRange
+    const [fromDay, toDay] = [newStartDate, newEndDate]
     if (!fromDay || !toDay) return
 
     const controller = new AbortController()
 
-    async function fetchAll() {
+    async function fetchAll(useArea = true) {
       try {
         let all = []
         let cursor = null
@@ -115,10 +219,12 @@ function MapPage() {
           const params = new URLSearchParams({
             from: fromDay,
             to: toDay,
-            limit: '500'
+            mapped: 'true',
+            limit: '3000'
+            //bbox: useArea && bbox ? bbox : LEE_COUNTY_BBOX
           })
           if (cursor) params.set('cursor', cursor) // confirm this param name
-
+          if (useArea && bbox) params.append('bbox', bbox)
           const res = await fetch(`${database}/incidents?${params}`, {
             signal: controller.signal
           })
@@ -128,11 +234,37 @@ function MapPage() {
 
           const page = await res.json()
           all = all.concat(page.incidents)
+          const withCoords = all.filter((i) => i.lat != null && i.lon != null)
+
+          // suspicious coordinates (rough Lee County bounds, deliberately generous)
+          // console.log(
+          //   'odd coords:',
+          //   withCoords.filter(
+          //     (i) =>
+          //       i.lat < 26.0 || i.lat > 27.2 || i.lon < -82.4 || i.lon > -81.2
+          //   ).length
+          // )
+
+          // const byDay = {}
+          // withCoords.forEach((i) => {
+          //   const d = i.occurred_at.slice(0, 10)
+          //   byDay[d] = (byDay[d] || 0) + 1
+          // })
+          // console.table(byDay)
+          // const ids = all.map((i) => i.source_incident_id)
+          // console.log({
+          //   raw: all.length,
+          //   uniqueIds: new Set(ids).size,
+          //   noId: ids.filter((id) => id == null).length,
+          //   noCoords: all.filter((i) => i.lat == null || i.lon == null).length,
+          //   noCategory: all.filter((i) => !i.category).length
+          // })
           cursor = page.next_cursor
           count++
-        } while (count < 10)
+        } while (count < 1)
         setIsLoading(false)
         setAllIncidents(all)
+        //console.log('all inc: ', all)
         setSelectedNatures(
           [...new Set(all.map((inc) => inc.category || 'Unknown'))].sort()
         )
@@ -143,52 +275,17 @@ function MapPage() {
 
     fetchAll()
     return () => controller.abort()
-  }, [dateRange])
-  // useEffect(() => {
-  //   const [fromDay, toDay] = dateRange
-  //   if (!fromDay || !toDay) return
-
-  //   async function fetchData() {
-  //     try {
-  //       console.log('fromDay:', fromDay)
-  //       console.log('toDay:', toDay)
-  //       console.log('await....')
-  //       const url = `${database}/incidents?from=${fromDay}&to=${toDay}&limit=500`
-  //       //console.log('API URL:', url)
-  //       const res = await fetch(url)
-  //       if (!res.ok) {
-  //         const errorText = await res.text()
-  //         throw new Error(`HTTP ${res.status}: ${errorText}`)
-  //       }
-
-  //       const incidentList = await res.json()
-
-  //       console.log('incidentList =', incidentList)
-
-  //       setAllIncidents(incidentList.incidents)
-
-  //       const newNatures = [
-  //         ...new Set(
-  //           incidentList.incidents.map((inc) => inc.category || 'Unknown')
-  //         )
-  //       ].sort()
-
-  //       setSelectedNatures(newNatures)
-
-  //       console.log('fetched successfully')
-  //     } catch (err) {
-  //       console.error(err)
-  //     }
-  //   }
-
-  //   fetchData()
-  // }, [dateRange])
-
-  // useEffect(() => {
-  //   setSelectedNatures(natures)
-  // }, [allIncidents, daysAgo])
-  //derived value
-  //console.log('MapPage render')
+  }, [dateRange, bbox, timeRange])
+  useEffect(() => {
+    if (allIncidents.length === 0)
+      SetAlertContent({
+        open: true,
+        vertical: 'bottom',
+        horizontal: 'center',
+        severity: 'warning',
+        content: 'No incident found!'
+      })
+  }, [allIncidents])
   const filteredByDays = allIncidents
   const natures = [
     ...new Set(filteredByDays.map((inc) => inc.category || 'Unknown'))
@@ -272,11 +369,6 @@ function MapPage() {
         position: 'relative'
       }}
     >
-      <MyAccountPop
-        accountPop={accountPop}
-        setAccountPop={setAccountPop}
-        CATEGORY_COLORS={CATEGORY_COLORS}
-      />
       {/* App bar */}
       <AppBar
         accountPop={accountPop}
@@ -306,7 +398,12 @@ function MapPage() {
         setRouteOn={setRouteOn}
         isLoading={isLoading}
         accountPop={accountPop}
-        
+        setDrawArea={setDrawArea}
+        handleReport={handleReport}
+        reportLoading={reportLoading}
+        setReportMapState={setReportMapState}
+        drawArea={drawArea}
+        setAreaBounds={setAreaBounds}
       />
 
       <Box
@@ -410,6 +507,9 @@ function MapPage() {
               dateRange={dateRange}
               setDateRange={setDateRange}
               isLoading={isLoading}
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+              SetAlertContent={SetAlertContent}
             />
           </Box>
           <Box
@@ -432,13 +532,26 @@ function MapPage() {
               analysisOn={analysisOn}
               selectedId={selectedId}
               setSelectedId={setSelectedId}
-              start_date={start_date}
-              end_date={end_date}
+              start_date={newStartDate}
+              end_date={newEndDate}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
               routeOn={routeOn}
               setRouteOn={setRouteOn}
               incidentColors={CATEGORY_COLORS}
+              drawArea={drawArea}
+              areaBounds={areaBounds}
+              onAreaDrawn={onAreaDrawn}
+              setDrawArea={setDrawArea}
+              handleReport={handleReport}
+              reportLoading={reportLoading}
+              setAreaBounds={setAreaBounds}
+              reportMapState={reportMapState}
+              setReportMapState={setReportMapState}
+              accountPop={accountPop}
+              setAccountPop={setAccountPop}
+              CATEGORY_COLORS={CATEGORY_COLORS}
+              selectedNatures={selectedNatures}
             />
           </Box>
         </Paper>
