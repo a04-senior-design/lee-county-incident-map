@@ -11,6 +11,7 @@ The class generates a PNG image of the resulting Gi* heat map.
 """
 
 import os
+import warnings
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,6 +30,12 @@ class GiStarHeatMap:
     def __init__(self, points, distance_band, x_min, y_min, x_max, y_max, cell_size, land_polygon=None, output_dir="."):
 
         self.points = np.asarray(points)
+        # no input points - there is nothing to count in the grid cells
+        if len(self.points) == 0:
+            raise ValueError("No points were given; at least one point is required to build a Gi* surface.")
+        # each point needs exactly one x and one y coordinate
+        if self.points.ndim != 2 or self.points.shape[1] != 2:
+            raise ValueError(f"Expected points with shape (N, 2), one x-y pair per point: got shape {self.points.shape}.")
         self.distance_band = distance_band
 
         if self.distance_band <= 0:
@@ -38,7 +45,23 @@ class GiStarHeatMap:
         self.y_min_grid = y_min
         self.x_max_grid = x_max
         self.y_max_grid = y_max
+
+        # the grid needs a positive width and height
+        if self.x_max_grid <= self.x_min_grid:
+            raise ValueError(f"x_max must be greater than x_min, got x_min={self.x_min_grid} and x_max={self.x_max_grid}")
+        if self.y_max_grid <= self.y_min_grid:
+            raise ValueError(f"y_max must be greater than y_min, got y_min={self.y_min_grid} and y_max={self.y_max_grid}")
+
         self.cell_size = cell_size
+
+        if self.cell_size <= 0:
+            raise ValueError(f"Cell size must be > 0, got {self.cell_size}")
+
+        # neighboring cell centers are cell_size apart, so a smaller distance band leaves every cell
+        # with only itself as a neighbor: Gi* still runs, but it can't find neighbor groups of cells.
+        # Not an error (the distance band slider can go below the cell size); callers can check this flag.
+        self.cells_have_neighbors = self.distance_band >= self.cell_size
+
         self.output_dir = output_dir
         # create a grid where cells will be used as boundaries to count the number of data points for the algorithm
         self.x_edges = np.arange(self.x_min_grid, self.x_max_grid + self.cell_size, self.cell_size)
@@ -61,6 +84,21 @@ class GiStarHeatMap:
         # counts and centroid for land cells only, which are the inputs to the Gi* analysis
         self.y_land = self.y[self.land_cells]
         self.land_centroids = self.cell_centroids[self.land_cells]
+
+        # Gi* compares cells with each other, so at least 2 land cells are needed
+        if self.y_land.size < 2:
+            raise ValueError(
+                f"Only {self.y_land.size} land cell(s) in the grid; Gi* needs at least 2. "
+                f"Check that the grid bounds and the land polygon overlap."
+            )
+
+        # every land cell has the same count (e.g. all zero) - there is no variation for Gi* to measure
+        if self.y_land.min() == self.y_land.max():
+            raise ValueError(
+                f"All {self.y_land.size} land cells have the same count ({int(self.y_land[0])}); "
+                f"Gi* needs cells with different counts to find hot or cold spots."
+            )
+
         # create the weight matrix
         self.w = self._weight_matrix()
         # fit the gi* model
@@ -84,10 +122,15 @@ class GiStarHeatMap:
 
 
     def _weight_matrix(self):
-        # spatial weight matrix using a fixed-distance band and binary weights of 1
-        w = DistanceBand(self.land_centroids, threshold=self.distance_band, binary=True)
-        # self-weight = 1, which is what makes this Gi* rather than Gi
-        w = fill_diagonal(w, val=1.0)  
+        # spatial weight matrix using a fixed-distance band and binary weights of 1;
+        # silence_warnings hides the "not fully connected" warning, which is expected here
+        # (water cells are left out, so islands like Sanibel form separate groups)
+        w = DistanceBand(self.land_centroids, threshold=self.distance_band, binary=True, silence_warnings=True)
+        # self-weight = 1, which is what makes this Gi* rather than Gi;
+        # fill_diagonal rebuilds the weights and repeats the same warning, with no option to turn it off
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="The weights matrix is not fully connected", category=UserWarning)
+            w = fill_diagonal(w, val=1.0)  
         return w
 
 
@@ -106,6 +149,9 @@ class GiStarHeatMap:
 
     def generate_zscore_heatmap_image(self, filename="z_score_overlay.png", pixels_per_cell=10, z_abs_max=None):
         # z_abs_max lets animation frames share one color scale; the default keeps the per-image scale
+
+        if z_abs_max is not None and z_abs_max <= 0:
+            raise ValueError(f"z_abs_max must be > 0, got {z_abs_max}")
 
         # z-scores as a north-up grid: transpose (nx, ny) -> (ny, nx) so rows are y,
         # then flip so the first row is the northernmost row of cells
@@ -162,7 +208,10 @@ class GiStarHeatMap:
         if z_abs_max is None:
             finite_z = self.z_scores[np.isfinite(self.z_scores)]
             z_abs_max = max(np.abs(finite_z).max(), 1e-6) if finite_z.size else 1.0
-        # z-scores beyond the scale get its end colors
+        # z-scores beyond the scale get its end colors; the colormap already does this,
+        # so the clip is only a safeguard in case its under/over colors are ever changed
+        # (NaN water cells stay NaN and remain transparent)
+        warped = np.clip(warped, -z_abs_max, z_abs_max)
         norm = TwoSlopeNorm(vmin=-z_abs_max, vcenter=0, vmax=z_abs_max)
 
         # apply the norm and colormap to the reprojected z-scores

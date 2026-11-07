@@ -29,6 +29,9 @@ class KDEHeatMap:
         # no input points - there is nothing to build a density surface from
         if len(self.points) == 0:
             raise ValueError("No points were given; at least one point is required to build a density surface.")
+        # each point needs exactly one x and one y coordinate
+        if self.points.ndim != 2 or self.points.shape[1] != 2:
+            raise ValueError(f"Expected points with shape (N, 2), one x-y pair per point: got shape {self.points.shape}.")
         # one cluster level is needed per point
         if len(self.points) != len(self.cluster_levels):
             raise ValueError(f"Expected one cluster level per point: got {len(self.points)} points and {len(self.cluster_levels)} cluster levels.")
@@ -43,7 +46,18 @@ class KDEHeatMap:
         self.y_min_lattice = y_min
         self.x_max_lattice = x_max
         self.y_max_lattice = y_max
+
+        # the lattice needs a positive width and height
+        if self.x_max_lattice <= self.x_min_lattice:
+            raise ValueError(f"x_max must be greater than x_min, got x_min={self.x_min_lattice} and x_max={self.x_max_lattice}")
+        if self.y_max_lattice <= self.y_min_lattice:
+            raise ValueError(f"y_max must be greater than y_min, got y_min={self.y_min_lattice} and y_max={self.y_max_lattice}")
+
         self.increment_lattice = increment
+
+        if self.increment_lattice <= 0:
+            raise ValueError(f"increment must be > 0, got {self.increment_lattice}")
+
         self.output_dir = output_dir
         self.x_coords = np.arange(x_min, x_max + increment, increment)
         self.y_coords = np.arange(y_min, y_max + increment, increment)
@@ -131,6 +145,11 @@ class KDEHeatMap:
 
     def generate_heatmap_image(self, filename="density_overlay.png", vmin=None, vmax=None):
         # vmin and vmax let animation frames share one color scale; the defaults keep the per-image scale
+        
+        # densities are never negative, so a negative bottom of the color scale is a mistake
+        if vmin is not None and vmin < 0:
+            raise ValueError(f"vmin must be >= 0, got {vmin}")
+
         # reshape the density values to a rectangular grid
         density_grid = self._density_surface.reshape(self.x_coords.shape[0], self.y_coords.shape[0]).T
 
@@ -155,6 +174,11 @@ class KDEHeatMap:
         cmap.set_bad(alpha=0)
         vmin = threshold
         vmax = vmax if vmax is not None else density_grid.max()
+
+        # the top of the color scale must be above the bottom
+        if vmax <= vmin:
+            raise ValueError(f"vmax must be greater than vmin, got vmin={vmin} and vmax={vmax}")
+
         norm_obj = PowerNorm(gamma=0.5, vmin=vmin, vmax=vmax)
 
         # transform from pixel coordinates to real-world spatial coordinates

@@ -1,11 +1,14 @@
 import base64
+import hashlib
 import os
 import tempfile
+import threading
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
-from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots
+from ml.generate_kde_heatmap_snapshots import PADDING_PER_BANDWIDTH, build_kde_heatmap_snapshots
 from ml.kde import BandwidthOptimizer, KDEHeatMap
 from pandas.tseries.frequencies import to_offset
 from pyproj import Transformer
@@ -23,6 +26,18 @@ CLUSTER_SET_LABELS = [
     "KDE Heat Map (all points)", 
     "KDE Heat Map (by cluster density level)",
 ]
+
+# optimized bandwidths by the points they were fit to, per worker
+OPTIMIZED_BANDWIDTHS = OrderedDict()
+OPTIMIZED_BANDWIDTHS_LOCK = threading.Lock()
+MAX_OPTIMIZED_BANDWIDTHS = 100
+
+
+def _optimize_key(points, levels):
+    # sort first so the same incidents in another order are a hit
+    order = np.lexsort((points[:, 1], points[:, 0], levels))
+    return hashlib.sha256(points[order].tobytes() + levels[order].tobytes()).hexdigest()
+
 
 def load_points() -> np.ndarray:
     """
@@ -175,15 +190,26 @@ def kde_heatmap():
     increment = 300
 
     if optimize:
-        # same points, levels and grid spacing as the heat map below, so the bandwidths fit the heat map drawn
-        optimizer = BandwidthOptimizer(
-            points=non_noise_points, cluster_levels=non_noise_levels,
-            x_min_no_padding=x_min_no_padding, y_min_no_padding=y_min_no_padding,
-            x_max_no_padding=x_max_no_padding, y_max_no_padding=y_max_no_padding,
-            increment=increment, lower_bound=MIN_BANDWIDTH, upper_bound=MAX_BANDWIDTH,
-        )
-        # plain floats, since the optimizer returns a numpy array, which jsonify can't serialize
-        bandwidths = [float(bw) for bw in optimizer.optimize_bandwidths()]
+        key = _optimize_key(non_noise_points, non_noise_levels)
+        with OPTIMIZED_BANDWIDTHS_LOCK:
+            bandwidths = OPTIMIZED_BANDWIDTHS.get(key)
+            if bandwidths is not None:
+                OPTIMIZED_BANDWIDTHS.move_to_end(key)
+
+        if bandwidths is None:
+            # same points, levels and grid spacing as the heat map below, so the bandwidths fit the heat map drawn
+            optimizer = BandwidthOptimizer(
+                points=non_noise_points, cluster_levels=non_noise_levels,
+                x_min_no_padding=x_min_no_padding, y_min_no_padding=y_min_no_padding,
+                x_max_no_padding=x_max_no_padding, y_max_no_padding=y_max_no_padding,
+                increment=increment, lower_bound=MIN_BANDWIDTH, upper_bound=MAX_BANDWIDTH,
+            )
+            # plain floats, since the optimizer returns a numpy array, which jsonify can't serialize
+            bandwidths = [float(bw) for bw in optimizer.optimize_bandwidths()]
+            with OPTIMIZED_BANDWIDTHS_LOCK:
+                OPTIMIZED_BANDWIDTHS[key] = bandwidths
+                if len(OPTIMIZED_BANDWIDTHS) > MAX_OPTIMIZED_BANDWIDTHS:
+                    OPTIMIZED_BANDWIDTHS.popitem(last=False)
     elif requested_bandwidths:
         # guard: the frontend must send exactly one bandwidth per non-noise cluster level
         if len(requested_bandwidths) != num_clusters:
@@ -204,8 +230,8 @@ def kde_heatmap():
         bandwidths = [DEFAULT_BANDWIDTH] * num_clusters
 
     # define range of mesh grid (lattice structure) to represent the corresponding map coordinates;
-    # padded only after the bandwidths are known, so the padding can depend on them
-    padding = 100
+    # padded only after the bandwidths are known, since the padding depends on them
+    padding = PADDING_PER_BANDWIDTH * max(bandwidths)
     x_min = x_min_no_padding - padding
     x_max = x_max_no_padding + padding
     y_min = y_min_no_padding - padding
