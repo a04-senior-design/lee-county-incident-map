@@ -107,7 +107,7 @@ function MapInfoBar({
         label={
           filteredListWithLocation.length !== 0
             ? `${filteredListWithLocation.length}/${filteredListWithLocation.length + filteredListWithoutLocation.length}  incidents`
-            : '- incidents'
+            : '0 incidents'
         }
       />
       <Box ref={boxRef} sx={{ backgroundColor: 'white', borderRadius: 1 }}>
