@@ -464,7 +464,9 @@ paths:
       description: |
         Counts the incidents in a grid of 2500 ft cells and colors each cell
         by its Gi* z-score: how much more (or less) busy it and its
-        neighbors are than the county as a whole. Cells whose center is in
+        neighbors are than the county as a whole. Cells are colored on a
+        fixed scale, z-scores -3 to +3, so a color means the same z-score on
+        every map; a z-score beyond it gets the end color. Cells whose center is in
         the water are left out unless they hold an incident. The grid covers
         all of Lee County, the same whichever incidents are in it, or with a
         bbox just the bbox, cut to the county; a bbox outside the county is
@@ -1192,10 +1194,11 @@ components:
         bounds: { $ref: "#/components/schemas/Bounds" }
         legend:
           type: object
+          description: The fixed -3 to +3 color scale.
           properties:
             colors: { type: array, items: { type: string } }
-            vmin: { type: number }
-            vmax: { type: number }
+            vmin: { type: number, example: -3 }
+            vmax: { type: number, example: 3 }
             ticks: { type: array, items: { type: number } }
             caption: { type: string, example: Gi* z-score }
         distance_band: { type: number }
