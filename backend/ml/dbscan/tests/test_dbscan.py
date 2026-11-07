@@ -87,3 +87,18 @@ def test_dbscan_two_level_cluster_labels():
     assert density_levels[0] > density_levels[4] # group A tighter than B, so higher density level
     assert density_levels[4] > density_levels[8] # group B is labled, outlier is -1, so should be higher
 
+cluster_lats_two_level = cluster_lats_one_level
+cluster_lons_two_level = cluster_lons_one_level
+
+def test_dbscan_two_level_to_density_geojson():
+    density_geojson = dbscan_two_level.to_density_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
+    
+    assert density_geojson["metadata"]["n_total"] == 9
+    assert density_geojson["metadata"]["n_noise"] == 1
+    assert density_geojson["metadata"]["n_levels"] == 2
+    assert density_geojson["metadata"]["counts_by_level"] == {1: 4, 0: 4, -1: 1}
+    
+    assert density_geojson["type"] == "FeatureCollection"
+    
+    levels_from_geojson = [f["properties"]["density_level"] for f in density_geojson["features"]]
+    assert levels_from_geojson == dbscan_two_level.density_levels.tolist()
