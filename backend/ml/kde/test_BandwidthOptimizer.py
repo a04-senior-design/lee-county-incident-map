@@ -10,7 +10,7 @@ KDEHeatMap tests, and run independently of them.  Run from that folder:
     python3 -m pytest test_BandwidthOptimizer.py -v
     python3 -m pytest test_BandwidthOptimizer.py --cov=BandwidthOptimizer --cov-branch --cov-report=term-missing
 
-Expect 23 passed in about a minute: five cases try several inputs and pytest
+Expect 23 passed in under two minutes: five cases try several inputs and pytest
 reports each input on its own line.  BW-08 takes most of that time; skip it
 with -k "not bw08".
 """

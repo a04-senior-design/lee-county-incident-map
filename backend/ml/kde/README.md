@@ -55,21 +55,24 @@ From the `kde_unit_test` folder:
 | Run a single test case | `python3 -m pytest test_BandwidthOptimizer.py::test_bw03_bandwidth_unpacking -v` |
 | Measure KDEHeatMap coverage | `python3 -m pytest test_KDEHeatMap.py --cov=KDEHeatMap --cov-branch --cov-report=term-missing` |
 | Measure BandwidthOptimizer coverage | `python3 -m pytest test_BandwidthOptimizer.py --cov=BandwidthOptimizer --cov-branch --cov-report=term-missing` |
+| Measure coverage of both | `python3 -m pytest --cov=KDEHeatMap --cov=BandwidthOptimizer --cov-branch --cov-report=term-missing` |
 
 ## Expected results
 
 | Test file | Result | Time |
 | --- | --- | --- |
 | `test_KDEHeatMap.py` | `42 passed` | A few seconds |
-| `test_BandwidthOptimizer.py` | `23 passed` | About a minute, mostly BW-08 |
-| Both together | `65 passed` | About a minute |
+| `test_BandwidthOptimizer.py` | `23 passed` | Under two minutes, mostly BW-08 |
+| Both together | `65 passed` | Under two minutes |
 
 pytest reports more tests than there are cases because some cases try several inputs, and each input is reported on its own line. The label in brackets after a test name, such as `test_bw08_real_incident_data[2levels]`, shows which input ran.
 
 - KDEHeatMap: TC-02, TC-04, TC-05, TC-07, TC-08, TC-09 and TC-29.
 - BandwidthOptimizer: BW-01, BW-04, BW-05, BW-07 and BW-08. BW-04 is split into two test functions: inputs (a) to (d), and the isolated point (e).
 
-Each coverage run should report `100%` of statements and branches.
+Each coverage run should report `100%` of statements and branches. The combined run prints one row for each file.
+
+Times vary by machine. pytest runs the files in alphabetical order, so `test_BandwidthOptimizer.py` runs first; the order doesn't affect the results.
 
 In the output, `PASSED` (or `.`) means pass and `FAILED` (or `F`) means fail. A failing test prints the line that failed and the values it compared.
 
