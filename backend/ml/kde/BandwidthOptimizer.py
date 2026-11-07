@@ -112,7 +112,7 @@ class BandwidthOptimizer:
         for i, bw_log_diff in enumerate(reversed_bw_log_diffs):
             if i == 0:
                 reversed_bandwidths[i] = self.lower_bound + np.exp(bw_log_diff)
-            elif i > 0:
+            else:
                 reversed_bandwidths[i] = reversed_bandwidths[i - 1] + np.exp(bw_log_diff)
         bandwidths = reversed_bandwidths[::-1].copy()
         return bandwidths
