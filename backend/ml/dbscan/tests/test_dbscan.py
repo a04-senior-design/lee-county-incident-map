@@ -46,6 +46,29 @@ def test_dbscan_one_level_cluster_labels():
 def test_dbscan_one_level_cluster_noise_mask_flags_outlier():
     assert dbscan_one_level.noise_mask.sum() == 1 # Exactly one noise point
 
+cluster_lats_one_level = np.array([
+    26.6000, 26.6001, 26.6002, 26.6003,   # group A
+    26.6500, 26.6501, 26.6502, 26.6503,   # group B
+    26.7000,                              # lone outlier
+])
+cluster_lons_one_level = np.array([
+    -81.9000, -81.9001, -81.9002, -81.9003,   # group A
+    -81.8500, -81.8501, -81.8502, -81.8503,   # group B
+    -81.8000,                                 # lone outlier
+])
+
+def test_dbscan_one_level_to_geojson():
+    geojson = dbscan_one_level.to_geojson(lats=cluster_lats_one_level, lons=cluster_lons_one_level)
+    
+    assert geojson["metadata"]["n_clusters"] == 2
+    assert geojson["metadata"]["n_noise"] == 1
+    assert geojson["metadata"]["n_total"] == 9
+    assert geojson["metadata"]["eps"] == 50
+    assert geojson["metadata"]["min_pts"] == 4
+    
+    assert geojson["type"] == "FeatureCollection"
+    assert len(geojson["noise_points"]) == 1
+    
 cluster_points_two_level = np.array([
     [0, 0], [5, 0], [0, 5], [5, 5], # Group A: tight
     [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
@@ -63,3 +86,4 @@ def test_dbscan_two_level_cluster_labels():
     
     assert density_levels[0] > density_levels[4] # group A tighter than B, so higher density level
     assert density_levels[4] > density_levels[8] # group B is labled, outlier is -1, so should be higher
+
