@@ -136,7 +136,9 @@ class GiStarHeatMap:
 
     def _fit_gi_star_model(self):
         # instantiate object of class G_Local to perform the Gi* algorithm
-        gi_star = G_Local(self.y_land, self.w, transform='R', star=True, permutations=0)
+        # binary weights ('B'): esda's z-score calculation assumes weights of 0 or 1, and 
+        # matches the standard Gi* formula only then; its default ('R') shrinks the z-scores
+        gi_star = G_Local(self.y_land, self.w, transform='B', star=True, permutations=0)
         return gi_star
 
 
