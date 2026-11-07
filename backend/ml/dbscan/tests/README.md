@@ -78,6 +78,20 @@ Expected density levels: Group A = `1` (clusters at both levels), Group B = `0` 
 - Single level: points in a group are 10 ft apart, well under `epsilon=50`, so each group connects. The groups are ~10,000 ft apart, so they never merge.
 - Two levels: the tight epsilon (8) must be at least Group A's diagonal spacing (about 7.07 ft) and below Group B's 10 ft spacing. That makes A cluster at both levels and B only at the loose one. Avoid choosing an epsilon that lands exactly on a pairwise distance, because sklearn's neighborhood check is inclusive.
 
+## Test coverage
+
+Current coverage for `DBSCANCluster.py`: **72%**.
+
+Measure it from `backend/` with `pytest-cov` (`pip install pytest-cov`):
+
+```bash
+python -m pytest ml/dbscan/tests --cov=ml.dbscan.DBSCANCluster --cov-branch --cov-report=term-missing
+```
+
+- `--cov-branch` adds branch coverage on top of statement coverage.
+- `--cov-report=term-missing` lists the uncovered lines in the `Missing` column.
+- For a line-by-line view, use `--cov-report=html` and open `htmlcov/index.html`. Do not commit `htmlcov/` or `.coverage`.
+
 ## Not yet covered
 
 - `to_geojson` raising `ValueError` when called on a multi-level fit (use `pytest.raises`).
