@@ -13,6 +13,8 @@ def test_the_heatmap_is_an_image_over_the_county(client):
     assert body["distance_band"] == 2500
     assert (body["min_distance_band"], body["max_distance_band"]) == (500, 10000)
     assert set(body["legend"]) == {"colors", "vmin", "vmax", "ticks", "caption"}
+    # the same fixed scale as the animation, whatever this map's own z-scores are
+    assert (body["legend"]["vmin"], body["legend"]["vmax"]) == (-3, 3)
     bounds = body["bounds"]
     assert -82.4 < bounds["west"] < bounds["east"] < -81.4
     assert 26.2 < bounds["south"] < bounds["north"] < 27.0
