@@ -213,7 +213,7 @@ def _png(image):
 
 def _heatmap_legend(legend, caption=None, open_ends=False):
     """A KDE or Gi* response's color bar: its colors and ticks, under its caption or `caption`.
-    open_ends marks the end labels "min ≤" and "≥ max", as the map's Gi* legend does."""
+    open_ends marks the end labels "≤ min" and "≥ max": the end colors also cover anything beyond them."""
     fig, ax = plt.subplots(figsize=(3.4, 0.32))
     norm = Normalize(vmin=legend["vmin"], vmax=legend["vmax"])
     bar = fig.colorbar(ScalarMappable(norm=norm, cmap=ListedColormap(legend["colors"])),
@@ -231,7 +231,7 @@ def _heatmap_legend(legend, caption=None, open_ends=False):
     # 2 significant figures, like Number(t.toPrecision(2)) on the map; 3 at the ends so min and max read true
     labels = [f"{float(f'{t:.{3 if i in (0, len(kept) - 1) else 2}g}'):g}" for i, t in enumerate(kept)]
     if open_ends:
-        labels[0], labels[-1] = f"{labels[0]} ≤", f"≥ {labels[-1]}"
+        labels[0], labels[-1] = f"≤ {labels[0]}", f"≥ {labels[-1]}"
     bar.set_ticklabels(labels)
     bar.ax.tick_params(labelsize=7, length=3, width=0.5)
     bar.outline.set_linewidth(0.5)
