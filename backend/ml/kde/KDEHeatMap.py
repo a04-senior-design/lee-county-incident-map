@@ -170,8 +170,7 @@ class KDEHeatMap:
 
         heat_cmap = LinearSegmentedColormap.from_list('heat_fade', colors)
 
-        cmap = heat_cmap.copy()
-        cmap.set_bad(alpha=0)
+        cmap = heat_cmap.with_extremes(bad=(0, 0, 0, 0))
         vmin = threshold
         vmax = vmax if vmax is not None else density_grid.max()
 
