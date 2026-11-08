@@ -1177,6 +1177,15 @@ components:
             ticks: { type: array, items: { type: number } }
             caption: { type: string }
         bandwidths: { type: array, items: { type: number } }
+        cluster_levels:
+          type: array
+          items: { type: integer }
+          description: |
+            The cluster level each bandwidth applies to, in the same order:
+            bandwidths[i] is for level cluster_levels[i]. Ascending, noise (-1)
+            left out, so [0, 2] when level 1 found no clusters. Always [0]
+            with cluster_set=0, where all points are one level.
+          example: [0, 2]
         optimized: { type: boolean, description: True when the bandwidths came from optimize=true. }
         min_bandwidth: { type: number }
         max_bandwidth: { type: number }
@@ -1333,6 +1342,14 @@ components:
       properties:
         legend: { $ref: "#/components/schemas/KdeLegend" }
         bandwidths: { type: array, items: { type: number } }
+        cluster_levels:
+          type: array
+          items: { type: integer }
+          description: |
+            Frame 1's cluster levels, which set the levels for the whole
+            animation: bandwidths[i] is for level cluster_levels[i]. Ascending,
+            noise (-1) left out, so [0, 2] when level 1 found no clusters.
+          example: [0, 2]
         min_bandwidth: { type: number }
         max_bandwidth: { type: number }
         frames:

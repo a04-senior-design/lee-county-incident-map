@@ -8,7 +8,7 @@ from ml.dbscan import cluster_levels
 from ml.generate_dbscan_snapshots import build_dbscan_snapshots, build_dbscan_snapshots_from_points
 from ml.generate_kde_heatmap_snapshots import (
     build_kde_heatmap_snapshots_from_dbscan,
-    count_first_frame_levels,
+    first_frame_levels,
     get_dbscan_frames_status,
 )
 from pandas.tseries.frequencies import to_offset
@@ -85,10 +85,12 @@ def kde_heatmap_dbscan_animation():
     # one bandwidth per cluster level in frame 1, e.g. ?bandwidth=3000&bandwidth=1500&bandwidth=800
     bandwidth_values = request.args.getlist("bandwidth")
 
+    # frame 1's cluster levels, e.g. [0, 2]; bandwidths[i] applies to levels[i]
+    levels = first_frame_levels(densities_dir)
+
     # no bandwidths sent (first load): use the default for each of frame 1's levels
     if len(bandwidth_values) == 0:
-        level_count = count_first_frame_levels(densities_dir)
-        bandwidth_values = [DEFAULT_BANDWIDTH] * level_count
+        bandwidth_values = [DEFAULT_BANDWIDTH] * len(levels)
 
     # every bandwidth must be a number
     requested_bandwidths = []
@@ -131,6 +133,7 @@ def kde_heatmap_dbscan_animation():
         "frames": frames,
         "legend": legend,
         "bandwidths": bandwidths,
+        "cluster_levels": levels,
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
     })

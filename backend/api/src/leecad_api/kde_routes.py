@@ -265,6 +265,8 @@ def kde_heatmap():
         "bounds": bounds_dict, 
         "legend": legend_data,
         "bandwidths": bandwidths,
+        # the level each bandwidth applies to, e.g. [0, 2] when level 1 found no clusters
+        "cluster_levels": [int(level) for level in unique_cluster_levels if level != -1],
         "optimized": optimize,
         "min_bandwidth": MIN_BANDWIDTH,
         "max_bandwidth": MAX_BANDWIDTH,
