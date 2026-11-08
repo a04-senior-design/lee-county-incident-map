@@ -903,6 +903,7 @@ function Map({
           setReportMapState={setReportMapState}
           selectedNatures={selectedNatures}
           showAlert ={showAlert}
+          isLoading = {isLoading}
         />
         {!analysisOn && (
           <MarkerClusterGroup

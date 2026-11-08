@@ -19,7 +19,7 @@ import Box from '@mui/material/Box'
 const API = '/api/v1'
 
 const LEVEL_DRAW_ORDER = ['district', 'neighborhood', 'street']
-const LEVEL_UI_ORDER = ['street', 'neighborhood', 'district'] // order of the control blocks
+const LEVEL_UI_ORDER = ['district', 'neighborhood', 'street'] // order of the control blocks
 
 const LEVEL_STYLES = {
   district: {
@@ -74,19 +74,18 @@ const CLUSTER_STATUS_NOTES = {
 
 const EMPTY_LEVELS = { district: null, neighborhood: null, street: null }
 const ALL_VISIBLE = { district: true, neighborhood: true, street: true }
-const DEFAULT_LEVEL_SLIDERS = { district: 50, neighborhood: 50, street: 50 }
+const DEFAULT_LEVEL_SLIDERS = {
+  district: 20000,
+  neighborhood: 6500,
+  street: 1400
+}
 // Outside the component so it survives the legend being rebuilt on every data change
 let legendCollapsed = false
 // ---------- pure helpers (same names as before) ----------
 function levelToParams(level, sliderVal) {
-  const t = sliderVal / 100
   const p = LEVEL_PRESETS[level]
-
-  const eps = Math.round(
-    Math.exp(Math.log(p.epsMax) + (Math.log(p.epsMin) - Math.log(p.epsMax)) * t)
-  )
-
-  return { eps }
+  // slider value is in feet; Sparse (left) = epsMax, Dense (right) = epsMin
+  return { eps: p.epsMax + p.epsMin - sliderVal }
 }
 
 // Returns the layer group (the caller adds/removes it from the map)
@@ -190,7 +189,8 @@ const Analysis = ({
   reportMapState,
   setReportMapState,
   selectedNatures,
-  showAlert
+  showAlert,
+  isLoading
 }) => {
   const map = useMap()
   const bbox = areaBounds ? areaBounds.toBBoxString() : null
@@ -208,6 +208,7 @@ const Analysis = ({
   const [kdeData, setKdeData] = useState(null) // last KDE response
   const [dbscanStatus, setDbscanStatus] = useState(null)
   const [bandwidths, setBandwidths] = useState([]) // was `sliders` / `valueLabels`
+  const [runTiers, setRunTiers] = useState([])
 
   // DBSCAN / clusters
   const [levelVisible, setLevelVisible] = useState(ALL_VISIBLE)
@@ -216,6 +217,7 @@ const Analysis = ({
   const [status, setStatusState] = useState(null) // 'loading' | 'ready' | 'error'
   const [dbscanError, setDbscanError] = useState('')
 
+  const activeTiers = LEVEL_DRAW_ORDER.filter((l) => levelVisible[l])
   //GI-Star
   const [GISData, setGISData] = useState(null) // last KDE response
 
@@ -420,7 +422,7 @@ const Analysis = ({
         if (data.cluster_set !== undefined && data.cluster_set !== clusterSet) {
           setCurrentClusterSet(data.cluster_set)
         }
-        if(optimize)showAlert('success', 'Bandwidth Optimized successfully!')
+        if (optimize) showAlert('success', 'Bandwidth Optimized successfully!')
       })
       .catch((err) => {
         if (id !== kdeRequestRef.current) return
@@ -538,7 +540,12 @@ const Analysis = ({
             key={i}
           >
             <Typography>
-              Level {i} bandwidth: {Math.round(bw)}
+              <Typography>
+                {kdeData?.cluster_set === 1 && activeTiers[i]
+                  ? LEVEL_LABELS[activeTiers[i]]
+                  : `Level ${i}`}{' '}
+                bandwidth: {Math.round(bw)}
+              </Typography>
             </Typography>
 
             <Slider
@@ -679,7 +686,7 @@ const Analysis = ({
     const lastIdx = legend.ticks.length - 1
     const tickLabels = legend.ticks
       .map((t, i) => {
-        const prefix = i === 0 ? ' <= ' :i === lastIdx ? '>= ' : ''
+        const prefix = i === 0 ? ' <= ' : i === lastIdx ? '>= ' : ''
         const max = i === lastIdx ? '>= ' : ''
 
         return `<span>${prefix}${Number(t.toPrecision(2))}</span>`
@@ -1128,6 +1135,7 @@ const Analysis = ({
                       Sparse
                     </Typography>
                     <Slider
+                      disabled={!levelVisible[level] || isLoading}
                       sx={{ width: '60%' }}
                       valueLabelDisplay='auto'
                       // valueLabelFormat={(v) =>
@@ -1139,10 +1147,12 @@ const Analysis = ({
                       aria-label='Default'
                       id={`slider-${level}`}
                       data-level={level}
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={levelSliders[level] ?? 50}
+                      min={LEVEL_PRESETS[level].epsMin}
+                      max={LEVEL_PRESETS[level].epsMax}
+                      step={100}
+                      value={
+                        levelSliders[level] ?? DEFAULT_LEVEL_SLIDERS[level]
+                      }
                       color={
                         level === 'street'
                           ? 'error'
@@ -1156,7 +1166,7 @@ const Analysis = ({
                         clearTimeout(applyRef.current)
                         applyRef.current = setTimeout(() => {
                           fetchDbscan(levelVisible, nextSliders)
-                        }, 700)
+                        }, 800)
                       }}
                     />
 
@@ -1179,7 +1189,7 @@ const Analysis = ({
                     ε ={' '}
                     {levelToParams(
                       level,
-                      levelSliders[level] ?? 50
+                      levelSliders[level] ?? DEFAULT_LEVEL_SLIDERS[level]
                     ).eps.toLocaleString()}{' '}
                     ft
                   </Typography>
