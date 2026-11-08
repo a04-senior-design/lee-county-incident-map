@@ -25,6 +25,8 @@ def test_the_heatmap_is_an_image_over_the_county(client):
     assert body["image"].startswith("data:image/png;base64,")
     assert body["bandwidths"] == [1500]
     assert body["optimized"] is False
+    # all points are one level
+    assert body["cluster_levels"] == [0] and len(body["bandwidths"]) == 1
     bounds = body["bounds"]
     assert -82.4 < bounds["west"] < bounds["east"] < -81.4
     assert 26.2 < bounds["south"] < bounds["north"] < 27.0

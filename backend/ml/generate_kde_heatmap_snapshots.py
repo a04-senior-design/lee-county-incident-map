@@ -228,18 +228,25 @@ def read_dbscan_frames(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
 	return frames
 
 
+def first_frame_levels(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
+	"""Return frame 1's cluster levels (noise excluded) in ascending order,
+	e.g. [0, 2], so bandwidths[i] applies to level first_frame_levels()[i].
+	Returns [] if there are no frame files or frame 1 has no cluster levels."""
+	dbscan_frames = read_dbscan_frames(densities_dir)
+
+	if len(dbscan_frames) == 0:
+		return []
+
+	levels = np.unique(dbscan_frames[0]["cluster_levels"])
+	levels = levels[levels != -1] # drop noise
+	return [int(level) for level in levels]
+
+
 def count_first_frame_levels(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
 	"""Return how many cluster levels (noise excluded) frame 1 has, i.e. how
 	many bandwidths build_kde_heatmap_snapshots_from_dbscan() expects.
 	Returns 0 if there are no frame files or frame 1 has no cluster levels."""
-	dbscan_frames = read_dbscan_frames(densities_dir)
-
-	if len(dbscan_frames) == 0:
-		return 0
-
-	levels = np.unique(dbscan_frames[0]["cluster_levels"])
-	levels = levels[levels != -1] # drop noise
-	return len(levels)
+	return len(first_frame_levels(densities_dir))
 	
 
 def get_dbscan_frames_status(densities_dir=DBSCAN_ANIMATION_DENSITIES_DIR):
