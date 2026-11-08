@@ -136,7 +136,9 @@ class GiStarHeatMap:
 
     def _fit_gi_star_model(self):
         # instantiate object of class G_Local to perform the Gi* algorithm
-        gi_star = G_Local(self.y_land, self.w, transform='R', star=True, permutations=0)
+        # binary weights ('B'): esda's z-score calculation assumes weights of 0 or 1, and 
+        # matches the standard Gi* formula only then; its default ('R') shrinks the z-scores
+        gi_star = G_Local(self.y_land, self.w, transform='B', star=True, permutations=0)
         return gi_star
 
 
@@ -201,8 +203,8 @@ class GiStarHeatMap:
             (0.958, (1, 0, 0, 1)),        # Z =  2.75 bright red
             (1.0,   (1, 0, 0, 1)),        # Z =  3.0: still bright red
         ]
-        cmap = LinearSegmentedColormap.from_list('gi_star_fade', colors)
-        cmap.set_bad(alpha=0)  # NaN (no data) pixels are fully transparent
+        # NaN (no data) pixels are fully transparent
+        cmap = LinearSegmentedColormap.from_list('gi_star_fade', colors).with_extremes(bad=(0, 0, 0, 0))
 
         # diverging norm centered at 0 so blue/red are symmetric (unchanged)
         if z_abs_max is None:
@@ -294,8 +296,7 @@ class GiStarHeatMap:
 
         # set the figure size to 8x8
         fig, ax = plt.subplots(figsize=(8, 8))
-        cmap = heat_cmap.copy()
-        cmap.set_bad(alpha=0)
+        cmap = heat_cmap.with_extremes(bad=(0, 0, 0, 0))
 
         # diverging norm centered at 0 so blue/red are symmetric around "not significant"
         finite_z = z_grid[np.isfinite(z_grid)]
@@ -361,6 +362,6 @@ def main():
 
     
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
 
