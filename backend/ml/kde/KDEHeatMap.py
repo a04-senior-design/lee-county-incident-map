@@ -170,8 +170,7 @@ class KDEHeatMap:
 
         heat_cmap = LinearSegmentedColormap.from_list('heat_fade', colors)
 
-        cmap = heat_cmap.copy()
-        cmap.set_bad(alpha=0)
+        cmap = heat_cmap.with_extremes(bad=(0, 0, 0, 0))
         vmin = threshold
         vmax = vmax if vmax is not None else density_grid.max()
 
@@ -231,8 +230,8 @@ class KDEHeatMap:
         Raw KDE density values are far too small for legible tick labels, so
         tick values are multiplied by a power-of-ten scale_factor purely for
         display.  scale_factor is computed from the legend's vmin
-        (10 ** floor(-log10(vmin))), which puts the scaled vmin between 1
-        and 10; if vmin is 0, scale_factor is 1. 
+        (10 ** floor(-log10(vmin))), which puts the scaled vmin between 0.1
+        and 1; if vmin is 0, scale_factor is 1. 
         
         The color mapping itself is untouched.
 
