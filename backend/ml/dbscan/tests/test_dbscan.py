@@ -1,5 +1,7 @@
-from ml.dbscan.DBSCANCluster import _dedupe_points, _project_mappable, DBSCANCluster
+import pytest
 import numpy as np
+
+from ml.dbscan.DBSCANCluster import _dedupe_points, _project_mappable, DBSCANCluster
 
 dedupe_points = np.array([[0, 0], [1, 1], [500, 500]])
 def test_dedupe_points_with_collapse():
@@ -27,15 +29,20 @@ def test_project_mappable_empty_list_returns_none():
     assert _project_mappable([]) == (None, None, None)
     
 # input for DBSCANCluster
-cluster_points_one_level = np.array([
-    [0, 0], [10, 0], [0, 10], [10, 10], # Group A: tight
-    [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
-    [50000, 50000] # lone outlier
-])
-cluster_levels_one_level = [{"epsilon": 50, "min_pts": 4}]
-dbscan_one_level = DBSCANCluster(points=cluster_points_one_level, levels=cluster_levels_one_level)
+@pytest.fixture
+def one_level_points():
+    return np.array([
+        [0, 0], [10, 0], [0, 10], [10, 10], # Group A: tight
+        [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
+        [50000, 50000] # lone outlier
+    ])
 
-def test_dbscan_one_level_cluster_labels():
+@pytest.fixture
+def dbscan_one_level(one_level_points):
+    levels = [{"epsilon": 50, "min_pts": 4}]
+    return DBSCANCluster(points=one_level_points, levels=levels)
+
+def test_dbscan_one_level_cluster_labels(dbscan_one_level):
     labels = dbscan_one_level.labels_per_level[0]
     
     assert len(np.unique(labels[0:4])) == 1 # Group A only
@@ -43,7 +50,7 @@ def test_dbscan_one_level_cluster_labels():
     assert len(np.unique(labels)) == 3 # Group A + B + other label
     assert labels[8] == -1 # check outlier marked as outlier
     
-def test_dbscan_one_level_cluster_noise_mask_flags_outlier():
+def test_dbscan_one_level_cluster_noise_mask_flags_outlier(dbscan_one_level):
     assert dbscan_one_level.noise_mask.sum() == 1 # Exactly one noise point
 
 cluster_lats_one_level = np.array([
@@ -57,7 +64,7 @@ cluster_lons_one_level = np.array([
     -81.8000,                                 # lone outlier
 ])
 
-def test_dbscan_one_level_to_geojson():
+def test_dbscan_one_level_to_geojson(dbscan_one_level):
     geojson = dbscan_one_level.to_geojson(lats=cluster_lats_one_level, lons=cluster_lons_one_level)
     
     assert geojson["metadata"]["n_clusters"] == 2
@@ -68,16 +75,21 @@ def test_dbscan_one_level_to_geojson():
     
     assert geojson["type"] == "FeatureCollection"
     assert len(geojson["noise_points"]) == 1
-    
-cluster_points_two_level = np.array([
-    [0, 0], [5, 0], [0, 5], [5, 5], # Group A: tight
-    [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
-    [50000, 50000] # lone outlier
-])
-cluster_levels_two_level = [{"epsilon": 50, "min_pts": 4}, {"epsilon": 8, "min_pts": 4}] # use 2 cluster levels
-dbscan_two_level = DBSCANCluster(points=cluster_points_two_level, levels=cluster_levels_two_level)
 
-def test_dbscan_two_level_cluster_labels():
+@pytest.fixture
+def two_level_points():
+    return np.array([
+        [0, 0], [5, 0], [0, 5], [5, 5], # Group A: tight
+        [10000, 10000], [10010, 10000], [10000, 10010], [10010, 10010],  # group B: tight, far from A
+        [50000, 50000] # lone outlier
+    ])
+    
+@pytest.fixture
+def dbscan_two_level(two_level_points):
+        levels = [{"epsilon": 50, "min_pts": 4}, {"epsilon": 8, "min_pts": 4}] # use 2 cluster levels
+        return DBSCANCluster(points=two_level_points, levels=levels)
+
+def test_dbscan_two_level_cluster_labels(dbscan_two_level):
     density_levels = dbscan_two_level.density_levels
     
     assert len(np.unique(density_levels[0:4])) == 1
@@ -90,7 +102,7 @@ def test_dbscan_two_level_cluster_labels():
 cluster_lats_two_level = cluster_lats_one_level
 cluster_lons_two_level = cluster_lons_one_level
 
-def test_dbscan_two_level_to_density_geojson():
+def test_dbscan_two_level_to_density_geojson(dbscan_two_level):
     density_geojson = dbscan_two_level.to_density_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
     
     assert density_geojson["metadata"]["n_total"] == 9
