@@ -86,8 +86,8 @@ def two_level_points():
     
 @pytest.fixture
 def dbscan_two_level(two_level_points):
-        levels = [{"epsilon": 50, "min_pts": 4}, {"epsilon": 8, "min_pts": 4}] # use 2 cluster levels
-        return DBSCANCluster(points=two_level_points, levels=levels)
+    levels = [{"epsilon": 50, "min_pts": 4}, {"epsilon": 8, "min_pts": 4}] # use 2 cluster levels
+    return DBSCANCluster(points=two_level_points, levels=levels)
 
 def test_dbscan_two_level_cluster_labels(dbscan_two_level):
     density_levels = dbscan_two_level.density_levels
