@@ -188,6 +188,38 @@ def test_a_clusters_run_can_optimize_one_bandwidth_per_level(client):
     assert bandwidths == sorted(bandwidths, reverse=True)
 
 
+def run_with_levels_0_and_2(*file_names):
+    # level 1 found no clusters, the case where position and level number disagree
+    rng = np.random.default_rng(0)
+    center = np.array([700000.0, 800000.0])
+    rows = [(*p, 0) for p in center + rng.normal(0, 3000, (20, 2))]
+    rows += [(*p, 2) for p in center + rng.normal(0, 300, (20, 2))]
+    rows += [(*p, -1) for p in center + rng.normal(0, 20000, (5, 2))]
+    run_id, folder = runs.new_run_dir()
+    os.makedirs(folder)
+    for name in file_names:
+        pd.DataFrame(rows, columns=["easting", "northing", "cluster_density_level"]).to_csv(
+            os.path.join(folder, name), index=False)
+    return run_id
+
+
+def test_the_heatmap_says_which_level_each_bandwidth_is_for(client):
+    run_id = run_with_levels_0_and_2("userID_dbscan.csv")
+    for query in ("", "&bandwidth=3000&bandwidth=800", "&optimize=true"):
+        body = client.get(f"/api/v1/kde-heatmap?cluster_set=1&run_id={run_id}{query}").json
+        assert body["cluster_levels"] == [0, 2]
+        assert len(body["bandwidths"]) == 2
+
+
+def test_the_animation_says_which_level_each_bandwidth_is_for(client):
+    run_id = run_with_levels_0_and_2("1_userID_dbscan.csv", "2_userID_dbscan.csv")
+    for query in ("", "&bandwidth=3000&bandwidth=800"):
+        response = client.get(f"{KDE}?run_id={run_id}{query}")
+        assert response.status_code == 200, response.json
+        assert response.json["cluster_levels"] == [0, 2]
+        assert len(response.json["bandwidths"]) == 2
+
+
 def test_the_cluster_level_heatmap_needs_a_run(client):
     response = client.get("/api/v1/kde-heatmap?cluster_set=1")
     assert response.status_code == 400
