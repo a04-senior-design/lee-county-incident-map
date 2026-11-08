@@ -3,7 +3,12 @@ import tempfile
 import warnings
 
 from flask import Blueprint, current_app, jsonify, request
-from ml.generate_gi_star_snapshots import GI_STAR_CELL_SIZE, build_gi_star_snapshots, load_land_polygon
+from ml.generate_gi_star_snapshots import (
+    GI_STAR_CELL_SIZE,
+    Z_SCALE,
+    build_gi_star_snapshots,
+    load_land_polygon,
+)
 from ml.gi_star.GiStarHeatMap import GiStarHeatMap
 from pyproj import Transformer
 
@@ -64,7 +69,8 @@ def gi_star_heatmap():
 
     # generate the heat map overlay PNG image file and get its latitude/longitude boundaries
     image_filename = "gi_star_overlay.png"
-    bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename)
+    # the animation's fixed -3 to +3 scale, so a color means the same z-score on every map
+    bounds = gi_star_obj.generate_zscore_heatmap_image(image_filename, z_abs_max=Z_SCALE)
     image_data = _png_to_base64(path=os.path.join(output_dir, image_filename))
 
     bounds_dict = {
