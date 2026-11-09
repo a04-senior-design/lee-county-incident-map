@@ -1,4 +1,4 @@
-name: backend-dbscan CI
+name: backend-kde CI
 
 on:
   pull_request:
@@ -33,11 +33,11 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        working-directory: backend/ml/kde
+        working-directory: backend
         run: |
           pip install -r requirements.txt
           pip install pytest
         
       - name: Test
-        working-directory: backend
-        run: python -m pytest ml/kde -v -k "not bw08"
+        working-directory: backend/ml/kde
+        run: python -m pytest -v -k "not bw08"
