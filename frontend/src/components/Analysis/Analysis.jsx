@@ -532,6 +532,11 @@ const Analysis = ({
   // Returns the slider rows as JSX (was DOM code)
   const [optimizing, setOptimizing] = useState(false)
   function buildSliders() {
+    const levelNames = bandwidths.map((_, i) => {
+      if (kdeData?.cluster_set !== 1) return `Level ${i}`
+      const tier = runTiers[kdeData.cluster_levels?.[i]]
+      return tier ? LEVEL_LABELS[tier] : `Level ${i}`
+    })
     return (
       <>
         {bandwidths.map((bw, i) => (
@@ -540,12 +545,7 @@ const Analysis = ({
             key={i}
           >
             <Typography>
-              <Typography>
-                {kdeData?.cluster_set === 1 && activeTiers[i]
-                  ? LEVEL_LABELS[activeTiers[i]]
-                  : `Level ${i}`}{' '}
-                bandwidth: {Math.round(bw)}
-              </Typography>
+              {levelNames[i]} bandwidth: {Math.round(bw)}
             </Typography>
 
             <Slider
@@ -574,7 +574,8 @@ const Analysis = ({
                 })
             ]}
           >
-            Constraint: {bandwidths.map((_, i) => `Level ${i}`).join(' >= ')}
+            Constraint: {levelNames.join(' >= ')}{' '}
+            {/* {bandwidths.map((_, i) => `Level ${i}`).join(' >= ')} */}
           </Typography>
         )}
         <Button
@@ -795,6 +796,7 @@ const Analysis = ({
       // keep this run: /kde-heatmap needs it for the "Includes cluster analysis" option
       runIdRef.current = body.run_id ?? null
       setDbscanRunId(body.run_id ?? null)
+      setRunTiers(enabledLevels)
       setLevelData(next) // stats + layers + legend all derive from this
       setStatus('ready')
       clustersLoadedRef.current = true
