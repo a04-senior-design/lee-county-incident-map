@@ -82,17 +82,42 @@ cluster_lons_one_level = np.array([
     -81.8000,                                 # lone outlier
 ])
 
-def test_dbscan_one_level_to_geojson(dbscan_one_level):
-    geojson = dbscan_one_level.to_geojson(lats=cluster_lats_one_level, lons=cluster_lons_one_level)
+@pytest.fixture
+def one_level_geojson(dbscan_one_level):
+    return dbscan_one_level.to_geojson(
+        lats=cluster_lats_one_level, 
+        lons=cluster_lons_one_level, 
+        cluster_color="#123456"
+    )
+
+def test_dbscan_one_level_geojson_metadata(one_level_geojson):
     
-    assert geojson["metadata"]["n_clusters"] == 2
-    assert geojson["metadata"]["n_noise"] == 1
-    assert geojson["metadata"]["n_total"] == 9
-    assert geojson["metadata"]["eps"] == 50
-    assert geojson["metadata"]["min_pts"] == 4
+    assert one_level_geojson["metadata"]["n_clusters"] == 2
+    assert one_level_geojson["metadata"]["n_noise"] == 1
+    assert one_level_geojson["metadata"]["n_total"] == 9
+    assert one_level_geojson["metadata"]["eps"] == 50
+    assert one_level_geojson["metadata"]["min_pts"] == 4
+
+def test_dbscan_one_level_noise_points(one_level_geojson):
+    assert one_level_geojson["noise_points"] == [
+        {"lat": float(cluster_lats_one_level[8]), "lng": float(cluster_lons_one_level[8])}
+    ]
     
-    assert geojson["type"] == "FeatureCollection"
-    assert len(geojson["noise_points"]) == 1
+def test_one_level_geojson_polygons_come_first(one_level_geojson):
+    assert all(f["properties"]["feature_type"] == "polygon" for f in one_level_geojson["features"][:2])
+
+def test_one_level_geojson_polygon_point_count(one_level_geojson):
+    polygons = [f for f in one_level_geojson["features"] if f["properties"]["feature_type"] == "polygon"]
+    assert polygons
+    assert all(p["properties"]["point_count"] == 4 for p in polygons)
+    
+def test_one_level_geojson_point_colors(one_level_geojson):
+    points = [f for f in one_level_geojson["features"] if f["properties"]["feature_type"] == "point"]
+    assert points
+   
+    for point in points:
+        expected = NOISE_COLOR if point["properties"]["cluster_id"] == -1 else "#123456"
+        assert point["properties"]["color"] == expected
 
 @pytest.fixture
 def two_level_points():
@@ -132,3 +157,7 @@ def test_dbscan_two_level_to_density_geojson(dbscan_two_level):
     
     levels_from_geojson = [f["properties"]["density_level"] for f in density_geojson["features"]]
     assert levels_from_geojson == dbscan_two_level.density_levels.tolist()
+
+def test_to_geojson_multi_level_raises(dbscan_two_level):
+    with pytest.raises(ValueError, match="exactly one level"):
+        dbscan_two_level.to_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
