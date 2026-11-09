@@ -1,7 +1,25 @@
+import importlib
+import pandas as pd
+from shapely.geometry import shape
 import pytest
 import numpy as np
 
-from ml.dbscan.DBSCANCluster import _dedupe_points, _project_mappable, DBSCANCluster
+from ml.dbscan.DBSCANCluster import (
+    _dedupe_points, 
+    _project_mappable, 
+    DBSCANCluster,
+    CLUSTER_COLORS,
+    NOISE_COLOR,
+    inv_transformer,
+    run_clusters,
+    run_clusters_from_points,
+    compute_density_levels,
+    compute_density_levels_from_points,
+    run_density_clusters,
+    load_csv_incidents,
+    load_csv_incidents_with_time
+)
+dbscan_module = importlib.import_module("ml.dbscan.DBSCANCluster")
 
 dedupe_points = np.array([[0, 0], [1, 1], [500, 500]])
 def test_dedupe_points_with_collapse():
@@ -99,8 +117,8 @@ def test_dbscan_two_level_cluster_labels(dbscan_two_level):
     assert density_levels[0] > density_levels[4] # group A tighter than B, so higher density level
     assert density_levels[4] > density_levels[8] # group B is labled, outlier is -1, so should be higher
 
-cluster_lats_two_level = cluster_lats_one_level
-cluster_lons_two_level = cluster_lons_one_level
+cluster_lats_two_level = cluster_lats_one_level # alias for one level latitudes
+cluster_lons_two_level = cluster_lons_one_level # alias for one level longitudes
 
 def test_dbscan_two_level_to_density_geojson(dbscan_two_level):
     density_geojson = dbscan_two_level.to_density_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
