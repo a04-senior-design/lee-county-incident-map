@@ -287,3 +287,23 @@ def test_run_clusters_from_points_round_trips_coordinates():
         out_lon, out_lat = feature["geometry"]["coordinates"]
         assert out_lat == pytest.approx(lat, abs=1e-4)
         assert out_lon == pytest.approx(lon, abs=1e-4)
+        
+def test_compute_density_levels_empty_levels_returns_empty():
+    assert compute_density_levels(module_incidents, levels=[]) == []
+    
+def test_compute_density_levels_no_mappable_incidents_returns_empty():
+    assert compute_density_levels([{"lat": None, "lng": None}], levels=LEVEL) == []
+
+# def test_compute_density_levels_output_shape():
+#     result = compute_density_levels(module_incidents, levels=LEVEL)
+#     assert len(result) == 5
+#     assert set(result[0]) == {"easting", "northing", "density_level"}
+#     assert [r["density_level"] for r in result == [0, 0, 0, 0, -1]]
+
+def test_compute_density_levels_from_points_none_returns_empty():
+    assert compute_density_levels_from_points(None, levels=LEVEL) == []
+    
+def test_compute_density_levels_from_points_empty_levels_returns_empty():
+    points = np.array([[0, 0], [10, 0]])
+    assert compute_density_levels_from_points(points, levels=[]) == []
+    
