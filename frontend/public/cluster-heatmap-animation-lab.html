@@ -45,7 +45,7 @@
       <button id="btn-rewind" title="Previous frame">&#9664;&#9664;</button>
       <button id="btn-play" title="Play/pause">&#9654;</button>
       <button id="btn-forward" title="Next frame">&#9654;&#9654;</button>
-      <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+      <input id="scrub" type="range" min="0" max="0" step="1" value="0" aria-label="Frame"/>
     </div>
     <span id="frame-label">&mdash;</span>
   </div>
@@ -195,9 +195,9 @@
   <span id="animation-error"></span>
 </div>
 
-<div id="map-container">
+<main id="map-container">
   <div id="map"></div>
-</div>
+</main>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="animation-lab.js"></script>
