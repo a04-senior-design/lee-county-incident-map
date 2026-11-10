@@ -1331,6 +1331,12 @@
 
   const scrub = document.getElementById("scrub");
   const frameLabel = document.getElementById("frame-label");
+  // set the frame label's text; long labels are cut off with "...", so the full text
+  // is also put in the browser's built-in tooltip (title), shown when the user hovers over the label
+  function setFrameLabel(text) {
+    frameLabel.textContent = text;
+    frameLabel.title = text;
+  }
   const statFrame = document.getElementById("stat-frame");
   const statBandwidth = document.getElementById("stat-bandwidth");
   const statDistanceBand = document.getElementById("stat-distance-band");
@@ -1361,8 +1367,10 @@
   }
 
   // add the heat map legend (caption, color bar, tick labels) to the map's bottom-right corner;
-  // legend is the "legend" object from the animation response
-  function buildHeatmapLegend(legend) {
+  // legend is the "legend" object from the animation response;
+  // openEnded = true labels the min and max as "<= min" and ">= max", for a scale whose ends
+  // also cover every value beyond them (Gi*: z-scores past the scale get its end colors)
+  function buildHeatmapLegend(legend, openEnded = false) {
     removeHeatmapLegend();
 
     // no legend in the response - nothing to show
@@ -1398,7 +1406,16 @@
         continue;
       }
 
-      tickLabels += `<span style="left: ${percent}%">${formatTick(tick)}</span>`;
+      // open-ended scale: the min label covers everything below it, the max label everything above it
+      let labelText = formatTick(tick);
+      if (openEnded && i === 0) {
+        labelText = `\u2264 ${labelText}`;
+      }
+      else if (openEnded && i === legend.ticks.length - 1) {
+        labelText = `\u2265 ${labelText}`;
+      }
+
+      tickLabels += `<span style="left: ${percent}%">${labelText}</span>`;
     }
 
     heatmapLegendControl = L.control({position: "bottomright"});
@@ -1421,7 +1438,7 @@
     frameIndex = 0;
     scrub.max = 0;
     scrub.value = 0;
-    frameLabel.textContent = "—";
+    setFrameLabel("—");
     statFrame.textContent = "—";
     statBandwidth.textContent = "—";
     statDistanceBand.textContent = "—";
@@ -1532,7 +1549,7 @@
     if (frame.note) {
       labelText = `${labelText} — ${frame.note}`;
     }
-    frameLabel.textContent = labelText;
+    setFrameLabel(labelText);
   }
 
   // draw a cluster snapshot: each level's polygons/points in draw order, legend and level stats
@@ -1548,7 +1565,7 @@
 
     buildClusterLegend(snapshot);
     updateClusterLevelStats(snapshot);
-    frameLabel.textContent = `${snapshot.label} (${snapshot.n_incidents} incidents)`;
+    setFrameLabel(`${snapshot.label} (${snapshot.n_incidents} incidents)`);
   }
 
   // draw frame i with the current mode's renderer, and update the frame counter
@@ -1732,7 +1749,7 @@
         renderFrame(0);
       }
       else {
-        frameLabel.textContent = "No frames in this date range";
+        setFrameLabel("No frames in this date range");
       }
 
       // the parameter value(s) the displayed snapshots were built with
@@ -1755,8 +1772,9 @@
         // take the slider range from the backend
         distanceBandInput.min = body.min_distance_band;
         distanceBandInput.max = body.max_distance_band;
-        // one legend for every frame (they share one -v_abs to +v_abs color scale)
-        buildHeatmapLegend(body.legend);
+        // one legend for every frame (they share one -z_abs_max to +z_abs_max color scale);
+        // open-ended: z-scores beyond the scale get its end colors
+        buildHeatmapLegend(body.legend, true);
       }
       else {
         // KDE all points
