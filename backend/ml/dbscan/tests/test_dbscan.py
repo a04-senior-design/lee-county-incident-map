@@ -170,3 +170,64 @@ def test_dbscan_two_level_density_geojson_lon_lat_swap(two_level_density_geojson
 def test_to_geojson_multi_level_raises(dbscan_two_level):
     with pytest.raises(ValueError, match="exactly one level"):
         dbscan_two_level.to_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
+        
+def test_dbscan_group_below_min_pts_is_noise():
+    points = np.array([[0,0], [10,0], [0, 10]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 50, "min_pts": 4}]
+    )
+    assert (cluster.labels_per_level[0] == -1).all()
+    
+def test_dbscan_group_at_min_pts_is_cluster():
+    points = np.array([[0,0], [10,0], [0, 10], [10, 10]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 50, "min_pts": 4}]
+    )
+    
+    labels = cluster.labels_per_level[0]
+    assert (labels != -1).all()
+    assert len(np.unique(labels)) == 1
+
+def test_dbscan_border_point_is_not_core_point():
+    points = np.array([[0, 0], [10, 0], [0, 10], [10, 10], [28, 5]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 20, "min_pts": 4}]
+    )
+    
+    labels = cluster.labels_per_level[0]
+    assert labels[4] != -1
+    assert len(np.unique(labels)) == 1
+
+def test_dbscan_cluster_expands_through_chain_of_core_points():
+    points = np.array([[0, 0], [10, 0], [0, 10], [10, 10], [28, 5], [60, 5]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 20, "min_pts": 4}]
+    )
+    
+    labels = cluster.labels_per_level[0]
+    print(labels)
+    
+    assert labels[5] == -1
+    assert len(np.unique(labels)) == 2
+    
+def test_dbscan_no_clusters():
+    points = np.array([[0, 0], [1000, 0], [0, 1000], [1000, 1000]])
+    cluster = DBSCANCluster(
+        points=points, 
+        levels=[{"epsilon": 50, "min_pts": 4}]
+    )
+    
+    geojson = cluster.to_geojson(lats=np.array([26.6, 26.7, 26.8, 26.9]), lons=np.array([-81.9, -81.8, -81.7, -81.6]))
+    assert geojson["metadata"]["n_clusters"] == 0
+    assert geojson["metadata"]["n_noise"] == 4
+    
+    polygons = [f for f in geojson["features"] if f["properties"]["feature_type"] == "polygon"]
+    assert not polygons
+
+def test_dbscan_empty_points_raises():
+    with pytest.raises(ValueError):
+        DBSCANCluster(points=np.empty((0, 2)), levels=[{"epsilon": 50, "min_pts": 4}])
