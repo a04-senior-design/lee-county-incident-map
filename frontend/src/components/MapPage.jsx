@@ -10,7 +10,6 @@ import Typography from '@mui/material/Typography'
 import AppAlert from './AppAlert/AppAlert'
 import dayjs from 'dayjs'
 import { useAuth } from '../Context/AuthContext'
-import MyAccountPop from './MyAccountPop/MyAccountPop'
 const today = dayjs()
 // Lee County, FL extent: west,south,east,north (lng,lat,lng,lat)
 const LEE_COUNTY_BBOX = '-82.335044,26.315610,-81.560813,26.790092'

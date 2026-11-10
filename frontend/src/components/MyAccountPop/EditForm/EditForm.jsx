@@ -1,5 +1,4 @@
 import TextField from '@mui/material/TextField'
-import FormControl from '@mui/material/FormControl'
 import Slider from '@mui/material/Slider'
 import Radio from '@mui/material/Radio'
 import Box from '@mui/material/Box'
@@ -7,7 +6,6 @@ import FormLabel from '@mui/material/FormLabel'
 import RadioGroup from '@mui/material/RadioGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
-import Divider from '@mui/material/Divider'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
@@ -26,8 +24,6 @@ function EditForm({
   setAddressList,
   setAddressType,
   showAlert,
-  addressSearch,
-  setAddressSearch,
   item,
   editCard,
   setEditCard
@@ -85,7 +81,7 @@ function EditForm({
       setAddressType('')
       setTypes([])
       setCurrentPicked([])
-    } catch (error) {
+    } catch () {
       showAlert(
         'error',
         `Failed storage: Your session has expired. Please refresh the page.`

@@ -25,7 +25,6 @@ function MapInfoBar({
   isLoading,
   setTimeRange,
   timeRange,
-  setAlertContent
 }) {
   const [anchorEl, setAnchorEl] = useState(null)
   const [showTimePicker, setShowTimePicker] = useState(false)
