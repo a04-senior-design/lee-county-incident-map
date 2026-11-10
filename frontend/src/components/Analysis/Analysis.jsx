@@ -59,7 +59,7 @@ const LEVEL_HINTS = {
 
 const LEVEL_PRESETS = {
   district: { epsMax: 30000, epsMin: 10000 },
-  neighborhood: { epsMax: 10000, epsMin: 3000 },
+  neighborhood: { epsMax: 9990, epsMin: 2990 },
   street: { epsMax: 2500, epsMin: 300 }
 }
 
