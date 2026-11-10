@@ -17,7 +17,7 @@ Built as a UCF Senior Design project.
   - **DBSCAN** clusters at multiple density levels
   - **KDE** heatmaps with optimized bandwidths
   - **Getis-Ord Gi\*** hot/cold spot heatmaps
-  - Step-by-step animations of each algorithm
+  - Step-by-step animations of each algorithm, in a standalone vanilla JS [Animation Lab](#animation-lab)
 - Route safety grading
 - User accounts (JWT auth), saved areas, and incident-category alerts
 - Reports and summary statistics
@@ -30,11 +30,13 @@ Built as a UCF Senior Design project.
 Lee County Sheriff API
         │
         ▼
- backend/pipeline  ──►  PostgreSQL + PostGIS  ◄──  backend/api  ◄──  frontend
- (harvest, geocode)     (backend/database)        (Flask, /api/v1)   (React + Vite)
-                                                        │
+ backend/pipeline  ──►  PostgreSQL + PostGIS  ◄──  backend/api  ◄──┬── frontend (React + Vite)
+ (harvest, geocode)     (backend/database)        (Flask, /api/v1) │
+                                                        │          └── Animation Lab (vanilla JS,
+                                                        ▼               frontend/public)
                                                    backend/ml
-                                          (DBSCAN, KDE, Gi* algorithms)
+                                          (DBSCAN, KDE, Gi* algorithms
+                                           + animation frame rendering)
 ```
 
 Each backend component is its own project with its own README, and the components share only a database URL.
@@ -130,6 +132,17 @@ Base path `/api/v1`. Full reference in [`backend/api/openapi.yaml`](backend/api/
 | Animations | `GET /animation/dbscan`, `/animation/kde-heatmap`, `/animation/kde-heatmap-dbscan`, `/animation/gi-star-heatmap` |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /users/me` |
 | Saved areas, alerts, reports | Authenticated endpoints for the signed-in user |
+
+---
+
+## Animation Lab
+
+The Animation Lab is a standalone, dependency-free page (plain HTML/CSS/JS plus Leaflet from a CDN, no React or build step) for playing back how the hotspot algorithms work over time on the map: DBSCAN clustering, KDE heatmaps (including KDE + DBSCAN combined), and Gi\* heatmaps.
+
+- **Page:** [`frontend/public/cluster-heatmap-animation-lab.html`](frontend/public/cluster-heatmap-animation-lab.html). Vite serves it as a static file, and the React app opens it in a new tab from the board bar ([`BoardBar.jsx`](frontend/src/components/BoardBar/BoardBar.jsx)). With the dev server running, it is at `http://localhost:5173/cluster-heatmap-animation-lab.html`.
+- **Data:** it calls the API's animation endpoints (`/api/v1/animation/dbscan`, `/kde-heatmap`, `/kde-heatmap-dbscan`, `/gi-star-heatmap`), which render frames using the code in [`backend/ml/animation/`](backend/ml/animation).
+- **API target:** set by `API_BASE` near the top of the page's script. It points at `https://leecountyincidentmap.com/api/v1`; change it to `http://localhost:5001/api/v1` to use a local API.
+- **Earlier prototype:** [`frontend/cluster-heatmap-lab.html`](frontend/cluster-heatmap-lab.html) is an older, simpler cluster and heatmap lab that is not linked from the app.
 
 ---
 
