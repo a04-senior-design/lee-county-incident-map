@@ -306,4 +306,21 @@ def test_compute_density_levels_from_points_none_returns_empty():
 def test_compute_density_levels_from_points_empty_levels_returns_empty():
     points = np.array([[0, 0], [10, 0]])
     assert compute_density_levels_from_points(points, levels=[]) == []
-    
+
+TWO_LEVELS = [{"epsilon": 300, "min_pts": 4}, {"epsilon": 60, "min_pts": 4}]
+
+def test_run_density_clusters_empty_incidents_reports_levels():
+    result = run_density_clusters([], levels=TWO_LEVELS)
+    assert result["features"] == []
+    assert result["metadata"]["n_levels"] == 2
+    assert result["metadata"]["counts_by_level"] == {}
+
+def test_run_density_clusters_empty_levels_returns_empty():
+    result = run_density_clusters(module_incidents, levels=[])
+    assert result["metadata"]["n_total"] == 0
+    assert result["metadata"]["n_levels"] == 0
+
+def test_run_density_clusters_end_to_end():
+    result = run_density_clusters(module_incidents, levels=LEVEL)
+    assert result["metadata"]["n_total"] == 5
+    assert result["metadata"]["counts_by_level"] == {0: 4, -1: 1}
