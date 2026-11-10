@@ -1106,15 +1106,34 @@
   const kdeLevelSlidersContainer = document.getElementById("kde-heatmap-level-sliders");
   const kdeLevelHint = document.getElementById("kde-heatmap-level-hint");
 
-  // build one slider per cluster level; level 0 (loosest / least-dense) first
-  function buildKDEHeatmapLevelSliders(bandwidths, minBandwidth, maxBandwidth) {
+  // build one slider per cluster level; level 0 (loosest / least-dense) first;
+  // clusterLevels is the response's cluster_levels: bandwidths[i] is for cluster level clusterLevels[i]
+  function buildKDEHeatmapLevelSliders(bandwidths, clusterLevels, minBandwidth, maxBandwidth) {
     kdeLevelSlidersContainer.innerHTML = "";
+
+    // each slider's cluster density category name, e.g. "District";
+    // the run's categories are listed loosest first, so cluster level n is dbscanRunTiers[n]
+    const sliderNames = [];
+    for (let i = 0; i < bandwidths.length; i++) {
+      let name = `Level ${i}`; // no cluster_levels in the response: label by position
+      if (clusterLevels) {
+        const level = clusterLevels[i];
+        const tier = dbscanRunTiers[level];
+        if (tier) {
+          name = LEVEL_LABELS[tier];
+        }
+        else {
+          name = `Level ${level}`;
+        }
+      }
+      sliderNames.push(name);
+    }
 
     for (let i = 0; i < bandwidths.length; i++) {
       const row = document.createElement("div");
       row.className = "field-row";
       row.innerHTML = `
-        <label for="input-level-bandwidth-${i}">Level ${i} bandwidth: <span class="slider-value">${bandwidths[i]}</span> ft</label>
+        <label for="input-level-bandwidth-${i}">${sliderNames[i]} bandwidth: <span class="slider-value">${bandwidths[i]}</span> ft</label>
         <input id="input-level-bandwidth-${i}" class="level-bandwidth" type="range"
           min="${minBandwidth}" max="${maxBandwidth}" step="100" value="${bandwidths[i]}" />
       `;
@@ -1142,12 +1161,8 @@
       });
     }
 
-    // e.g. "Constraint: Level 0 >= Level 1 >= Level 2"
-    const levelNames = [];
-    for (let i = 0; i < bandwidths.length; i++) {
-      levelNames.push(`Level ${i}`);
-    }
-    kdeLevelHint.textContent = `Constraint: ${levelNames.join(" >= ")}`;
+    // e.g. "Constraint: District >= Neighborhood >= Street"
+    kdeLevelHint.textContent = `Constraint: ${sliderNames.join(" \u2265 ")}`;
   }
 
   // remove the sliders, so the next Apply sends no bandwidths and gets the defaults
@@ -1485,6 +1500,9 @@
   let clusterLevelsAvailable = true;
   // the DBSCAN run from the last Cluster Analysis Apply; the KDE cluster-level routes use its results
   let dbscanRunId = null;
+  // that run's enabled cluster density categories, loosest first (e.g. ["district", "street"])
+  // DBSCAN numbers the cluster levels in this order, so level n is dbscanRunTiers[n]
+  let dbscanRunTiers = [];
 
   // enable or disable the analysis radios and buttons (disabled while a request is running)
   function setControlsDisabled(disabled) {
@@ -1651,7 +1669,8 @@
     btn.addEventListener("click", () => setSpeed(parseFloat(btn.dataset.speed)));
   });
 
-  // build the request url for the current analysis mode; returns {url} or {error} (stop before fetching)
+  // build the request url for the current analysis mode; return {url} or {error} (stop before fetching);
+  // for Cluster Analysis it also returns tiers, the enabled cluster density categories sent
   function buildApplyRequest() {
     if (analysisMode === "cluster-levels") {
       // one "bandwidth" param per slider; no sliders yet (first Apply) means the backend uses its defaults
@@ -1687,7 +1706,7 @@
         const { eps } = levelToParams(levelName, sliderVal);
         params[`${levelName}_eps`] = eps;
       });
-      return {url: `${API_BASE}/animation/dbscan?${new URLSearchParams(params).toString()}`};
+      return {url: `${API_BASE}/animation/dbscan?${new URLSearchParams(params).toString()}`, tiers: enabledLevels};
     }
 
     if (analysisMode === "gistar-heatmap") {
@@ -1703,7 +1722,7 @@
 
   async function applyAnimation() {
     // stop before touching the current animation if a field is missing
-    const {url, error} = buildApplyRequest();
+    const {url, error, tiers} = buildApplyRequest();
     if (error) {
       errorLabel.textContent = error;
       return;
@@ -1757,13 +1776,15 @@
         // this Apply made a new DBSCAN run: the KDE cluster-level count may have changed,
         // so drop the old sliders (next cluster-levels Apply uses defaults) and recheck availability
         dbscanRunId = body.run_id;
+        // the categories this run used, to name the "KDE Heat Map (by cluster density levels)" sliders
+        dbscanRunTiers = tiers;
         removeKDEHeatmapLevelSliders();
         await checkDBSCANRun();
       }
       else if (mode === "cluster-levels") {
         statBandwidth.textContent = `${body.bandwidths.join(" / ")} ft`;
         // rebuild the sliders at the bandwidths the backend used (defaults on the first Apply)
-        buildKDEHeatmapLevelSliders(body.bandwidths, body.min_bandwidth, body.max_bandwidth);
+        buildKDEHeatmapLevelSliders(body.bandwidths, body.cluster_levels, body.min_bandwidth, body.max_bandwidth);
         // one legend for every frame (they share one color scale)
         buildHeatmapLegend(body.legend);
       }
