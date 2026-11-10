@@ -201,7 +201,7 @@ def test_dbscan_border_point_is_not_core_point():
     assert labels[4] != -1
     assert len(np.unique(labels)) == 1
 
-def test_dbscan_cluster_expands_through_chain_of_core_points():
+def test_dbscan_point_beyond_eps_of_border_is_noise():
     points = np.array([[0, 0], [10, 0], [0, 10], [10, 10], [28, 5], [60, 5]])
     cluster = DBSCANCluster(
         points=points,
