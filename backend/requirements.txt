@@ -17,3 +17,6 @@ Requests==2.34.2
 scikit_learn==1.9.1
 scipy==1.18.1
 Shapely==2.1.2
+libpysal==4.15.1
+esda==2.10.0
+geopandas>=1.1.0,

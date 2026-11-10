@@ -11,7 +11,7 @@ on:
     paths:
       - 'backend/ml/dbscan/**'
       - 'backend/requirements.txt'
-      - 'backend/workflows/backend-dbscan-ci.yml'
+      - '.github/workflows/backend-dbscan-ci.yml'
     
 concurrency:
   group: backend-dbscan-ci-${{ github.ref }}
