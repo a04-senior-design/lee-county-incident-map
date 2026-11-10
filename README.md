@@ -1,134 +1,184 @@
 # Lee County Incident Map
 
-An interactive map of recent police incidents in Lee County, FL, powered by the Lee County Sheriff's Office public API. Incidents are geocoded and plotted on a live map with filters for date range and incident type.
+An interactive map and crime-analysis tool for public-safety activity in Lee County, FL. It collects Computer-Aided Dispatch (CAD) records from the Lee County Sheriff's Office, geocodes and stores them in PostGIS, and serves them through a React map app with incident browsing, hotspot analysis (DBSCAN, KDE, Gi*), saved areas with alerts, and route safety grading.
 
-**Live site:** [leecountyincidentmap.com](https://leecountyincidentmap.com)  
-**Live data source:** [Lee County Sheriff's Office](https://www.sheriffleefl.org)
+Built as a UCF Senior Design project.
+
+**Live site:** [leecountyincidentmap.com](https://leecountyincidentmap.com)
+**Data source:** [Lee County Sheriff's Office](https://www.sheriffleefl.org)
 
 ---
 
 ## Features
 
-- Live incident map using [Leaflet.js](https://leafletjs.com)
-- Geocoded addresses via OpenStreetMap / Nominatim (disk-cached)
-- Filter by date range (3 days, 7 days, 30 days)
-- Filter by incident/crime type with color-coded markers
-- Incident count badge updates with active filters
-- Dark theme UI with attribution footer
+- Interactive [Leaflet](https://leafletjs.com) map with clustered markers, an incident list, and address search
+- Filters by date range, incident category, city and map area
+- Hotspot analysis layers:
+  - **DBSCAN** clusters at multiple density levels
+  - **KDE** heatmaps with optimized bandwidths
+  - **Getis-Ord Gi\*** hot/cold spot heatmaps
+  - Step-by-step animations of each algorithm, in a standalone vanilla JS [Animation Lab](#animation-lab)
+- Route safety grading
+- User accounts (JWT auth), saved areas, and incident-category alerts
+- Reports and summary statistics
 
 ---
 
-## Project Structure
+## Architecture
 
 ```
-lee-county-incident-map/
-├── backend/
-│   ├── app.py              # Flask application entry point
-│   ├── cache.py            # In-memory cache (1-hour TTL, thread-safe)
-│   ├── geocoder.py         # Geocodes addresses via Nominatim; disk-caches results
-│   ├── scraper.py          # Fetches raw incident JSON from the sheriff's API
-│   ├── requirements.txt    # Python dependencies
-│   └── geocode_cache.json  # Persistent geocode cache (auto-generated)
-├── frontend/
-│   ├── index.html          # App shell
-│   ├── app.js              # Map logic, data loading, filtering
-│   ├── style.css           # Dark-theme UI styles
-│   └── config.js           # API base URL (swap for production)
-└── .env                    # Backend environment config (not committed)
+Lee County Sheriff API
+        │
+        ▼
+ backend/pipeline  ──►  PostgreSQL + PostGIS  ◄──  backend/api  ◄──┬── frontend (React + Vite)
+ (harvest, geocode)     (backend/database)        (Flask, /api/v1) │
+                                                        │          └── Animation Lab (vanilla JS,
+                                                        ▼               frontend/public)
+                                                   backend/ml
+                                          (DBSCAN, KDE, Gi* algorithms
+                                           + animation frame rendering)
 ```
+
+Each backend component is its own project with its own README, and the components share only a database URL.
+
+| Directory | What it is | Docs |
+|---|---|---|
+| [`frontend/`](frontend) | React 19 + Vite app (Leaflet, Mantine, MUI) | — |
+| [`backend/api/`](backend/api) | Flask REST API (`leecad_api`), `uv` project | [README](backend/api/README.md), [`openapi.yaml`](backend/api/openapi.yaml) |
+| [`backend/pipeline/`](backend/pipeline) | Data collection: adapters, three-tier geocoder, bulk historical crawl, AWS Lambda feeds | [README](backend/pipeline/README.md) |
+| [`backend/database/`](backend/database) | Alembic migrations and local PostGIS via Docker | [README](backend/database/README.md) |
+| [`backend/ml/`](backend/ml) | DBSCAN, KDE (with `BandwidthOptimizer`) and Gi\* implementations, tests and animation generators | [`kde`](backend/ml/kde/README.md), [`gi_star`](backend/ml/gi_star/README.md), [`dbscan`](backend/ml/dbscan/tests/README.md) |
+
+Other top-level folders: `documents/` (diagrams, meeting notes), `data/` (sample CSVs), `resources/`.
 
 ---
 
 ## Prerequisites
 
-- Python 3.10+
-- Node.js (for `npx serve`)
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+- Node.js 20+ and npm
+- Docker (for the local PostGIS database)
 
 ---
 
-## Setup
+## Getting started
 
-### 1. Clone the repo
+### 1. Clone
 
 ```bash
-git clone https://github.com/AndrewKelton/lee-county-incident-map.git
+git clone https://github.com/a04-senior-design/lee-county-incident-map.git
 cd lee-county-incident-map
 ```
 
-### 2. Configure environment
-
-Create a `.env` file at the project root:
-
-```env
-ALLOWED_ORIGIN=http://localhost:5173
-PORT=5001
-INCIDENT_LIMIT=1000
-```
-
-### 3. Install backend dependencies
+### 2. Start the database
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cd backend/database
+./local-db.sh up        # PostGIS on localhost:5433, applies all migrations
 ```
 
-### 4. Run the backend
+### 3. Run the API
 
 ```bash
-cd backend
-source .venv/bin/activate
-python app.py
+cd backend/api
+cp .env.example .env    # set DATABASE_URL and JWT_SECRET
+uv sync
+uv run flask --app leecad_api.app:create_app run --port 5001
 ```
 
-The API will be available at `http://localhost:5001`.
+`.env` settings:
 
-> **First run:** The geocoder will make live requests to Nominatim for any addresses not yet in the cache. This can take several minutes for 1,000 incidents. Progress is saved every 25 lookups.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Secret for signing access tokens |
+| `ALLOWED_ORIGINS` | CORS origin(s), e.g. `http://localhost:5173` |
+| `COOKIE_SECURE` | `false` for local HTTP development |
+
+### 4. Load data (optional)
+
+An empty database has nothing to map. Populate it with the pipeline:
+
+```bash
+cd backend/pipeline
+uv sync
+uv run leecad harvest lee_county   # fetch + normalize + upsert
+uv run leecad backfill 150         # geocode records lacking coordinates
+```
+
+See the [pipeline README](backend/pipeline/README.md) for the bulk historical crawl and deployment.
 
 ### 5. Run the frontend
 
-In a separate terminal:
-
 ```bash
-npx serve frontend -l 5173
+cd frontend
+npm install
+npm run dev             # http://localhost:5173
 ```
 
-Open `http://localhost:5173` in your browser.
+By default [`frontend/vite.config.js`](frontend/vite.config.js) proxies `/api` to the production site. To use your local API instead, point the proxy `target` at `http://localhost:5001`.
 
 ---
 
-## API Endpoints
+## API overview
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/incidents` | Returns up to 1,000 geocoded incidents as JSON |
-| `GET` | `/api/health` | Health check — returns `{"status": "ok"}` |
+Base path `/api/v1`. Full reference in [`backend/api/openapi.yaml`](backend/api/openapi.yaml).
+
+| Area | Endpoints |
+|---|---|
+| Incidents | `GET /incidents` (filters, cursor paging, `format=geojson`), `GET /incidents/{source}/{id}`, `GET /incident-types` |
+| Stats & health | `GET /stats/summary`, `GET /health` |
+| Analysis | `GET /clusters`, `GET /kde-heatmap`, `GET /gi-star-heatmap` |
+| Animations | `GET /animation/dbscan`, `/animation/kde-heatmap`, `/animation/kde-heatmap-dbscan`, `/animation/gi-star-heatmap` |
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /users/me` |
+| Saved areas, alerts, reports | Authenticated endpoints for the signed-in user |
+
+---
+
+## Animation Lab
+
+The Animation Lab is a standalone, dependency-free page (plain HTML/CSS/JS plus Leaflet from a CDN, no React or build step) for playing back how the hotspot algorithms work over time on the map: DBSCAN clustering, KDE heatmaps (including KDE + DBSCAN combined), and Gi\* heatmaps.
+
+- **Page:** [`frontend/public/cluster-heatmap-animation-lab.html`](frontend/public/cluster-heatmap-animation-lab.html). Vite serves it as a static file, and the React app opens it in a new tab from the board bar ([`BoardBar.jsx`](frontend/src/components/BoardBar/BoardBar.jsx)). With the dev server running, it is at `http://localhost:5173/cluster-heatmap-animation-lab.html`.
+- **Data:** it calls the API's animation endpoints (`/api/v1/animation/dbscan`, `/kde-heatmap`, `/kde-heatmap-dbscan`, `/gi-star-heatmap`), which render frames using the code in [`backend/ml/animation/`](backend/ml/animation).
+- **API target:** set by `API_BASE` near the top of the page's script. It points at `https://leecountyincidentmap.com/api/v1`; change it to `http://localhost:5001/api/v1` to use a local API.
+- **Earlier prototype:** [`frontend/cluster-heatmap-lab.html`](frontend/cluster-heatmap-lab.html) is an older, simpler cluster and heatmap lab that is not linked from the app.
+
+---
+
+## Testing
+
+Each component has its own suite and CI workflow in [`.github/workflows/`](.github/workflows).
+
+```bash
+# API (needs the local database running)
+cd backend/api
+TEST_DATABASE_URL=postgresql://leecad:leecad-local-only@localhost:5433/leecad uv run pytest
+
+# Pipeline
+cd backend/pipeline && uv run pytest
+
+# ML algorithms
+cd backend/ml/kde && pytest
+cd backend/ml/gi_star && pytest
+cd backend/ml/dbscan/tests && pytest
+
+# Frontend lint
+cd frontend && npm run lint
+```
 
 ---
 
 ## Notes
 
-- The Sheriff's API has an approximate **3-day publication delay** — the "3 Days Ago" filter may return few or no results depending on the day. Use "Last 7 days" to reliably see data.
-- The CORS policy on the sheriff's API requires a backend proxy; the frontend cannot call it directly.
-- Geocode results are cached to `backend/geocode_cache.json` and reused across restarts.
+- The Sheriff's API publishes with a short delay and exposes only the ~1,000 most recent records, which is why the pipeline stores history itself.
+- Filter by `category`, not raw `nature`; the raw field has hundreds of typo variants.
+- GeoJSON coordinates are `[lon, lat]`.
 
----
+## Contributing
 
-## Deployment
-
-For production (e.g., DigitalOcean):
-
-1. Run the backend with `gunicorn`: `gunicorn app:app`
-2. Serve the `frontend/` directory with nginx
-3. Update `ALLOWED_ORIGIN` in `.env` and `API_BASE_URL` in `frontend/config.js` to your production URLs
-
----
+See [WORKFLOW.md](WORKFLOW.md) for the branch and pull request workflow.
 
 ## License
 
 [MIT](LICENSE)
-
----
-
-Created by [Andrew Kelton](https://www.linkedin.com/in/andrew-kelton)
