@@ -556,7 +556,7 @@ const Analysis = ({
               className='bandwidth-slider'
               min={kdeData?.min_bandwidth}
               max={kdeData?.max_bandwidth}
-              step={1}
+              step={10}
               value={Math.round(bw)}
               onChange={(e) => handleBandwidthInput(i, e.target.value)}
             />
@@ -654,7 +654,7 @@ const Analysis = ({
             className='bandwidth-slider'
             min={GISData?.min_distance_band}
             max={GISData?.max_distance_band}
-            step={1}
+            step={100}
             value={distanceBand}
             onChange={(_, value) => handleDistanceBand(value)}
           />
@@ -1151,7 +1151,7 @@ const Analysis = ({
                       data-level={level}
                       min={LEVEL_PRESETS[level].epsMin}
                       max={LEVEL_PRESETS[level].epsMax}
-                      step={100}
+                      step={10}
                       value={
                         levelSliders[level] ?? DEFAULT_LEVEL_SLIDERS[level]
                       }
