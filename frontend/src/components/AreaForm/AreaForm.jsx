@@ -1,5 +1,4 @@
 import TextField from '@mui/material/TextField'
-import FormControl from '@mui/material/FormControl'
 import Slider from '@mui/material/Slider'
 import Radio from '@mui/material/Radio'
 import Box from '@mui/material/Box'
@@ -7,7 +6,6 @@ import FormLabel from '@mui/material/FormLabel'
 import RadioGroup from '@mui/material/RadioGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
-import Divider from '@mui/material/Divider'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
@@ -30,13 +28,14 @@ function AreaForm({
   setAddressSearch
 }) {
   const [submitLoading, setSubmitLoading] = useState(false)
-  const { token } = useAuth()
+  const { token, refreshToken } = useAuth()
   // for incident types-------------------
   const [types, setTypes] = useState([])
   const [currentPicked, setCurrentPicked] = useState([])
   // form-------------------------
   const [noti, setNoti] = useState({
     name: '',
+    address: '',
     lat: null,
     lon: null,
     radius_mi: 5
@@ -56,25 +55,38 @@ function AreaForm({
     }
     setSubmitLoading(true)
     try {
-      const res = await fetch(`${url}/users/me/areas`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: noti.name,
-          lat: noti.lat,
-          lon: noti.lon,
-          radius_mi: noti.radius_mi,
-          categories: types,
-          alerts_enabled: true
+      const send = (t) =>
+        fetch(`${url}/users/me/areas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${t}`
+          },
+          body: JSON.stringify({
+            name: noti.name,
+            address: noti.address,
+            lat: noti.lat,
+            lon: noti.lon,
+            radius_mi: noti.radius_mi,
+            categories: types,
+            alerts_enabled: true
+          })
         })
-      })
-      if (!res.ok) throw new Error('noti form has problem')
+      let res = await send(token)
+      if (res.status === 401) {
+        const newToken = await refreshToken()
+        if (newToken) res = await send(newToken)
+      }
+      if (res.status === 409) {
+        showAlert('error', 'Maximum norification reached!')
+      }
+      if (!res.ok) {
+        return
+      }
       showAlert('success', 'area saved successfully')
       setNoti({
         name: '',
+        address: '',
         lat: null,
         lon: null,
         radius_mi: 5
@@ -83,8 +95,7 @@ function AreaForm({
       setTypes([])
       setCurrentPicked([])
     } catch (error) {
-      showAlert('error',`Failed storage: Your session has expired. Please refresh the page.`)
-       
+      showAlert('error', error.message)
     } finally {
       setSubmitLoading(false)
     }
@@ -164,6 +175,7 @@ function AreaForm({
                       <ListItemButton
                         onClick={() => {
                           setAddressType(address.place_name)
+                          handleChange('address', address.place_name)
                           setAddressList(null)
                           checkBound([address.center])
                           handleChange('lat', address.center[1])
