@@ -1,6 +1,4 @@
 import importlib
-import pandas as pd
-from shapely.geometry import shape
 import pytest
 import numpy as np
 
@@ -8,16 +6,12 @@ from ml.dbscan.DBSCANCluster import (
     _dedupe_points, 
     _project_mappable, 
     DBSCANCluster,
-    CLUSTER_COLORS,
     NOISE_COLOR,
-    inv_transformer,
     run_clusters,
     run_clusters_from_points,
     compute_density_levels,
     compute_density_levels_from_points,
     run_density_clusters,
-    load_csv_incidents,
-    load_csv_incidents_with_time
 )
 dbscan_module = importlib.import_module("ml.dbscan.DBSCANCluster")
 
