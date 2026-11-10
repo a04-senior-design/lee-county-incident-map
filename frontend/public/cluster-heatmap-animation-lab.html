@@ -666,7 +666,7 @@
     <div class="level-slider-row">
       <span>Sparse</span>
       <input type="range" class="level-slider" id="anim-slider-district" data-level="district"
-             min="0" max="100" step="1" value="50" />
+             min="0" max="100" step="10" value="50" />
       <span>Dense</span>
     </div>
     <div class="eps-label">&epsilon; = <span id="anim-eps-district">&mdash;</span> ft</div>
@@ -688,7 +688,7 @@
     <div class="level-slider-row">
       <span>Sparse</span>
       <input type="range" class="level-slider" id="anim-slider-neighborhood" data-level="neighborhood"
-             min="0" max="100" step="1" value="50" />
+             min="0" max="100" step="10" value="50" />
       <span>Dense</span>
     </div>
     <div class="eps-label">&epsilon; = <span id="anim-eps-neighborhood">&mdash;</span> ft</div>
@@ -710,7 +710,7 @@
     <div class="level-slider-row">
       <span>Sparse</span>
       <input type="range" class="level-slider" id="anim-slider-street" data-level="street"
-             min="0" max="100" step="1" value="50" />
+             min="0" max="100" step="10" value="50" />
       <span>Dense</span>
     </div>
     <div class="eps-label">&epsilon; = <span id="anim-eps-street">&mdash;</span> ft</div>
@@ -1291,7 +1291,7 @@
     const p = LEVEL_PRESETS[slider.dataset.level];
     slider.min = p.epsMin;
     slider.max = p.epsMax;
-    slider.step = 100;
+    slider.step = 10;
     slider.value = Math.round((p.epsMin + p.epsMax) / 2 / 100) * 100;
   }
 
