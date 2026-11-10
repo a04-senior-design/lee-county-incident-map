@@ -27,6 +27,7 @@ function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
     <>
       <DatePickerInput
         aria-label='Filter incidents by date range'
+        clearButtonProps={{ 'aria-label': 'Clear date range' }}
         maxDate={today.toDate()}
         popoverProps={{ zIndex: 2000 }}
         styles={{
