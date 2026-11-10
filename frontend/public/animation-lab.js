@@ -94,11 +94,14 @@
   const dateCalendar = document.getElementById("date-calendar");
   const datePresets = document.getElementById("date-presets");
 
+  const todayDateDefault = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 2); 
+  const todayDefaultStr = fmt(todayDateDefault)
   function shiftDays(n) { const d = new Date(todayDate); d.setDate(d.getDate() - n); return d; }
+  function shiftDefaultDays(n) { const d = new Date(todayDateDefault); d.setDate(d.getDate() - n); return d; }
   const DATE_PRESETS = [
-    {label: "Last two days", value: [fmt(shiftDays(2)), todayStr]},
-    {label: "Last 7 days",   value: [fmt(shiftDays(7)), todayStr]},
-    {label: "This month",    value: [fmt(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)), todayStr]},
+    {label: "Last two days", value: [fmt(shiftDefaultDays(2)), todayDefaultStr]},
+    {label: "Last 7 days",   value: [fmt(shiftDefaultDays(7)), todayDefaultStr]},
+    {label: "This month",    value: [fmt(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)), todayDefaultStr]},
     {label: "Last month",    value: [
       fmt(new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1)),
       fmt(new Date(todayDate.getFullYear(), todayDate.getMonth(), 0))]},
