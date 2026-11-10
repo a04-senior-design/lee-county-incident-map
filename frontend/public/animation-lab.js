@@ -439,9 +439,9 @@
   // slider. slider=0 (Sparse) -> large eps (few big clusters), slider=100
   // (Dense) -> small eps (many tight clusters).
   const LEVEL_PRESETS = {
-    district:     { epsMax: 30000, epsMin: 10000 },
-    neighborhood: { epsMax: 9990, epsMin: 3000   },
-    street:       { epsMax: 2990,  epsMin: 300   },
+    district:     { epsMax: 30000, epsMin: 10000, defaultEps: 20000 },
+    neighborhood: { epsMax: 9990,  epsMin: 3000,  defaultEps: 6500  },
+    street:       { epsMax: 2990,  epsMin: 300,   defaultEps: 1700  },
   };
 
   const levelEnabled = { district: true, neighborhood: true, street: true };
@@ -559,7 +559,8 @@
     slider.min = p.epsMin;
     slider.max = p.epsMax;
     slider.step = 10;
-    slider.value = Math.round((p.epsMin + p.epsMax) / 2 / 100) * 100;
+    // the slider is inverted (see levelToParams), so start it where eps === defaultEps
+    slider.value = p.epsMax + p.epsMin - p.defaultEps;
   }
 
   // show each level's current epsilon under its slider
