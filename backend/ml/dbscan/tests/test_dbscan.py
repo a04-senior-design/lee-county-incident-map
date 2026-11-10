@@ -231,3 +231,59 @@ def test_dbscan_no_clusters():
 def test_dbscan_empty_points_raises():
     with pytest.raises(ValueError):
         DBSCANCluster(points=np.empty((0, 2)), levels=[{"epsilon": 50, "min_pts": 4}])
+        
+module_incidents = [
+    {"lat": 26.6400, "lng": -81.8700},   # 4 incidents ~35-50 ft apart
+    {"lat": 26.6401, "lng": -81.8700},
+    {"lat": 26.6400, "lng": -81.8699},
+    {"lat": 26.6401, "lng": -81.8699},
+    {"lat": 26.7000, "lng": -81.8000},   # far away -> noise
+    {"lat": None,    "lng": -81.8700},   # unmappable -> dropped
+]
+
+LEVEL = [{"epsilon": 300, "min_pts": 4}]
+
+def test_run_clusters_empty_returns_empty_collection():
+    result = run_clusters([], eps=300, min_pts=4)
+    assert result["features"] == []
+    assert result["metadata"] == {
+        "n_clusters": 0,
+        "n_noise": 0,
+        "n_total": 0
+    }
+
+def test_run_clusters_all_unmappable_returns_empty_collection():
+    result = run_clusters([{"lat": None, "lng": None}], eps=300, min_pts=4)
+    assert result["metadata"] == {
+        "n_clusters": 0,
+        "n_noise": 0,
+        "n_total": 0
+    }
+
+def test_run_clusters_end_to_end():
+    result = run_clusters(module_incidents, eps=300, min_pts=4)
+    assert result["metadata"]["n_total"] == 5
+    assert result["metadata"]["n_clusters"] == 1
+    assert result["metadata"]["n_noise"] == 1
+    
+def test_run_clusters_from_points_none_returns_empty():
+    assert run_clusters_from_points(None, eps=300, min_pts=4)["features"] == []
+
+def test_run_clusters_from_points_empty_array_returns_empty():
+    result = run_clusters_from_points(np.empty((0, 2)), eps=300, min_pts=4)
+    assert result["metadata"] == {
+        "n_clusters": 0,
+        "n_noise": 0,
+        "n_total": 0
+    }
+
+def test_run_clusters_from_points_round_trips_coordinates():
+    points, lats, lons = _project_mappable(module_incidents)
+    result = run_clusters_from_points(points, eps=300, min_pts=4)
+
+    assert result["metadata"]["n_clusters"] == 1
+    point_features = [f for f in result["features"] if f["properties"]["feature_type"] == "point"]
+    for feature, lat, lon in zip(point_features, lats, lons):
+        out_lon, out_lat = feature["geometry"]["coordinates"]
+        assert out_lat == pytest.approx(lat, abs=1e-4)
+        assert out_lon == pytest.approx(lon, abs=1e-4)
