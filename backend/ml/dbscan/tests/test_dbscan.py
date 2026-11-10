@@ -1,7 +1,19 @@
+import importlib
 import pytest
 import numpy as np
 
-from ml.dbscan.DBSCANCluster import _dedupe_points, _project_mappable, DBSCANCluster
+from ml.dbscan.DBSCANCluster import (
+    _dedupe_points, 
+    _project_mappable, 
+    DBSCANCluster,
+    NOISE_COLOR,
+    run_clusters,
+    run_clusters_from_points,
+    compute_density_levels,
+    compute_density_levels_from_points,
+    run_density_clusters,
+)
+dbscan_module = importlib.import_module("ml.dbscan.DBSCANCluster")
 
 dedupe_points = np.array([[0, 0], [1, 1], [500, 500]])
 def test_dedupe_points_with_collapse():
@@ -64,17 +76,42 @@ cluster_lons_one_level = np.array([
     -81.8000,                                 # lone outlier
 ])
 
-def test_dbscan_one_level_to_geojson(dbscan_one_level):
-    geojson = dbscan_one_level.to_geojson(lats=cluster_lats_one_level, lons=cluster_lons_one_level)
+@pytest.fixture
+def one_level_geojson(dbscan_one_level):
+    return dbscan_one_level.to_geojson(
+        lats=cluster_lats_one_level, 
+        lons=cluster_lons_one_level, 
+        cluster_color="#123456"
+    )
+
+def test_dbscan_one_level_geojson_metadata(one_level_geojson):
     
-    assert geojson["metadata"]["n_clusters"] == 2
-    assert geojson["metadata"]["n_noise"] == 1
-    assert geojson["metadata"]["n_total"] == 9
-    assert geojson["metadata"]["eps"] == 50
-    assert geojson["metadata"]["min_pts"] == 4
+    assert one_level_geojson["metadata"]["n_clusters"] == 2
+    assert one_level_geojson["metadata"]["n_noise"] == 1
+    assert one_level_geojson["metadata"]["n_total"] == 9
+    assert one_level_geojson["metadata"]["eps"] == 50
+    assert one_level_geojson["metadata"]["min_pts"] == 4
+
+def test_dbscan_one_level_noise_points(one_level_geojson):
+    assert one_level_geojson["noise_points"] == [
+        {"lat": float(cluster_lats_one_level[8]), "lng": float(cluster_lons_one_level[8])}
+    ]
     
-    assert geojson["type"] == "FeatureCollection"
-    assert len(geojson["noise_points"]) == 1
+def test_one_level_geojson_polygons_come_first(one_level_geojson):
+    assert all(f["properties"]["feature_type"] == "polygon" for f in one_level_geojson["features"][:2])
+
+def test_one_level_geojson_polygon_point_count(one_level_geojson):
+    polygons = [f for f in one_level_geojson["features"] if f["properties"]["feature_type"] == "polygon"]
+    assert polygons
+    assert all(p["properties"]["point_count"] == 4 for p in polygons)
+    
+def test_one_level_geojson_point_colors(one_level_geojson):
+    points = [f for f in one_level_geojson["features"] if f["properties"]["feature_type"] == "point"]
+    assert points
+   
+    for point in points:
+        expected = NOISE_COLOR if point["properties"]["cluster_id"] == -1 else "#123456"
+        assert point["properties"]["color"] == expected
 
 @pytest.fixture
 def two_level_points():
@@ -99,18 +136,185 @@ def test_dbscan_two_level_cluster_labels(dbscan_two_level):
     assert density_levels[0] > density_levels[4] # group A tighter than B, so higher density level
     assert density_levels[4] > density_levels[8] # group B is labled, outlier is -1, so should be higher
 
-cluster_lats_two_level = cluster_lats_one_level
-cluster_lons_two_level = cluster_lons_one_level
+cluster_lats_two_level = cluster_lats_one_level # alias for one level latitudes
+cluster_lons_two_level = cluster_lons_one_level # alias for one level longitudes
 
-def test_dbscan_two_level_to_density_geojson(dbscan_two_level):
-    density_geojson = dbscan_two_level.to_density_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
-    
-    assert density_geojson["metadata"]["n_total"] == 9
-    assert density_geojson["metadata"]["n_noise"] == 1
-    assert density_geojson["metadata"]["n_levels"] == 2
-    assert density_geojson["metadata"]["counts_by_level"] == {1: 4, 0: 4, -1: 1}
-    
-    assert density_geojson["type"] == "FeatureCollection"
-    
-    levels_from_geojson = [f["properties"]["density_level"] for f in density_geojson["features"]]
+@pytest.fixture
+def two_level_density_geojson(dbscan_two_level):
+    return dbscan_two_level.to_density_geojson(
+        lats=cluster_lats_two_level, 
+        lons=cluster_lons_two_level
+    )
+
+def test_dbscan_two_level_density_geojson_metadata(two_level_density_geojson):
+    assert two_level_density_geojson["metadata"]["n_total"] == 9
+    assert two_level_density_geojson["metadata"]["n_noise"] == 1
+    assert two_level_density_geojson["metadata"]["n_levels"] == 2
+    assert two_level_density_geojson["metadata"]["counts_by_level"] == {1: 4, 0: 4, -1: 1}
+
+def test_dbscan_two_level_density_geojson_levels_match(dbscan_two_level, two_level_density_geojson):
+    levels_from_geojson = [f["properties"]["density_level"] for f in two_level_density_geojson["features"]]
     assert levels_from_geojson == dbscan_two_level.density_levels.tolist()
+    
+def test_dbscan_two_level_density_geojson_lon_lat_swap(two_level_density_geojson):
+    assert two_level_density_geojson["features"][0]["geometry"]["coordinates"] == [
+        cluster_lons_two_level[0], cluster_lats_two_level[0]
+    ]
+
+def test_to_geojson_multi_level_raises(dbscan_two_level):
+    with pytest.raises(ValueError, match="exactly one level"):
+        dbscan_two_level.to_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
+        
+def test_dbscan_group_below_min_pts_is_noise():
+    points = np.array([[0,0], [10,0], [0, 10]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 50, "min_pts": 4}]
+    )
+    assert (cluster.labels_per_level[0] == -1).all()
+    
+def test_dbscan_group_at_min_pts_is_cluster():
+    points = np.array([[0,0], [10,0], [0, 10], [10, 10]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 50, "min_pts": 4}]
+    )
+    
+    labels = cluster.labels_per_level[0]
+    assert (labels != -1).all()
+    assert len(np.unique(labels)) == 1
+
+def test_dbscan_border_point_is_not_core_point():
+    points = np.array([[0, 0], [10, 0], [0, 10], [10, 10], [28, 5]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 20, "min_pts": 4}]
+    )
+    
+    labels = cluster.labels_per_level[0]
+    assert labels[4] != -1
+    assert len(np.unique(labels)) == 1
+
+def test_dbscan_point_beyond_eps_of_border_is_noise():
+    points = np.array([[0, 0], [10, 0], [0, 10], [10, 10], [28, 5], [60, 5]])
+    cluster = DBSCANCluster(
+        points=points,
+        levels=[{"epsilon": 20, "min_pts": 4}]
+    )
+    
+    labels = cluster.labels_per_level[0]
+    print(labels)
+    
+    assert labels[5] == -1
+    assert len(np.unique(labels)) == 2
+    
+def test_dbscan_no_clusters():
+    points = np.array([[0, 0], [1000, 0], [0, 1000], [1000, 1000]])
+    cluster = DBSCANCluster(
+        points=points, 
+        levels=[{"epsilon": 50, "min_pts": 4}]
+    )
+    
+    geojson = cluster.to_geojson(lats=np.array([26.6, 26.7, 26.8, 26.9]), lons=np.array([-81.9, -81.8, -81.7, -81.6]))
+    assert geojson["metadata"]["n_clusters"] == 0
+    assert geojson["metadata"]["n_noise"] == 4
+    
+    polygons = [f for f in geojson["features"] if f["properties"]["feature_type"] == "polygon"]
+    assert not polygons
+
+def test_dbscan_empty_points_raises():
+    with pytest.raises(ValueError):
+        DBSCANCluster(points=np.empty((0, 2)), levels=[{"epsilon": 50, "min_pts": 4}])
+        
+module_incidents = [
+    {"lat": 26.6400, "lng": -81.8700},   # 4 incidents ~35-50 ft apart
+    {"lat": 26.6401, "lng": -81.8700},
+    {"lat": 26.6400, "lng": -81.8699},
+    {"lat": 26.6401, "lng": -81.8699},
+    {"lat": 26.7000, "lng": -81.8000},   # far away -> noise
+    {"lat": None,    "lng": -81.8700},   # unmappable -> dropped
+]
+
+LEVEL = [{"epsilon": 300, "min_pts": 4}]
+
+def test_run_clusters_empty_returns_empty_collection():
+    result = run_clusters([], eps=300, min_pts=4)
+    assert result["features"] == []
+    assert result["metadata"] == {
+        "n_clusters": 0,
+        "n_noise": 0,
+        "n_total": 0
+    }
+
+def test_run_clusters_all_unmappable_returns_empty_collection():
+    result = run_clusters([{"lat": None, "lng": None}], eps=300, min_pts=4)
+    assert result["metadata"] == {
+        "n_clusters": 0,
+        "n_noise": 0,
+        "n_total": 0
+    }
+
+def test_run_clusters_end_to_end():
+    result = run_clusters(module_incidents, eps=300, min_pts=4)
+    assert result["metadata"]["n_total"] == 5
+    assert result["metadata"]["n_clusters"] == 1
+    assert result["metadata"]["n_noise"] == 1
+    
+def test_run_clusters_from_points_none_returns_empty():
+    assert run_clusters_from_points(None, eps=300, min_pts=4)["features"] == []
+
+def test_run_clusters_from_points_empty_array_returns_empty():
+    result = run_clusters_from_points(np.empty((0, 2)), eps=300, min_pts=4)
+    assert result["metadata"] == {
+        "n_clusters": 0,
+        "n_noise": 0,
+        "n_total": 0
+    }
+
+def test_run_clusters_from_points_round_trips_coordinates():
+    points, lats, lons = _project_mappable(module_incidents)
+    result = run_clusters_from_points(points, eps=300, min_pts=4)
+
+    assert result["metadata"]["n_clusters"] == 1
+    point_features = [f for f in result["features"] if f["properties"]["feature_type"] == "point"]
+    for feature, lat, lon in zip(point_features, lats, lons):
+        out_lon, out_lat = feature["geometry"]["coordinates"]
+        assert out_lat == pytest.approx(lat, abs=1e-4)
+        assert out_lon == pytest.approx(lon, abs=1e-4)
+        
+def test_compute_density_levels_empty_levels_returns_empty():
+    assert compute_density_levels(module_incidents, levels=[]) == []
+    
+def test_compute_density_levels_no_mappable_incidents_returns_empty():
+    assert compute_density_levels([{"lat": None, "lng": None}], levels=LEVEL) == []
+
+# def test_compute_density_levels_output_shape():
+#     result = compute_density_levels(module_incidents, levels=LEVEL)
+#     assert len(result) == 5
+#     assert set(result[0]) == {"easting", "northing", "density_level"}
+#     assert [r["density_level"] for r in result == [0, 0, 0, 0, -1]]
+
+def test_compute_density_levels_from_points_none_returns_empty():
+    assert compute_density_levels_from_points(None, levels=LEVEL) == []
+    
+def test_compute_density_levels_from_points_empty_levels_returns_empty():
+    points = np.array([[0, 0], [10, 0]])
+    assert compute_density_levels_from_points(points, levels=[]) == []
+
+TWO_LEVELS = [{"epsilon": 300, "min_pts": 4}, {"epsilon": 60, "min_pts": 4}]
+
+def test_run_density_clusters_empty_incidents_reports_levels():
+    result = run_density_clusters([], levels=TWO_LEVELS)
+    assert result["features"] == []
+    assert result["metadata"]["n_levels"] == 2
+    assert result["metadata"]["counts_by_level"] == {}
+
+def test_run_density_clusters_empty_levels_returns_empty():
+    result = run_density_clusters(module_incidents, levels=[])
+    assert result["metadata"]["n_total"] == 0
+    assert result["metadata"]["n_levels"] == 0
+
+def test_run_density_clusters_end_to_end():
+    result = run_density_clusters(module_incidents, levels=LEVEL)
+    assert result["metadata"]["n_total"] == 5
+    assert result["metadata"]["counts_by_level"] == {0: 4, -1: 1}
