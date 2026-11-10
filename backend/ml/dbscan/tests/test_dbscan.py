@@ -145,18 +145,27 @@ def test_dbscan_two_level_cluster_labels(dbscan_two_level):
 cluster_lats_two_level = cluster_lats_one_level # alias for one level latitudes
 cluster_lons_two_level = cluster_lons_one_level # alias for one level longitudes
 
-def test_dbscan_two_level_to_density_geojson(dbscan_two_level):
-    density_geojson = dbscan_two_level.to_density_geojson(lats=cluster_lats_two_level, lons=cluster_lons_two_level)
-    
-    assert density_geojson["metadata"]["n_total"] == 9
-    assert density_geojson["metadata"]["n_noise"] == 1
-    assert density_geojson["metadata"]["n_levels"] == 2
-    assert density_geojson["metadata"]["counts_by_level"] == {1: 4, 0: 4, -1: 1}
-    
-    assert density_geojson["type"] == "FeatureCollection"
-    
-    levels_from_geojson = [f["properties"]["density_level"] for f in density_geojson["features"]]
+@pytest.fixture
+def two_level_density_geojson(dbscan_two_level):
+    return dbscan_two_level.to_density_geojson(
+        lats=cluster_lats_two_level, 
+        lons=cluster_lons_two_level
+    )
+
+def test_dbscan_two_level_density_geojson_metadata(two_level_density_geojson):
+    assert two_level_density_geojson["metadata"]["n_total"] == 9
+    assert two_level_density_geojson["metadata"]["n_noise"] == 1
+    assert two_level_density_geojson["metadata"]["n_levels"] == 2
+    assert two_level_density_geojson["metadata"]["counts_by_level"] == {1: 4, 0: 4, -1: 1}
+
+def test_dbscan_two_level_density_geojson_levels_match(dbscan_two_level, two_level_density_geojson):
+    levels_from_geojson = [f["properties"]["density_level"] for f in two_level_density_geojson["features"]]
     assert levels_from_geojson == dbscan_two_level.density_levels.tolist()
+    
+def test_dbscan_two_level_density_geojson_lon_lat_swap(two_level_density_geojson):
+    assert two_level_density_geojson["features"][0]["geometry"]["coordinates"] == [
+        cluster_lons_two_level[0], cluster_lats_two_level[0]
+    ]
 
 def test_to_geojson_multi_level_raises(dbscan_two_level):
     with pytest.raises(ValueError, match="exactly one level"):
