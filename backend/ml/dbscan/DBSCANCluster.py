@@ -33,7 +33,7 @@ cluster_levels = {
     }, "neighborhood": {
         "epsilon": 3000,
         "min_pts": 4,
-        "color": "#243092"
+        "color": "#5094c4"
     }, "district": {
         "epsilon": 13000,
         "min_pts": 4,

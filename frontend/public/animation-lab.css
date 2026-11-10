@@ -396,7 +396,7 @@ html, body {
 }
 .level-block.level-off { opacity: 0.4; }
 .level-block[data-level="district"]     { --accent: #0E6207; }
-.level-block[data-level="neighborhood"] { --accent: #243092; }
+.level-block[data-level="neighborhood"] { --accent: #5094c4; }
 .level-block[data-level="street"]       { --accent: #E63946; }
 
 .level-header { display: flex; align-items: center; gap: 0.5rem; }
