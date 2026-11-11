@@ -37,6 +37,14 @@ class BandwidthOptimizer:
     #     once xatol is met
     NM_XATOL = 0.02
     NM_FATOL = 0.1
+    # smallest allowed gap, as a log-gap: log(1-ft). Each log-gap is either the gap between the smallest bandwidth and
+    # lower_bound, or the gap between two neighboring bandwidths. A gap's best value is zero (its best log-gap minus infinity)
+    # when a level's best bandwidth is at the floor (common with duplicate coordinates), or when the required
+    # ordering bw0 > bw1 > bw2 keeps two levels apart that would otherwise be equal or reversed.  Without a minimum,
+    # Nelder-Mead keeps pushing that log-gap toward minus infinity and never meets xatol; with it, the gap settles at 1 ft.
+    MIN_LOG_GAP = np.log(1.0)
+    # objective penalty per unit of log-gap below MIN_LOG_GAP, so the minimizer turns back and settles at the minimum
+    LOG_GAP_PENALTY = 10.0
     # padding only needs to keep the points inside the grid: FFTKDE computes the same density at each grid node however
     # far the grid extends, and the objective only reads the density at the data points, so a larger grid adds runtime
     # without changing the result
@@ -122,10 +130,15 @@ class BandwidthOptimizer:
         return 1.0 / (2 * np.pi * bandwidth**2)
 
     def _loo_neg_log_likelihood(self, cur_bw_log_diffs: np.ndarray):
-        """objective function for the optimizer; input is in log-diff space."""
+        """objective function for the optimizer; input is in log-diff space.
+        log-gaps below MIN_LOG_GAP are evaluated at MIN_LOG_GAP, plus a penalty that grows with the shortfall, so a 
+        level whose best bandwidth is at the floor converges at the minimum gap instead of drifting toward -infinity"""
         cur_bw_log_diffs = np.asarray(cur_bw_log_diffs)
-        bandwidths = self._unpack_bandwidths(cur_bw_log_diffs)
-        return self._loo_neg_log_likelihood_from_bandwidths(bandwidths)
+        clipped_log_diffs = np.maximum(cur_bw_log_diffs, self.MIN_LOG_GAP)
+        # how far the log-gaps are below the minimum, in total (0 when none are)
+        shortfall = np.sum(clipped_log_diffs - cur_bw_log_diffs)
+        bandwidths = self._unpack_bandwidths(clipped_log_diffs)
+        return self._loo_neg_log_likelihood_from_bandwidths(bandwidths) + self.LOG_GAP_PENALTY * shortfall
 
     def _loo_neg_log_likelihood_from_bandwidths(self, bandwidths: np.ndarray):
         """objective function for negative log-likelihood of leave-one-out cross-validation;
@@ -190,14 +203,16 @@ class BandwidthOptimizer:
             res = minimize(fun=self._loo_neg_log_likelihood, x0=initial_bw_log_diffs, args=(), method='Nelder-Mead', options={'xatol': self.NM_XATOL, 'fatol': self.NM_FATOL})
             print(f'initial_bw_log_diffs: {initial_bw_log_diffs}  res.message: {res.message}')
             print(f'objective: {res.fun}')
-            print(f'bandwidth: {self._unpack_bandwidths(res.x)}')
+            print(f'bandwidth: {self._unpack_bandwidths(np.maximum(res.x, self.MIN_LOG_GAP))}')
             if self.best_result is None or res.fun < self.best_result.fun:
                 self.best_result = res
 
+        # the bandwidths that were scored: log-gaps below the minimum were evaluated at the minimum
+        best_bandwidths = self._unpack_bandwidths(np.maximum(self.best_result.x, self.MIN_LOG_GAP))
         print("best objective:", self.best_result.fun)
-        print("best bandwidth:", self._unpack_bandwidths(self.best_result.x))
+        print("best bandwidth:", best_bandwidths)
 
-        return self._unpack_bandwidths(self.best_result.x)
+        return best_bandwidths
 
     def brute_force_optimizer(self, increment, max_allowable_bandwidth):
         """used for testing - function scans through a range of possible bandwidths, starting at the lower bound, given an increment and maximum bandwidth"""
