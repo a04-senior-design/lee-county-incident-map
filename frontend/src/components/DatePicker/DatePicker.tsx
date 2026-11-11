@@ -48,13 +48,6 @@ function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
         presets={[
           {
             value: [
-              today.subtract(2, 'day').format('YYYY-MM-DD'),
-              today.format('YYYY-MM-DD')
-            ],
-            label: 'Last two days'
-          },
-          {
-            value: [
               today.subtract(7, 'day').format('YYYY-MM-DD'),
               today.format('YYYY-MM-DD')
             ],
