@@ -360,12 +360,77 @@ def _spot_text(rank, lat, lng, incidents, radius_ft, value_text):
     nearby, place = _nearby(lat, lng, incidents, radius_ft)
     text = f"<b>{rank}.</b> {_sentence(place) if place else ''}({lat:.4f}, {lng:.4f}): {value_text}; " \
            f"<b>{len(nearby):,}</b> incident{'s' if len(nearby) != 1 else ''} within {radius_ft:,.0f} ft"
-    top3 = [f"{_type_label(k)} ({n:,})" for k, n in Counter(_type_key(i) for i in nearby).most_common(3)]
+    return text + _type_mix(nearby) + "."
+
+
+def _type_mix(incidents):
+    """', most often Traffic (40), then Disturbance (25) and Violent Crime (8)', or ', all Violent Crime'."""
+    top3 = Counter(_type_key(i) for i in incidents).most_common(3)
     if len(top3) == 1:
-        text += f", all {top3[0].split(' (')[0]}"
-    elif top3:
-        text += f", most often {top3[0]}, then {' and '.join(top3[1:])}"
-    return text + "."
+        return f", all {_type_label(top3[0][0])}"
+    parts = [f"{_type_label(k)} ({n:,})" for k, n in top3]
+    return f", most often {parts[0]}, then {' and '.join(parts[1:])}" if parts else ""
+
+
+_LEVEL_SIZES = {"district": "broad areas", "neighborhood": "neighborhood-sized", "street": "tight, block-sized"}
+
+
+def _cluster_spots(response, incidents):
+    """The biggest DBSCAN clusters at the tightest level that found any, as report paragraphs' text.
+
+    Each of the response's incident points carries its cluster's id, so a cluster's incidents are
+    the report's incidents at those points and its types are counted exactly. The points come back
+    with a trillionth of a degree of drift, so they are matched at 7 decimals: rounding at 5 or 6
+    would split coordinates stored as, say, -81.794725 from their copies."""
+    levels = response["frames"][0]["levels"]
+    configs = response.get("level_configs") or {}
+    found = [lvl for lvl in _level_order(levels) if _cluster_polygons(levels[lvl])]
+    if not found:
+        loosest = _level_order(levels)[0]
+        meta = levels[loosest].get("metadata") or {}
+        eps = meta.get("eps", (configs.get(loosest) or {}).get("epsilon"))
+        min_pts = meta.get("min_pts", (configs.get(loosest) or {}).get("min_pts"))
+        if eps is None or min_pts is None:
+            return ["No clusters were found at any level."]
+        return [f"No clusters were found at any level: even at the {_LEVEL_LABELS.get(loosest, loosest.title())} "
+                f"level, no group of at least {min_pts} incidents fell within {eps:,.0f} ft of each other."]
+    level = found[-1]  # the tightest level that found clusters says the most about where
+    features = levels[level]["features"]
+
+    def spot(lng, lat):
+        return round(float(lat), 7), round(float(lng), 7)
+
+    at = {}  # each place -> the report's incidents there
+    for inc in incidents:
+        if inc.get("lat") is not None and inc.get("lng") is not None:
+            at.setdefault(spot(inc["lng"], inc["lat"]), []).append(inc)
+    points = {}  # each cluster -> its incident points
+    for f in features:
+        props = f.get("properties") or {}
+        if props.get("feature_type") == "point" and (props.get("cluster_id") or 0) >= 0:
+            points.setdefault(props["cluster_id"], set()).add(spot(*f["geometry"]["coordinates"][:2]))
+
+    clusters = sorted(_cluster_polygons(levels[level]), key=lambda f: -(f.get("properties") or {}).get("point_count", 0))
+    total = response["frames"][0].get("n_incidents") or len(incidents)
+    held = sum((f.get("properties") or {}).get("point_count", 0) for f in clusters)
+    name = _LEVEL_LABELS.get(level, level.title())
+    lines = [f"<b>{name} level</b> ({_LEVEL_SIZES.get(level, 'clusters')}): {len(clusters)} cluster"
+             f"{'s' if len(clusters) != 1 else ''}, holding {held:,} of the {total:,} incidents ({held / total:.0%}); "
+             f"the other {total - held:,} {'are' if total - held != 1 else 'is'} in no {name.lower()} cluster."]
+    shown = clusters[:_SPOTS]
+    lines.append(f"The {len(shown)} largest:" if len(shown) > 1 else "The cluster:")
+    for rank, f in enumerate(shown, 1):
+        props = f.get("properties") or {}
+        places = points.get(props.get("cluster_id"), set())
+        members = [inc for p in places for inc in at.get(p, [])]
+        lat = sum(p[0] for p in places) / len(places) if places else None
+        lng = sum(p[1] for p in places) / len(places) if places else None
+        cities = Counter((i.get("city") or "").strip().title() for i in members if (i.get("city") or "").strip())
+        where = f"Near {cities.most_common(1)[0][0]} " if cities else ""
+        where += f"({lat:.4f}, {lng:.4f})" if lat is not None else ""
+        n = props.get("point_count", len(members))
+        lines.append(f"<b>{rank}.</b> {where}: <b>{n:,}</b> incident{'s' if n != 1 else ''}{_type_mix(members)}.")
+    return lines
 
 
 def _gi_confidence(z):
@@ -481,9 +546,10 @@ def _analysis_maps(bounds, analyses, incidents):
         if png and kind != "dbscan" and len(incidents) < _MIN_INCIDENTS_FOR_SPOTS:
             spots = [f"Only {len(incidents)} incident{'s' if len(incidents) != 1 else ''} in this area, too few "
                      f"to single out its {'densest spots' if kind == 'kde' else 'hot spots'}."]
-        elif png and kind != "dbscan" and response.get("legend"):
+        elif png and (kind == "dbscan" or response.get("legend")):
             try:
-                spots = _map_spots(kind, response, bounds, incidents)
+                spots = _cluster_spots(response, incidents) if kind == "dbscan" else \
+                    _map_spots(kind, response, bounds, incidents)
             except Exception:
                 spots = []  # the map still goes in without its list
         maps.append((title, png, legend if png else None, _MAP_CAPTIONS[kind], spots))
