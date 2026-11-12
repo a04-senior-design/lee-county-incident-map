@@ -105,7 +105,7 @@ function MapInfoBar({
         icon={isLoading ? <CircularProgress size={22} /> : <ModeStandbyIcon />}
         label={
           filteredListWithLocation.length !== 0
-            ? `${filteredListWithLocation.length}/${filteredListWithLocation.length + filteredListWithoutLocation.length}  incidents`
+            ? `${filteredListWithLocation.length} incidents`
             : '0 incidents'
         }
       />

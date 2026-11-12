@@ -13,6 +13,7 @@ import ListItemText from '@mui/material/ListItemText'
 import Button from '@mui/material/Button'
 import { useState } from 'react'
 import { useAuth } from '../../../Context/AuthContext'
+import CategoryNoti from '../../AreaForm/Category-noti/CategoryNoti'
 const url = import.meta.env.VITE_API_BASE_URL
 
 function EditForm({

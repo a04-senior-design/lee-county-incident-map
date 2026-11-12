@@ -49,7 +49,7 @@ function MapPage() {
   const database = import.meta.env.VITE_API_BASE_URL
   // ── State ──────────────────────────────────────────────────────────────────
   const [daysAgo, setDaysAgo] = useState(3)
-  const [allIncidents, setAllIncidents] = useState([])
+  const [allIncidents, setAllIncidents] = useState([1]) //put 1 here to avoid no incident found alert in useeffect at first
   const [selectedNatures, setSelectedNatures] = useState([])
   const [locationMove, setLocationMove] = useState(null) //state to get lat, lng when user click on the item
   const [idPopup, setIdPopup] = useState(null) //state to get the id when user click on incident on the list
