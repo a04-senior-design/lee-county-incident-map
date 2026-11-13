@@ -1,3 +1,4 @@
+import json
 import os
 
 import numpy as np
@@ -5,7 +6,7 @@ import pandas as pd
 from ml.generate_kde_heatmap_snapshots import build_kde_heatmap_snapshots_from_dbscan
 from test_kde import padding_grows_with_bandwidth
 
-from leecad_api import runs
+from leecad_api import dbscan_routes, runs
 
 DBSCAN = "/api/v1/animation/dbscan"
 KDE = "/api/v1/animation/kde-heatmap-dbscan"
@@ -54,6 +55,20 @@ def test_a_run_drives_the_kde_animation(client):
     assert frames[0]["n_incidents"] == 5
     assert frames[0]["image"].startswith("data:image/png;base64,")
     assert set(response.json["legend"]) == {"colors", "vmin", "vmax", "ticks", "caption"}
+
+
+def test_the_kde_animation_frames_carry_the_runs_windows(client):
+    # frame 1 needs clusters, so the run starts with the five close-together incidents
+    body = run(client, "start_date=2026-06-15&end_date=2026-06-24&window_length=5D&time_step=5D")
+    response = client.get(f"{KDE}?run_id={body['run_id']}")
+    assert response.status_code == 200, response.json
+    frames = response.json["frames"]
+    windows = [(f["window_start"], f["window_end"]) for f in frames]
+    assert len(windows) == 2
+    assert windows == [(f["window_start"], f["window_end"]) for f in body["frames"]]
+    # labeled as the all-points animation labels its frames, in Eastern time
+    assert frames[0]["window_start"] == "2026-06-15T00:00:00-04:00"
+    assert frames[0]["label"] == "2026-06-15 00:00 - 2026-06-20 00:00"
 
 
 def write_frames(folder, *frames):
@@ -200,6 +215,10 @@ def run_with_levels_0_and_2(*file_names):
     for name in file_names:
         pd.DataFrame(rows, columns=["easting", "northing", "cluster_density_level"]).to_csv(
             os.path.join(folder, name), index=False)
+    # the windows /animation/dbscan saves beside its frames
+    window = {"window_start": "2026-06-15T00:00:00-04:00", "window_end": "2026-06-16T00:00:00-04:00"}
+    with open(os.path.join(folder, dbscan_routes.WINDOWS), "w") as f:
+        json.dump([window] * len(file_names), f)
     return run_id
 
 

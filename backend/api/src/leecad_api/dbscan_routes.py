@@ -1,5 +1,7 @@
+import json
 import os
 import tempfile
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -18,6 +20,9 @@ from leecad_api import filters, queries, runs
 from leecad_api.kde_routes import DEFAULT_BANDWIDTH, MAX_BANDWIDTH, MIN_BANDWIDTH, _png_to_base64
 
 bp = Blueprint("dbscan", __name__)
+
+# an animation run's frame windows, in frame order
+WINDOWS = "windows.json"
 
 
 def _parse_dbscan_level_overrides(args) -> dict:
@@ -75,6 +80,10 @@ def animation_dbscan():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+    # the frame CSVs hold no times, so the KDE animation over this run reads its windows from here
+    with open(os.path.join(densities_dir, WINDOWS), "w") as f:
+        json.dump([{"window_start": frame["window_start"], "window_end": frame["window_end"]} for frame in frames], f)
+
     return jsonify({"frames": frames, "run_id": run_id})
 
 
@@ -128,6 +137,16 @@ def kde_heatmap_dbscan_animation():
             if frame["image"] is not None:
                 img_path = os.path.join(output_dir, frame["image"])
                 frame["image"] = _png_to_base64(path=img_path)
+
+    # frame n is the run's window n; labeled as the all-points animation labels its frames
+    with open(os.path.join(densities_dir, WINDOWS)) as f:
+        windows = json.load(f)
+    for frame, window in zip(frames, windows):
+        start = datetime.fromisoformat(window["window_start"])
+        end = datetime.fromisoformat(window["window_end"])
+        frame["label"] = f"{start:%Y-%m-%d %H:%M} - {end:%Y-%m-%d %H:%M}"
+        frame["window_start"] = window["window_start"]
+        frame["window_end"] = window["window_end"]
 
     return jsonify({
         "frames": frames,
