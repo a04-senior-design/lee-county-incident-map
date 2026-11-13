@@ -441,6 +441,24 @@
     kdeLevelHint.textContent = "Click Apply to load frame 1's cluster levels.";
   }
 
+  // replace each list of cluster level numbers in a backend error message, e.g. "[0, 1, 2]",
+  // with the Cluster Analysis run's category names, e.g. "[District, Neighborhood, Street]";
+  // a list with a level the run has no category for is left as it is
+  function nameClusterLevelsInMessage(message) {
+    return message.replace(/\[([\d,\s]+)\]/g, (match, numbersText) => {
+      const names = [];
+      for (const part of numbersText.split(",")) {
+        const level = Number(part.trim());
+        const tier = dbscanRunTiers[level];
+        if (!tier) {
+          return match;
+        }
+        names.push(LEVEL_LABELS[tier]);
+      }
+      return `[${names.join(", ")}]`;
+    });
+  }
+
 
   // ── Cluster Analysis (DBSCAN) rendering, from animation-lab ─────────────
   // District drawn first (bottom), neighborhood middle, street on top
@@ -1023,7 +1041,20 @@
         else if (mode === "gistar-heatmap") {
           fallbackMessage = "Failed to load Gi* heat map snapshots";
         }
-        errorLabel.textContent = body.error || fallbackMessage;
+        let message = body.error || fallbackMessage;
+
+        // "KDE (by cluster density level)" errors list levels as numbers, e.g. "[0, 1, 2]"; show category names instead
+        if (mode === "cluster-levels") {
+          try {
+            message = nameClusterLevelsInMessage(message);
+          }
+          catch (err) {
+            // keep the backend's message as it is if the names can't be filled in
+            console.error(err);
+          }
+        }
+        errorLabel.textContent = message;
+
         // e.g. the Cluster Analysis run changed and the slider count no longer matches frame 1
         if (mode === "cluster-levels") {
           removeKDEHeatmapLevelSliders();
