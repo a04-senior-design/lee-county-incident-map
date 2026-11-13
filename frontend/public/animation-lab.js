@@ -162,12 +162,20 @@
     const month = viewMonth.getMonth();
     const [start, end] = draft;
     const nextDisabled = new Date(year, month + 1, 1) > todayDate;
+    const nextYearDisabled = new Date(year + 1, month, 1) > todayDate;
 
     let html = `<div class="cal-header">
-      <button type="button" data-nav="-1">&#9664;</button>
+      <span class="cal-nav">
+        <button type="button" data-nav="-12" title="Previous year" aria-label="Previous year">&laquo;</button>
+        <button type="button" data-nav="-1" title="Previous month" aria-label="Previous month">&#9664;</button>
+      </span>
       <span>${MONTHS[month]} ${year}</span>
-      <button type="button" data-nav="1" ${nextDisabled ? "disabled" : ""}>&#9654;</button>
+      <span class="cal-nav">
+        <button type="button" data-nav="1" title="Next month" aria-label="Next month" ${nextDisabled ? "disabled" : ""}>&#9654;</button>
+        <button type="button" data-nav="12" title="Next year" aria-label="Next year" ${nextYearDisabled ? "disabled" : ""}>&raquo;</button>
+      </span>
     </div><div class="cal-grid">`;
+
     for (const dow of ["Su","Mo","Tu","We","Th","Fr","Sa"]) html += `<div class="cal-dow">${dow}</div>`;
 
     const first = new Date(year, month, 1);
