@@ -240,7 +240,6 @@ const Analysis = ({
   const secondBarRef = useRef(null)
   const thirdBarRef = useRef(null)
   //State valid-----------------------------------------------
-  const [currentStateValid, setCurrentStateValid] = useState([])
   const kdeValid = kdeData
     ? kdeData.cluster_set === 1
       ? 'cluster'
@@ -688,7 +687,7 @@ const Analysis = ({
     const tickLabels = legend.ticks
       .map((t, i) => {
         const prefix = i === 0 ? ' <= ' : i === lastIdx ? '>= ' : ''
-        const max = i === lastIdx ? '>= ' : ''
+        //const max = i === lastIdx ? '>= ' : ''
 
         return `<span>${prefix}${Number(t.toPrecision(2))}</span>`
       })

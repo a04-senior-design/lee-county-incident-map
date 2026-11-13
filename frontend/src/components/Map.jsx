@@ -28,7 +28,6 @@ import Button from '@mui/material/Button'
 import RouteGrader from './RouteSafety/RouteGrader.jsx'
 import AreaForm from './AreaForm/AreaForm.jsx'
 import MyAccountPop from './MyAccountPop/MyAccountPop.jsx'
-import { Rectangle } from 'react-leaflet' // add to your existing import
 
 const RECT_STYLE = {
   color: '#0e668f',
@@ -128,19 +127,7 @@ function MoveMap({ selectedLocation, markerRef = null }) {
   return null
 }
 //setup the bound
-const check = {
-  address: 'TAMIAMI TRL / MICHAEL G RIPPE PKWY',
-  category: 'TRAFFIC',
-  city: 'FORT MYERS',
-  disposition: null,
-  lat: null,
-  lon: null,
-  nature: 'CRASH',
-  occurred_at: '2026-10-14T21:49:55+00:00',
-  source: 'lee_county_traffic',
-  source_incident_id: 'L26558835',
-  status: 'ARRIVED'
-}
+
 const LEECOUNTY_BOUNDARY = [
   [
     [26.78980006125687, -82.272362941444],
@@ -196,7 +183,6 @@ function AutoResize() {
 
   return null
 }
-const tileProvider = import.meta.env.VITE_CARTO_KEY
 function Map({
   finalList,
   countyCenter,
@@ -221,7 +207,6 @@ function Map({
   onAreaDrawn,
   setDrawArea,
   setAreaBounds,
-  handleReport,
   reportLoading,
   setReportMapState,
   reportMapState,
@@ -401,27 +386,7 @@ function Map({
     return NATURE_COLORS['default']
   }
 
-  function createIncidentIcon(nature) {
-    const color = getIncidentColor(nature)
-    if (!iconCache[color]) {
-      iconCache[color] = L.divIcon({
-        className: '',
-        html: `
-          <div style="
-        width: 18px;
-        height: 18px;
-        background: ${color};
-        border: 2px solid white;
-        border-radius: 50%;">
-          
-          </div>
-        `,
-        iconSize: [18, 18],
-        iconAnchor: [9, 9]
-      })
-    }
-    return iconCache[color]
-  }
+ 
 
   const searching = (e, set = setAddressType, setList = setAddressList) => {
     const value = e.target.value
@@ -561,34 +526,7 @@ function Map({
           </Box>
         </Box>
       )}
-      {/* <Box
-        sx={{
-          position: 'absolute',
-          zIndex: 1000,
-          top: '60vh',
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          pointerEvents: 'none'
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 3,
-            pointerEvents: 'auto',
-            background: 'yellow',
-            flexDirection: 'column'
-          }}
-        >
-          <Typography variant='h5'>map valid state</Typography>
-          <Typography variant='h6'>{`KDE heat map: ${reportMapState.kde === 'all' ? 'Valid (All points)' : reportMapState.kde === 'cluster' ? 'Valid (By Cluster)' : 'Invalid'}`}</Typography>
-          <Typography variant='h6'>{`Cluster: ${reportMapState.clusters ? 'Valid ' : 'Invalid'}`}</Typography>
-          <Typography variant='h6'>{`Gistar: ${reportMapState.giStar ? 'Valid ' : 'Invalid'}`}</Typography>
-        </Box>
-      </Box> */}
+    
       {routeOn === true && gradeMode === 'drive' && (
         <Box
           sx={{
@@ -912,7 +850,7 @@ function Map({
             maxClusterRadius={100}
             animate={false}
           >
-            {finalList.map((incident, index) => (
+            {finalList.map((incident) => (
               <CircleMarker
                 bubblingMouseEvents={false}
                 key={incident.source_incident_id}
@@ -963,26 +901,4 @@ function Map({
   )
 }
 
-{
-  /* <Popup>
-                <div className='popup-address'>
-                  <h3>{incident.address}</h3>
-                  <h5>{incident.city}</h5>
-                </div>
-                <div className='popup-line'></div>
-                <div className='popup-content'>
-                  <h4 className='popup-content-normal'>{`Incident Number: ${
-                    incident.source_incident_id
-                  }`}</h4>
-                  <h4 className='popup-content-normal'>
-                    Type:
-                    <span
-                      style={{ fontSize: '16px', color: '#ca745f' }}
-                    >{` ${incident.nature}`}</span>
-                  </h4>
-                  <h4 className='popup-content-normal'>{`Disposition: ${incident.status}`}</h4>
-                  <h4 className='popup-content-normal'>{`Date: ${incident.occurred_at}`}</h4>
-                </div>
-              </Popup> */
-}
 export default memo(Map)
