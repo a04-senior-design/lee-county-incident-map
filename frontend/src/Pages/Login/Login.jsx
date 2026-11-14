@@ -1,0 +1,484 @@
+import Box from '@mui/material/Box'
+import Paper from '@mui/material/Paper'
+import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import Link from '@mui/material/Link'
+import Button from '@mui/material/Button'
+import Alert from '@mui/material/Alert'
+import InputAdornment from '@mui/material/InputAdornment'
+import { useState } from 'react'
+import VisibilityIcon from '@mui/icons-material/Visibility'
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
+import AppAlert from '../../components/AppAlert/AppAlert'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../Context/AuthContext'
+import LeftLoginPage from './LeftLoginPage/LeftLoginPage'
+const url = import.meta.env.VITE_API_BASE_URL
+function Login() {
+  const { setSession } = useAuth()
+  const navigate = useNavigate()
+  const [loginOn, setLoginOn] = useState(true)
+  const [userLogin, setUserLogin] = useState({
+    email: '',
+    password: ''
+  })
+  const [userSignup, setUserSignup] = useState({
+    name: '',
+    email: '',
+    password: ''
+  })
+  // --------Password------------------------------------------
+  const [visible, setVisible] = useState(false)
+  const [passwordLength, setPasswordLength] = useState(null)
+
+  // --------Alert------------------------------------------
+  const [AlertContent, SetAlertContent] = useState({
+    open: false,
+    vertical: 'bottom',
+    horizontal: 'right',
+    severity: '',
+    content: ''
+  })
+  // --------Function------------------------------------------
+  const generateAlert = (severity, content) => {
+    SetAlertContent((prev) => ({
+      ...prev,
+      open: true,
+      severity: severity,
+      content: content
+    }))
+  }
+  const signupCheck = () => {
+    if (!userSignup.name) {
+      generateAlert('error', 'Please enter your name')
+      return false
+    } else if (!/^[a-zA-Z ]+$/.test(userSignup.name)) {
+      generateAlert('error', 'Name must contain letters only')
+      return false
+    } else if (!userSignup.email) {
+      generateAlert('error', 'Please enter your email')
+      return false
+    } else if (!/^[^\s@]+@gmail\.com$/.test(userSignup.email)) {
+      generateAlert('error', 'Please enter a valid Gmail address')
+      return false
+    } else if (!userSignup.password) {
+      generateAlert('error', 'Please enter your password')
+      return false
+    } else if (!/^(?=.*\d).{8,}$/.test(userSignup.password)) {
+      generateAlert(
+        'error',
+        'Password must be at least 8 characters and contain at least 1 number'
+      )
+      return false
+    }
+
+    return true
+  }
+  const handleLogin = async () => {
+    try {
+      const res = await fetch(`${url}/auth/login`, {
+        credentials: 'include',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: userLogin.email,
+          password: userLogin.password
+        })
+      })
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || 'Login failed')
+      generateAlert('success', 'User login successfully')
+
+      setSession(data.user, data.access_token)
+      setUserLogin({ email: '', password: '' })
+      navigate('/')
+    } catch (error) {
+      generateAlert('error', error.message)
+    }
+  }
+  const handleSignup = async () => {
+    if (!signupCheck()) {
+      return
+    }
+    try {
+      const res = await fetch(`${url}/auth/register`, {
+        credentials: 'include',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: userSignup.email,
+          password: userSignup.password,
+          name: userSignup.name
+        })
+      })
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || 'Signup failed')
+      generateAlert('success', 'User registed successfully')
+      setSession(data.user, data.access_token)
+
+      setUserSignup({ name: '', email: '', password: '' })
+      setPasswordLength(null)
+      navigate('/')
+    } catch (error) {
+      generateAlert('error', error.message)
+    }
+  }
+  return (
+    <Box>
+      <Box
+        sx={{
+          width: '100vw',
+          height: `calc(100vh)`,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#0b3447'
+        }}
+      >
+        <Paper
+          elevation={3}
+          sx={{
+            borderRadius: 5,
+            width: '100vw',
+            height: '100vh',
+            display: 'flex',
+            position: 'fixed',
+            background: 'linear-gradient(135deg, #46B1E1 0%, #104862 100%)',
+            zIndex: 2,
+            '&:hover': {
+              transform: 'scale(1.02)',
+              boxShadow: 24
+            },
+            transition: 'ease-in-out 0.3s'
+          }}
+        ></Paper>
+        <Paper
+          elevation={3}
+          sx={{
+            borderRadius: 5,
+            width: '80vw',
+            height: '87.5vh',
+            display: 'flex',
+            position: 'fixed',
+            background: 'linear-gradient(135deg, #C1E5F5 0%, #46B1E1 100%)',
+            zIndex: 2,
+            top: '6.5%',
+            '&:hover': {
+              transform: 'scale(1.02)',
+              boxShadow: 24
+            },
+            transition: 'ease-in-out 0.3s'
+          }}
+        ></Paper>
+        <Paper
+          elevation={3}
+          sx={{
+            borderRadius: 5,
+            width: '60vw',
+            height: '75vh',
+            display: 'flex',
+            position: 'fixed',
+            background: 'linear-gradient(135deg, #e5eff3 0%, #C1E5F5 100%)',
+            zIndex: 9,
+            top: '12.5%',
+            '&:hover': {
+              transform: 'scale(1.02)',
+              boxShadow: 24
+            },
+            transition: 'ease-in-out 0.3s'
+          }}
+        ></Paper>
+        <Paper
+          elevation={3}
+          sx={{
+            borderRadius: 5,
+            width: 'clamp(390px, 65vw,1000px)',
+            height: '62.5vh',
+            display: 'flex',
+            zIndex: 10,
+            '&:hover': {
+              transform: 'scale(1.02)',
+              boxShadow: 24
+            },
+            transition: 'ease-in-out 0.3s'
+          }}
+        >
+          <Box
+            sx={{
+              borderRadius: 5,
+              height: '100%',
+              flexGrow: 1,
+              background: 'linear-gradient(135deg, #d8dee7 0%, #53a1b4 100%)'
+            }}
+          >
+            <LeftLoginPage />
+          </Box>
+          <Box
+            sx={{
+              height: '100%',
+              width: '42%',
+              minWidth: '400px',
+              display: 'flex',
+              justifyContent: 'center'
+            }}
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+
+                if (loginOn) {
+                  handleLogin()
+                } else {
+                  handleSignup()
+                }
+              }}
+            >
+              <Box sx={{ marginTop: '50px', marginBottom: '30px' }}>
+                <Typography
+                  variant='span'
+                  sx={{ fontWeight: 500, fontSize: '24px' }}
+                >
+                  Welcome to
+                </Typography>
+
+                <Typography
+                  variant='span'
+                  sx={[
+                    {
+                      ml: '4px',
+                      fontWeight: 500,
+                      fontSize: '32px',
+                      color: (theme) => theme.palette.primary.main
+                    },
+                    (theme) =>
+                      theme.applyStyles('dark', {
+                        color: (theme) => theme.palette.primary.light
+                      })
+                  ]}
+                >
+                  LCIM
+                </Typography>
+              </Box>
+              <Typography
+                variant='span'
+                sx={{ fontWeight: 500, fontSize: '24px' }}
+              >
+                {loginOn ? 'Login' : 'Signup'}
+              </Typography>
+              <Box
+                sx={{
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  mt: 1
+                }}
+              >
+                {loginOn ? (
+                  <>
+                    {' '}
+                    <TextField
+                      id='login-email-input'
+                      label='Email'
+                      type='text'
+                      autoComplete='off'
+                      value={userLogin.email}
+                      onChange={(e) => {
+                        setUserLogin((prev) => ({
+                          ...prev,
+                          email: e.target.value
+                        }))
+                      }}
+                    />
+                    <TextField
+                      id='login-password-input'
+                      label='Password'
+                      autoComplete='current-password'
+                      type={visible ? 'text' : 'password'}
+                      value={userLogin.password}
+                      onChange={(e) => {
+                        setUserLogin((prev) => ({
+                          ...prev,
+                          password: e.target.value
+                        }))
+                      }}
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position='end'>
+                              {visible ? (
+                                <VisibilityIcon
+                                  onClick={() => {
+                                    setVisible(false)
+                                  }}
+                                />
+                              ) : (
+                                <VisibilityOffIcon
+                                  onClick={() => {
+                                    setVisible(true)
+                                  }}
+                                />
+                              )}
+                            </InputAdornment>
+                          )
+                        }
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {' '}
+                    <TextField
+                      id='standard-usrname-input'
+                      label='Your name'
+                      type='text'
+                      autoComplete='off'
+                      value={userSignup.name}
+                      onChange={(e) =>
+                        setUserSignup((prev) => ({
+                          ...prev,
+                          name: e.target.value
+                        }))
+                      }
+                    />
+                    <TextField
+                      id='signup-email-input'
+                      label='Email'
+                      type='text'
+                      autoComplete='current-password'
+                      value={userSignup.email}
+                      onChange={(e) =>
+                        setUserSignup((prev) => ({
+                          ...prev,
+                          email: e.target.value
+                        }))
+                      }
+                    />
+                    <TextField
+                      id='signup-password-input'
+                      label='Password'
+                      type={visible ? 'text' : 'password'}
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position='end'>
+                              {visible ? (
+                                <VisibilityIcon
+                                  onClick={() => {
+                                    setVisible(false)
+                                  }}
+                                />
+                              ) : (
+                                <VisibilityOffIcon
+                                  onClick={() => {
+                                    setVisible(true)
+                                  }}
+                                />
+                              )}
+                            </InputAdornment>
+                          )
+                        }
+                      }}
+                      autoComplete='current-password'
+                      value={userSignup.password}
+                      onChange={(e) => {
+                        setUserSignup((prev) => ({
+                          ...prev,
+                          password: e.target.value
+                        }))
+                        setPasswordLength(e.target.value.length)
+                      }}
+                    />
+                  </>
+                )}
+              </Box>
+              <AppAlert
+                AlertContent={AlertContent}
+                SetAlertContent={SetAlertContent}
+              />
+              <Box sx={{ marginTop: '10px' }}>
+                <Link sx={{ cursor: 'pointer' }}>Fogot password</Link>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                    marginBottom: '16px'
+                  }}
+                >
+                  <Button variant='contained' type='submit'>
+                    {loginOn ? 'Login' : 'Signup'}
+                  </Button>
+                  <Button
+                    variant='outlined'
+                    type="button"
+
+                    onClick={() => {
+                      setLoginOn(!loginOn)
+                      setVisible(false)
+                    }}
+                  >
+                    {loginOn ? 'Create new account' : 'Already has account'}
+                  </Button>
+                </Box>
+                <Link
+                  sx={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    width: 'fit-content',
+                    margin: '0 auto 10px'
+                  }}
+                  onClick={() => navigate('/')}
+                >
+                  Continue as Guest
+                </Link>
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Alert
+                  severity={passwordLength >= 8 ? 'success' : 'warning'}
+                  sx={{
+                    width: '250px',
+                    height: '80px',
+                    display: 'flex',
+
+                    opacity: loginOn ? 0 : 100,
+                    transition: 'linear 0.3s'
+                  }}
+                >
+                  <Typography>
+                    The password must be 8 characters long.
+                  </Typography>
+                </Alert>
+                <Alert
+                  severity={
+                    /\d/.test(userSignup.password) ? 'success' : 'warning'
+                  }
+                  sx={{
+                    width: '250px',
+                    height: '80px',
+                    display: 'flex',
+
+                    opacity: loginOn ? 0 : 100,
+                    transition: 'linear 0.3s'
+                  }}
+                >
+                  <Typography>
+                    The password must have at least 1 number.
+                  </Typography>
+                </Alert>
+              </Box>
+            </form>
+          </Box>
+        </Paper>
+      </Box>
+    </Box>
+  )
+}
+
+export default Login
