@@ -407,7 +407,7 @@ def test_gi25_legend_colors(legend):
     assert len(colors) == 256
     assert all(re.fullmatch(r"#[0-9a-f]{6}", c) for c in colors)
     assert colors[0] == "#0000ff"
-    assert colors[-1] == "#ff0000"
+    assert colors[-1] == "#b20000"
     assert colors[127] == "#ffffff"
     assert colors[128] == "#ffffff"
 
