@@ -354,13 +354,83 @@ def _nearby(lat, lng, incidents, radius_ft):
 
 
 def _spot_text(rank, lat, lng, incidents, radius_ft, value_text):
-    """'1. Near Fort Myers (26.6406, -81.8723): <value>; 85 incidents within 1,500 ft, most often Theft.'"""
+    """'1. Near Fort Myers (26.6406, -81.8723): <value>; 85 incidents within 1,500 ft, most often
+    Traffic (40), then Disturbance (25) and Violent Crime (8).' Traffic or Disturbance tops nearly
+    every spot, so the next two types say more about the place."""
     nearby, place = _nearby(lat, lng, incidents, radius_ft)
     text = f"<b>{rank}.</b> {_sentence(place) if place else ''}({lat:.4f}, {lng:.4f}): {value_text}; " \
            f"<b>{len(nearby):,}</b> incident{'s' if len(nearby) != 1 else ''} within {radius_ft:,.0f} ft"
-    if nearby:
-        text += f", most often {_type_label(Counter(_type_key(i) for i in nearby).most_common(1)[0][0])}"
-    return text + "."
+    return text + _type_mix(nearby) + "."
+
+
+def _type_mix(incidents):
+    """', most often Traffic (40), then Disturbance (25) and Violent Crime (8)', or ', all Violent Crime'."""
+    top3 = Counter(_type_key(i) for i in incidents).most_common(3)
+    if len(top3) == 1:
+        return f", all {_type_label(top3[0][0])}"
+    parts = [f"{_type_label(k)} ({n:,})" for k, n in top3]
+    return f", most often {parts[0]}, then {' and '.join(parts[1:])}" if parts else ""
+
+
+_LEVEL_SIZES = {"district": "broad areas", "neighborhood": "neighborhood-sized", "street": "tight, block-sized"}
+
+
+def _cluster_spots(response, incidents):
+    """The biggest DBSCAN clusters at the tightest level that found any, as report paragraphs' text.
+
+    Each of the response's incident points carries its cluster's id, so a cluster's incidents are
+    the report's incidents at those points and its types are counted exactly. The points come back
+    with a trillionth of a degree of drift, so they are matched at 7 decimals: rounding at 5 or 6
+    would split coordinates stored as, say, -81.794725 from their copies."""
+    levels = response["frames"][0]["levels"]
+    configs = response.get("level_configs") or {}
+    found = [lvl for lvl in _level_order(levels) if _cluster_polygons(levels[lvl])]
+    if not found:
+        loosest = _level_order(levels)[0]
+        meta = levels[loosest].get("metadata") or {}
+        eps = meta.get("eps", (configs.get(loosest) or {}).get("epsilon"))
+        min_pts = meta.get("min_pts", (configs.get(loosest) or {}).get("min_pts"))
+        if eps is None or min_pts is None:
+            return ["No clusters were found at any level."]
+        return [f"No clusters were found at any level: even at the {_LEVEL_LABELS.get(loosest, loosest.title())} "
+                f"level, no group of at least {min_pts} incidents fell within {eps:,.0f} ft of each other."]
+    level = found[-1]  # the tightest level that found clusters says the most about where
+    features = levels[level]["features"]
+
+    def spot(lng, lat):
+        return round(float(lat), 7), round(float(lng), 7)
+
+    at = {}  # each place -> the report's incidents there
+    for inc in incidents:
+        if inc.get("lat") is not None and inc.get("lng") is not None:
+            at.setdefault(spot(inc["lng"], inc["lat"]), []).append(inc)
+    points = {}  # each cluster -> its incident points
+    for f in features:
+        props = f.get("properties") or {}
+        if props.get("feature_type") == "point" and (props.get("cluster_id") or 0) >= 0:
+            points.setdefault(props["cluster_id"], set()).add(spot(*f["geometry"]["coordinates"][:2]))
+
+    clusters = sorted(_cluster_polygons(levels[level]), key=lambda f: -(f.get("properties") or {}).get("point_count", 0))
+    total = response["frames"][0].get("n_incidents") or len(incidents)
+    held = sum((f.get("properties") or {}).get("point_count", 0) for f in clusters)
+    name = _LEVEL_LABELS.get(level, level.title())
+    lines = [f"<b>{name} level</b> ({_LEVEL_SIZES.get(level, 'clusters')}): {len(clusters)} cluster"
+             f"{'s' if len(clusters) != 1 else ''}, holding {held:,} of the {total:,} incidents ({held / total:.0%}); "
+             f"the other {total - held:,} {'are' if total - held != 1 else 'is'} in no {name.lower()} cluster."]
+    shown = clusters[:_SPOTS]
+    lines.append(f"The {len(shown)} largest:" if len(shown) > 1 else "The cluster:")
+    for rank, f in enumerate(shown, 1):
+        props = f.get("properties") or {}
+        places = points.get(props.get("cluster_id"), set())
+        members = [inc for p in places for inc in at.get(p, [])]
+        lat = sum(p[0] for p in places) / len(places) if places else None
+        lng = sum(p[1] for p in places) / len(places) if places else None
+        cities = Counter((i.get("city") or "").strip().title() for i in members if (i.get("city") or "").strip())
+        where = f"Near {cities.most_common(1)[0][0]} " if cities else ""
+        where += f"({lat:.4f}, {lng:.4f})" if lat is not None else ""
+        n = props.get("point_count", len(members))
+        lines.append(f"<b>{rank}.</b> {where}: <b>{n:,}</b> incident{'s' if n != 1 else ''}{_type_mix(members)}.")
+    return lines
 
 
 def _gi_confidence(z):
@@ -476,9 +546,10 @@ def _analysis_maps(bounds, analyses, incidents):
         if png and kind != "dbscan" and len(incidents) < _MIN_INCIDENTS_FOR_SPOTS:
             spots = [f"Only {len(incidents)} incident{'s' if len(incidents) != 1 else ''} in this area, too few "
                      f"to single out its {'densest spots' if kind == 'kde' else 'hot spots'}."]
-        elif png and kind != "dbscan" and response.get("legend"):
+        elif png and (kind == "dbscan" or response.get("legend")):
             try:
-                spots = _map_spots(kind, response, bounds, incidents)
+                spots = _cluster_spots(response, incidents) if kind == "dbscan" else \
+                    _map_spots(kind, response, bounds, incidents)
             except Exception:
                 spots = []  # the map still goes in without its list
         maps.append((title, png, legend if png else None, _MAP_CAPTIONS[kind], spots))
@@ -515,7 +586,7 @@ _CATEGORY_LABELS = {
 }
 
 # the charts colour the biggest few types and fold the rest into one grey band
-_TOP_TYPES = 5
+_TOP_TYPES = 7
 _REST = "_rest"
 _REST_COLOR = "#c7ccd1"
 _BG = "#f8f9fa"
@@ -576,7 +647,7 @@ def _style_axes(ax):
     ax.tick_params(labelsize=7.5)
 
 
-def _legend_below(fig, keys, ncol=3):
+def _legend_below(fig, keys, ncol=4):
     handles = [plt.Rectangle((0, 0), 1, 1, color=_type_color(k)) for k in keys]
     fig.legend(handles, [_type_label(k) for k in keys], loc="lower center", ncol=ncol,
                fontsize=7.5, frameon=False, bbox_to_anchor=(0.5, -0.01))
@@ -670,13 +741,15 @@ def _line_chart(incidents, start_date, end_date, top, published_through=None):
         ax.stackplot(periods, [counts[k] for k in keys], colors=[_type_color(k) for k in keys],
                      edgecolor="white", linewidth=0.3)
     totals = sum(counts.values())
-    complete = []  # each period's total, leaving out the days not yet published
-    for period, period_total in zip(periods, totals):
+    complete = []  # the periods to average, leaving out the days not yet published
+    for i, period in enumerate(periods):
         if published_through is None or period <= published_through:
-            complete.append(period_total)
+            complete.append(i)
     if not complete:
-        complete = list(totals)  # every day is waiting on the log: average them all
-    avg = sum(complete) / len(complete)
+        complete = list(range(len(periods)))  # every day is waiting on the log: average them all
+    avg = totals[complete].mean()
+    # each type's total and average, both leaving out the shaded days; the averages add up to avg
+    by_type = {k: (int(counts[k][complete].sum()), counts[k][complete].mean()) for k in keys}
     ax.axhline(avg, color="#333", linestyle="--", linewidth=0.8)
     ax.text(periods[-1], avg, f" avg {avg:.0f}", va="bottom", ha="right", fontsize=7, color="#333")
     if published_through:
@@ -685,8 +758,15 @@ def _line_chart(incidents, start_date, end_date, top, published_through=None):
         last = datetime.datetime.combine(periods[-1], datetime.time()) + datetime.timedelta(hours=12)
         pending = max(datetime.datetime.combine(published_through, datetime.time(12)), first)
         ax.axvspan(pending, last, color="#999", alpha=0.15, linewidth=0)
-        ax.text(pending + (last - pending) / 2, ax.get_ylim()[1] * 0.95, "Not yet published\n(except Traffic)",
-                ha="center", va="top", fontsize=7, style="italic", color="#555")
+        # label the middle of the part that shows: the axis ends at the last day unless it is the only one.
+        # A strip too narrow for the label gets it just to its left, so it stays on the chart
+        shown = last if len(periods) == 1 else datetime.datetime.combine(periods[-1], datetime.time())
+        narrow = len(periods) > 1 and (shown - pending) < 0.2 * (periods[-1] - periods[0])
+        ax.text(pending if narrow else pending + (shown - pending) / 2, 0.5,
+                "Not yet published\n(except Traffic)" + ("  →" if narrow else ""),
+                transform=ax.get_xaxis_transform(), ha="right" if narrow else "center", va="center",
+                fontsize=7, style="italic", color="#555",
+                bbox={"facecolor": "white", "alpha": 0.7, "edgecolor": "none", "pad": 1.5})
 
     unit = "week" if weekly else "day"
     ax.set_title(f"Incidents per {unit}, split by type", fontsize=10.5, fontweight="bold", pad=10, loc="left")
@@ -701,7 +781,7 @@ def _line_chart(incidents, start_date, end_date, top, published_through=None):
 
     _legend_below(fig, keys)
     plt.tight_layout(rect=(0, 0.1, 1, 1))
-    return _save_chart(fig), unit, totals, periods, avg
+    return _save_chart(fig), unit, totals, periods, avg, by_type
 
 
 def _timing_chart(incidents, top):
@@ -883,6 +963,8 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
     # Charts: every one is split into the same top types, in the same colours as the map
     total = len(incidents)
     top_types = [k.strip().lower() for k, _ in nature_counts.most_common(_TOP_TYPES)]
+    if "violent" not in top_types and any(_type_key(inc) == "violent" for inc in incidents):
+        top_types[-1] = "violent"  # Violent Crime always gets its own colour, even when it is rare
 
     def chart_block(title, png, caption):
         return KeepTogether([Paragraph(title, h2_s), _chart_image(png), Paragraph(caption, note_s)])
@@ -921,14 +1003,29 @@ def generate_pdf(incidents, bounds, start_date, end_date, filters=None, analyses
         pending_note = (f" <b>{span}</b> {is_are} not yet published for types other than Traffic. "
                         "Traffic comes from the Sheriff's live traffic feed; everything else comes from its "
                         "incident log, which is published 48 hours late.")
-    trend_png, unit, per_period, periods, avg = _line_chart(incidents, start_date, end_date, top_types, published)
+    trend_png, unit, per_period, periods, avg, by_type = _line_chart(
+        incidents, start_date, end_date, top_types, published)
     if per_period.any():
         peak = int(per_period.argmax())
         when = f"the week of {periods[peak]:%b %d}" if unit == "week" else f"{periods[peak]:%A, %b %d}"
         some_shaded = published and published >= start_date
-        caption = (f"An average of <b>{avg:.1f}</b> incidents per {unit} (dashed line"
-                   f"{', not counting the shaded days' if some_shaded else ''}). "
-                   f"The busiest {unit} was <b>{when}</b>, with {int(per_period[peak]):,}.")
+        one = len(periods) == 1  # a one-day report: its counts, not averages
+        parts = []
+        for k, (n, mean) in by_type.items():
+            name = "all other types" if k == _REST else _type_label(k)
+            if k == "violent":
+                name = f"<b>{name}</b>"
+            parts.append(f"{name} {n:,}" if one else f"{name} {n:,} ({mean:.{0 if mean >= 10 else 1}f}/{unit})")
+        if one:
+            caption = f"<b>{int(per_period[0]):,}</b> incidents on this day."
+            caption += f" By type: {', '.join(parts)}." if len(parts) > 1 else ""
+        else:
+            caption = (f"An average of <b>{avg:.1f}</b> incidents per {unit} (dashed line"
+                       f"{', not counting the shaded days' if some_shaded else ''}). "
+                       f"The busiest {unit} was <b>{when}</b>, with {int(per_period[peak]):,}.")
+            if len(parts) > 1:
+                caption += (f" By type, the total and the average per {unit}"
+                            f"{' (not counting the shaded days)' if some_shaded else ''}: {', '.join(parts)}.")
         if published:
             caption += pending_note
     else:

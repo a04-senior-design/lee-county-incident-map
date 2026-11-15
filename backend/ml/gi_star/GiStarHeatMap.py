@@ -192,7 +192,7 @@ class GiStarHeatMap:
         # min/max boundary coordinates in latitude/longitude
         bounds = BoundingBox(*array_bounds(height, width, dst_transform))
 
-        # color map for coloring the heat map (unchanged)
+        # color map for coloring the heat map
         colors = [
             (0.0,   (0, 0, 1, 1)),        # Z = -3 blue
             (0.2,   (0.5, 0.5, 1, 0.6)),  # Z = -1.8 light blue
@@ -201,12 +201,12 @@ class GiStarHeatMap:
             (0.75,  (1, 1, 0, 0.7)),      # Z =  1.5 yellow
             (0.83,  (1, 0.6, 0, 0.85)),   # Z =  2.0 orange
             (0.958, (1, 0, 0, 1)),        # Z =  2.75 bright red
-            (1.0,   (1, 0, 0, 1)),        # Z =  3.0: still bright red
+            (1.0,   (0.7, 0, 0, 1)),      # Z =  3.0: deep red 
         ]
         # NaN (no data) pixels are fully transparent
         cmap = LinearSegmentedColormap.from_list('gi_star_fade', colors).with_extremes(bad=(0, 0, 0, 0))
 
-        # diverging norm centered at 0 so blue/red are symmetric (unchanged)
+        # diverging norm centered at 0 so blue/red are symmetric
         if z_abs_max is None:
             finite_z = self.z_scores[np.isfinite(self.z_scores)]
             z_abs_max = max(np.abs(finite_z).max(), 1e-6) if finite_z.size else 1.0
@@ -289,7 +289,7 @@ class GiStarHeatMap:
             (0.75,  (1, 1, 0, 0.7)),      # Z =  1.5 yellow
             (0.83, (1, 0.6, 0, 0.85)),   # Z =  2.0 orange
             (0.958, (1, 0, 0, 1)),        # Z =  2.75 bright red
-            (1.0,   (1, 0, 0, 1)),        # Z =  3.0: still bright red
+            (1.0,   (0.7, 0, 0, 1)),        # Z =  3.0: deep red
         ]
 
         heat_cmap = LinearSegmentedColormap.from_list('gi_star_fade', colors)

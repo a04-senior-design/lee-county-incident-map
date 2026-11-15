@@ -162,12 +162,20 @@
     const month = viewMonth.getMonth();
     const [start, end] = draft;
     const nextDisabled = new Date(year, month + 1, 1) > todayDate;
+    const nextYearDisabled = new Date(year + 1, month, 1) > todayDate;
 
     let html = `<div class="cal-header">
-      <button type="button" data-nav="-1">&#9664;</button>
+      <span class="cal-nav">
+        <button type="button" data-nav="-12" title="Previous year" aria-label="Previous year">&laquo;</button>
+        <button type="button" data-nav="-1" title="Previous month" aria-label="Previous month">&#9664;</button>
+      </span>
       <span>${MONTHS[month]} ${year}</span>
-      <button type="button" data-nav="1" ${nextDisabled ? "disabled" : ""}>&#9654;</button>
+      <span class="cal-nav">
+        <button type="button" data-nav="1" title="Next month" aria-label="Next month" ${nextDisabled ? "disabled" : ""}>&#9654;</button>
+        <button type="button" data-nav="12" title="Next year" aria-label="Next year" ${nextYearDisabled ? "disabled" : ""}>&raquo;</button>
+      </span>
     </div><div class="cal-grid">`;
+
     for (const dow of ["Su","Mo","Tu","We","Th","Fr","Sa"]) html += `<div class="cal-dow">${dow}</div>`;
 
     const first = new Date(year, month, 1);
@@ -439,6 +447,24 @@
   function removeKDEHeatmapLevelSliders() {
     kdeLevelSlidersContainer.innerHTML = "";
     kdeLevelHint.textContent = "Click Apply to load frame 1's cluster levels.";
+  }
+
+  // replace each list of cluster level numbers in a backend error message, e.g. "[0, 1, 2]",
+  // with the Cluster Analysis run's category names, e.g. "[District, Neighborhood, Street]";
+  // a list with a level the run has no category for is left as it is
+  function nameClusterLevelsInMessage(message) {
+    return message.replace(/\[([\d,\s]+)\]/g, (match, numbersText) => {
+      const names = [];
+      for (const part of numbersText.split(",")) {
+        const level = Number(part.trim());
+        const tier = dbscanRunTiers[level];
+        if (!tier) {
+          return match;
+        }
+        names.push(LEVEL_LABELS[tier]);
+      }
+      return `[${names.join(", ")}]`;
+    });
   }
 
 
@@ -1023,7 +1049,20 @@
         else if (mode === "gistar-heatmap") {
           fallbackMessage = "Failed to load Gi* heat map snapshots";
         }
-        errorLabel.textContent = body.error || fallbackMessage;
+        let message = body.error || fallbackMessage;
+
+        // "KDE (by cluster density level)" errors list levels as numbers, e.g. "[0, 1, 2]"; show category names instead
+        if (mode === "cluster-levels") {
+          try {
+            message = nameClusterLevelsInMessage(message);
+          }
+          catch (err) {
+            // keep the backend's message as it is if the names can't be filled in
+            console.error(err);
+          }
+        }
+        errorLabel.textContent = message;
+
         // e.g. the Cluster Analysis run changed and the slider count no longer matches frame 1
         if (mode === "cluster-levels") {
           removeKDEHeatmapLevelSliders();

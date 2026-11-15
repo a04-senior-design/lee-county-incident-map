@@ -341,6 +341,7 @@ html, body {
 }
 .cal-header button:hover:not(:disabled) { background: #f1f3f5; }
 .cal-header button:disabled { color: #adb5bd; cursor: default; }
+.cal-nav { display: flex; gap: 2px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
 .cal-dow { font-size: 0.72rem; color: #868e96; padding: 0.2rem 0; }
 .cal-day {

@@ -1357,7 +1357,12 @@ components:
           items:
             type: object
             properties:
-              label: { type: string, example: Frame 1 }
+              label: { type: string, example: "2026-09-01 00:00 - 2026-09-08 00:00" }
+              window_start:
+                type: string
+                format: date-time
+                description: The window of the /api/v1/animation/dbscan frame this one was made from.
+              window_end: { type: string, format: date-time }
               n_incidents: { type: integer }
               image:
                 type: [string, "null"]
