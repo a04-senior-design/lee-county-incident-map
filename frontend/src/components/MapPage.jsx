@@ -72,7 +72,7 @@ function MapPage() {
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
   const [isPulled, setIsPulled] = useState(false) //pull out the interactive list
-  const [aboutPop, setAboutPop] = useState(true)
+  const [aboutPop, setAboutPop] = useState(false)
   //This state is used for addresswithout location to trigger the function in Map
   const [noLocationMove, setNoLocationMove] = useState(null)
   //── Alert ───────────────────────────────────────────────────────────
