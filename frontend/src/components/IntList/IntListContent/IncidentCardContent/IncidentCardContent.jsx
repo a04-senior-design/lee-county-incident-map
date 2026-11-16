@@ -1,19 +1,16 @@
-import Button from '@mui/material/Button'
+
 import Card from '@mui/material/Card'
-import CardActions from '@mui/material/CardActions'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
-import ArrowOutwardIcon from '@mui/icons-material/ArrowOutward'
 import CardMedia from '@mui/material/CardMedia'
 import Box from '@mui/material/Box'
-import { useState, useContext } from 'react'
+import { useState } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 function IncidentCardContent({
   incidentList,
   getLocation,
   getIncidentID,
   latlon,
-  setNoLocationMove,
   incidentColors
 }) {
   const [targetCard, setTargetCard] = useState(null)
@@ -25,9 +22,7 @@ function IncidentCardContent({
 
     return incidentColors.default
   }
-  const selectCard = (key) => {
-    setTargetCard(key)
-  }
+ 
   return (
     <>
       <Virtuoso
@@ -123,26 +118,7 @@ function IncidentCardContent({
                   </Typography>
                 </Box>
               </CardContent>
-              {/* <CardActions>
-                <Button size='small'>Share</Button>
-                <Button
-                  endIcon={<ArrowOutwardIcon sx={{}} />}
-                  size='small'
-                  onClick={() => {
-                    if (latlon === 1) {
-                      getLocation(incident.lat, incident.lon)
-                      getIncidentID(incident.source_incident_id)
-                    } else {
-                      setNoLocationMove({
-                        address: incident.address,
-                        trigger: Date.now()
-                      })
-                    }
-                  }}
-                >
-                  {latlon === 1 ? 'Go to Map' : 'Search on map'}
-                </Button>
-              </CardActions> */}
+             
             </Card>
           </Box>
         )}

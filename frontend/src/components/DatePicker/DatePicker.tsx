@@ -1,7 +1,6 @@
 import dayjs from 'dayjs'
 import { DatePickerInput } from '@mantine/dates'
 import { useEffect, useState } from 'react'
-import Box from '@mui/material/Box'
 type DateRange = [string | null, string | null]
 type DatePickerProps = {
   dateRange: DateRange
@@ -27,6 +26,8 @@ function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
   return (
     <>
       <DatePickerInput
+        aria-label='Filter incidents by date range'
+        clearButtonProps={{ 'aria-label': 'Clear date range' }}
         maxDate={today.toDate()}
         popoverProps={{ zIndex: 2000 }}
         styles={{
@@ -45,13 +46,6 @@ function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
         value={draft}
         onChange={handleChange}
         presets={[
-          {
-            value: [
-              today.subtract(2, 'day').format('YYYY-MM-DD'),
-              today.format('YYYY-MM-DD')
-            ],
-            label: 'Last two days'
-          },
           {
             value: [
               today.subtract(7, 'day').format('YYYY-MM-DD'),
@@ -79,12 +73,9 @@ function DatePicker({ dateRange, setDateRange }: DatePickerProps) {
               today.subtract(1, 'year').endOf('year').format('YYYY-MM-DD')
             ],
             label: 'Last year'
-          },
-          
+          }
         ]}
-        
       />
-   
     </>
   )
 }

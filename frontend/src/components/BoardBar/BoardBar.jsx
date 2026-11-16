@@ -2,7 +2,6 @@ import ModeSelect from '../ModeSelect/ModeSelect'
 import Box from '@mui/material/Box'
 import IntList from '../IntList/IntList'
 import Button from '@mui/material/Button'
-import TravelExploreIcon from '@mui/icons-material/TravelExplore'
 import TextSnippetIcon from '@mui/icons-material/TextSnippet'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import { useState } from 'react'
@@ -10,7 +9,6 @@ import AnimationIcon from '@mui/icons-material/Animation'
 import { useAuth } from '../../Context/AuthContext'
 import RouteIcon from '@mui/icons-material/Route'
 import AddAlertIcon from '@mui/icons-material/AddAlert'
-import ReportBtn from './ReportBtn/ReportBtn'
 import SelectAllIcon from '@mui/icons-material/SelectAll'
 function BoardBar({
   filteredListWithLocation,
@@ -25,7 +23,6 @@ function BoardBar({
   incidentColors,
   analysisOn,
   setAnalysisOn,
-  dateRange,
   routeOn,
   setRouteOn,
   setSelectedId,
@@ -36,7 +33,6 @@ function BoardBar({
   setDrawArea,
   handleReport,
   reportLoading,
-  setReportMapState
 }) {
   // const [activeBtn, setActiveBtn] = useState({
   //   search: false,
@@ -44,7 +40,7 @@ function BoardBar({
   //   heatMap: false,
   //   animation: false
   // })
-  const { user, token } = useAuth()
+  const { user } = useAuth()
   const [activeBtn, setActiveBtn] = useState(null)
   const handleActive = (e) => {
     const value = e.currentTarget.value
@@ -125,7 +121,7 @@ function BoardBar({
             { padding: '8px 20px' }
           ]}
           startIcon={<SelectAllIcon />}
-          onClick={(e) => {
+          onClick={() => {
             setSelectedId(null)
             setAreaBounds(null)
             setDrawArea(!drawArea)
@@ -221,7 +217,7 @@ function BoardBar({
             { padding: '8px 20px' }
           ]}
           startIcon={<RouteIcon />}
-          onClick={(e) => {
+          onClick={() => {
             setSelectedId(null)
             setAddressSearch(false)
             setIsPulled(false)

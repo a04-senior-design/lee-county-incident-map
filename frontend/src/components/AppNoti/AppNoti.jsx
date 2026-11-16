@@ -115,13 +115,14 @@ function AppNoti({ CATEGORY_COLORS }) {
       </Tooltip>
 
       <Popover
+        sx={{ padding: 2 }}
         open={Boolean(anchorEl)}
         anchorEl={anchorEl}
         onClose={() => handleClose()}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <List sx={{ width: 350, maxHeight: 400, overflow: 'auto', p: 1 }}>
+        <List sx={{ width: 350, maxHeight: 400, overflow: 'auto', p: 2 }}>
           {alerts.length === 0 ? (
             <Typography sx={{ p: 2 }} color='text.secondary'>
               No new alerts

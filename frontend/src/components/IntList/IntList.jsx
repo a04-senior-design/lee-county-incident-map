@@ -40,10 +40,8 @@ function a11yProps(index) {
 
 function IntList({
   listWithLocation,
-  listWithoutLocation,
   getLocation,
   getIncidentID,
-  setNoLocationMove,
   isPulled,
   setIsPulled,
   incidentColors,

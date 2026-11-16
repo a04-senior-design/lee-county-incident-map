@@ -58,7 +58,7 @@ function ReportBtn({
         }}
       >
         <MenuItem
-          onClick={(e) => {
+          onClick={() => {
             handleClose()
             setReportBtn(true)
             handleReport(false)

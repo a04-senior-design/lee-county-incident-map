@@ -25,7 +25,6 @@ function MapInfoBar({
   isLoading,
   setTimeRange,
   timeRange,
-  setAlertContent
 }) {
   const [anchorEl, setAnchorEl] = useState(null)
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -106,7 +105,7 @@ function MapInfoBar({
         icon={isLoading ? <CircularProgress size={22} /> : <ModeStandbyIcon />}
         label={
           filteredListWithLocation.length !== 0
-            ? `${filteredListWithLocation.length}/${filteredListWithLocation.length + filteredListWithoutLocation.length}  incidents`
+            ? `${filteredListWithLocation.length} incidents`
             : '0 incidents'
         }
       />
@@ -177,7 +176,7 @@ function MapInfoBar({
       </Box>
       <Box
         sx={{
-          width: '300px',
+          width: '350px',
           '& .m_8fb7ebe7': {
             fontWeight: 500
           }

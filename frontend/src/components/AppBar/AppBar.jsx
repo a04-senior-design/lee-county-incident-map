@@ -1,29 +1,22 @@
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import Tooltip from '@mui/material/Tooltip'
-import IconButton from '@mui/material/IconButton'
-import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
-import Badge from '@mui/material/Badge'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Avatar from '@mui/material/Avatar'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import LogoutIcon from '@mui/icons-material/Logout'
-import AccountCircleIcon from '@mui/icons-material/AccountCircle'
-import Divider from '@mui/material/Divider'
 import Page from '../../assets/icon/pageIcon.svg?react'
 import SvgIcon from '@mui/material/SvgIcon'
 import Button from '@mui/material/Button'
 import InfoIcon from '@mui/icons-material/Info'
-import HomeIcon from '@mui/icons-material/Home'
 import LocalLibraryIcon from '@mui/icons-material/LocalLibrary'
 import MessageIcon from '@mui/icons-material/Message'
 import Link from '@mui/material/Link'
 import { useAuth } from '../../Context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import AppNoti from '../AppNoti/AppNoti'
-function AppBar({ setAccountPop, accountPop, setIsPulled, CATEGORY_COLORS }) {
+function AppBar({ setAccountPop, setIsPulled, CATEGORY_COLORS, setAboutPop }) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState(null)
@@ -94,6 +87,11 @@ function AppBar({ setAccountPop, accountPop, setIsPulled, CATEGORY_COLORS }) {
                 })
             ]}
             startIcon={<LocalLibraryIcon />}
+            onClick={() =>
+              window.open(
+                'https://github.com/a04-senior-design/lee-county-incident-map'
+              )
+            }
           >
             Resources
           </Button>
@@ -106,20 +104,9 @@ function AppBar({ setAccountPop, accountPop, setIsPulled, CATEGORY_COLORS }) {
                 })
             ]}
             startIcon={<InfoIcon />}
+            onClick={() => setAboutPop(true)}
           >
             About
-          </Button>
-          <Button
-            sx={[
-              { color: 'white' },
-              (theme) =>
-                theme.applyStyles('dark', {
-                  color: 'rgba(255, 255, 255, 0.92)'
-                })
-            ]}
-            startIcon={<MessageIcon />}
-          >
-            Feedback
           </Button>
         </Box>
       </Box>

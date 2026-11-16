@@ -403,7 +403,7 @@ function Login() {
                 SetAlertContent={SetAlertContent}
               />
               <Box sx={{ marginTop: '10px' }}>
-                <Link sx={{ cursor: 'pointer' }}>Fogot password</Link>
+                <Link sx={{ cursor: 'pointer' }}>Forgot password</Link>
                 <Box
                   sx={{
                     display: 'flex',
