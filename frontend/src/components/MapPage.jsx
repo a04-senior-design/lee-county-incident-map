@@ -9,6 +9,7 @@ import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import AppAlert from './AppAlert/AppAlert'
 import dayjs from 'dayjs'
+import About from './About/About'
 import { useAuth } from '../Context/AuthContext'
 const today = dayjs()
 // Lee County, FL extent: west,south,east,north (lng,lat,lng,lat)
@@ -71,6 +72,7 @@ function MapPage() {
   // ── UI State ──────────────────────────────────────────────────────────────────
   const [addressSearch, setAddressSearch] = useState(false)
   const [isPulled, setIsPulled] = useState(false) //pull out the interactive list
+  const [aboutPop, setAboutPop] = useState(true)
   //This state is used for addresswithout location to trigger the function in Map
   const [noLocationMove, setNoLocationMove] = useState(null)
   //── Alert ───────────────────────────────────────────────────────────
@@ -368,12 +370,15 @@ function MapPage() {
         position: 'relative'
       }}
     >
+      {/* about */}
+      <About aboutPop={aboutPop} setAboutPop={setAboutPop} />
       {/* App bar */}
       <AppBar
         accountPop={accountPop}
         setAccountPop={setAccountPop}
         setIsPulled={setIsPulled}
         CATEGORY_COLORS={CATEGORY_COLORS}
+        setAboutPop={setAboutPop}
       />
       {/* Board bar */}
       <BoardBar

@@ -16,7 +16,7 @@ import Link from '@mui/material/Link'
 import { useAuth } from '../../Context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import AppNoti from '../AppNoti/AppNoti'
-function AppBar({ setAccountPop, setIsPulled, CATEGORY_COLORS }) {
+function AppBar({ setAccountPop, setIsPulled, CATEGORY_COLORS, setAboutPop }) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState(null)
@@ -87,6 +87,11 @@ function AppBar({ setAccountPop, setIsPulled, CATEGORY_COLORS }) {
                 })
             ]}
             startIcon={<LocalLibraryIcon />}
+            onClick={() =>
+              window.open(
+                'https://github.com/a04-senior-design/lee-county-incident-map'
+              )
+            }
           >
             Resources
           </Button>
@@ -99,20 +104,9 @@ function AppBar({ setAccountPop, setIsPulled, CATEGORY_COLORS }) {
                 })
             ]}
             startIcon={<InfoIcon />}
+            onClick={() => setAboutPop(true)}
           >
             About
-          </Button>
-          <Button
-            sx={[
-              { color: 'white' },
-              (theme) =>
-                theme.applyStyles('dark', {
-                  color: 'rgba(255, 255, 255, 0.92)'
-                })
-            ]}
-            startIcon={<MessageIcon />}
-          >
-            Feedback
           </Button>
         </Box>
       </Box>
