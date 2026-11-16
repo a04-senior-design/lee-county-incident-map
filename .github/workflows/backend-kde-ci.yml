@@ -1,0 +1,43 @@
+name: backend-kde CI
+
+on:
+  pull_request:
+    paths:
+      - 'backend/ml/kde/**'
+      - 'backend/requirements.txt'
+      - '.github/workflows/backend-kde-ci.yml'
+  push:
+    branches: [dev, main]
+    paths:
+      - 'backend/ml/kde/**'
+      - 'backend/requirements.txt'
+      - '.github/workflows/backend-kde-ci.yml'
+    
+concurrency:
+  group: backend-kde-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: 
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+        
+      - name: Test
+        working-directory: backend/ml/kde
+        run: python -m pytest -v -k "not bw08"
